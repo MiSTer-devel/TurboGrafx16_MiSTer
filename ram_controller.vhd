@@ -1,0 +1,146 @@
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+-- -----------------------------------------------------------------------
+
+entity ram_controller is
+	port (
+		-- System
+		clk : in std_logic;
+
+		vdccpu_req : in std_logic;
+		vdccpu_ack : out std_logic;
+		vdccpu_we : in std_logic;
+		vdccpu_a : in std_logic_vector(16 downto 1);
+		vdccpu_d : in std_logic_vector(15 downto 0);
+		vdccpu_q : out std_logic_vector(15 downto 0);
+
+		vdcbg_req : in std_logic;
+		vdcbg_ack : out std_logic;
+		vdcbg_a : in std_logic_vector(16 downto 1);
+		vdcbg_q : out std_logic_vector(15 downto 0);
+
+		vdcsp_req : in std_logic;
+		vdcsp_ack : out std_logic;
+		vdcsp_a : in std_logic_vector(16 downto 1);
+		vdcsp_q : out std_logic_vector(15 downto 0);
+
+		vdcdma_req : in std_logic;
+		vdcdma_ack : out std_logic;
+		vdcdma_we : in std_logic;
+		vdcdma_a : in std_logic_vector(16 downto 1);
+		vdcdma_d : in std_logic_vector(15 downto 0);
+		vdcdma_q : out std_logic_vector(15 downto 0);
+		
+		vdcdmas_req : in std_logic;
+		vdcdmas_ack : out std_logic;
+		vdcdmas_a : in std_logic_vector(16 downto 1);
+		vdcdmas_q : out std_logic_vector(15 downto 0)
+	);
+end entity;
+
+-- -----------------------------------------------------------------------
+
+architecture rtl of ram_controller is
+	signal ram_a : std_logic_vector(15 downto 0);
+	signal ram_d : std_logic_vector(15 downto 0);
+	signal ram_q : std_logic_vector(15 downto 0);
+	signal ram_we: std_logic;
+
+	signal vdccpu_ackReg : std_logic := '0';
+	signal vdcdma_ackReg : std_logic := '0';
+	signal vdcsp_ackReg : std_logic := '0';
+	signal vdcbg_ackReg : std_logic := '0';
+	signal vdcdmas_ackReg : std_logic := '0';
+
+	type ramPorts is (
+		PORT_NONE,
+		PORT_VDCCPU,
+		PORT_VDCDMA,
+		PORT_VDCSP,
+		PORT_VDCBG,
+		PORT_VDCDMAS,
+		PORT_ROMRD,
+		PORT_ROMWR
+	);
+
+	signal ramport  : ramPorts := PORT_NONE;
+	signal ramstage : std_logic := '0';
+
+begin
+	
+	vdccpu_ack  <= vdccpu_ackReg;
+	vdcdma_ack  <= vdcdma_ackReg;
+	vdcsp_ack   <= vdcsp_ackReg;
+	vdcbg_ack   <= vdcbg_ackReg;
+	vdcdmas_ack <= vdcdmas_ackReg;
+
+	ram : entity work.sram
+		port map (
+			clk => clk,
+			addr => ram_a,
+			dout => ram_q,
+			we => ram_we,
+			din => ram_d
+		);
+	
+	process(clk) begin
+		if rising_edge(clk) then
+			ram_we <= '0';
+
+			if ramstage = '0' then
+				ramport <= PORT_NONE;
+
+				case ramport is
+				when PORT_VDCCPU =>
+					vdccpu_q <= ram_q;
+					vdccpu_ackReg <= vdccpu_req;
+				when PORT_VDCBG =>
+					vdcbg_q <= ram_q;
+					vdcbg_ackReg <= vdcbg_req;
+				when PORT_VDCSP =>
+					vdcsp_q <= ram_q;
+					vdcsp_ackReg <= vdcsp_req;
+				when PORT_VDCDMA =>
+					vdcdma_q <= ram_q;
+					vdcdma_ackReg <= vdcdma_req;
+				when PORT_VDCDMAS =>
+					vdcdmas_q <= ram_q;
+					vdcdmas_ackReg <= vdcdmas_req;
+				when others =>
+					if vdccpu_req /= vdccpu_ackReg then
+						ram_a <= vdccpu_a;
+						ram_d <= vdccpu_d;
+						ram_we <= vdccpu_we;
+						ramport <= PORT_VDCCPU;
+						ramstage <= '1';
+					elsif vdcbg_req /= vdcbg_ackReg then
+						ram_a <= vdcbg_a;
+						ramport <= PORT_VDCBG;
+						ramstage <= '1';
+					elsif vdcsp_req /= vdcsp_ackReg then
+						ram_a <= vdcsp_a;
+						ramport <= PORT_VDCSP;
+						ramstage <= '1';
+					elsif vdcdma_req /= vdcdma_ackReg then
+						ram_a <= vdcdma_a;
+						ram_d <= vdcdma_d;
+						ram_we <= vdcdma_we;
+						ramport <= PORT_VDCDMA;
+						ramstage <= '1';
+					elsif vdcdmas_req /= vdcdmas_ackReg then
+						ram_a <= vdcdmas_a;
+						ramport <= PORT_VDCDMAS;
+						ramstage <= '1';
+					end if;
+				end case;
+			else
+				ramstage <= '0';
+			end if;
+		end if;
+	end process;
+
+end architecture;
