@@ -39,7 +39,8 @@ entity pce_top is
 		VIDEO_CE		: out std_logic;
 		VIDEO_VS_N	: out std_logic;
 		VIDEO_HS_N	: out std_logic;
-		VIDEO_BL_N	: out std_logic
+		VIDEO_HBL	: out std_logic;
+		VIDEO_VBL	: out std_logic
 	);
 end pce_top;
 
@@ -225,7 +226,8 @@ VCE : entity work.huc6260 port map(
 	B			=> B,
 	VS_N		=> VS_N,
 	HS_N		=> HS_N,
-	BL_N		=> VIDEO_BL_N
+	HBL		=> VIDEO_HBL,
+	VBL		=> VIDEO_VBL
 );
 
 

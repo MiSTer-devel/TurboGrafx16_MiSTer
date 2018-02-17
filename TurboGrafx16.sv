@@ -107,6 +107,8 @@ assign LED_POWER = 0;
 assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
 
+wire [1:0] scale = status[8:7];
+
 `include "build_id.v" 
 localparam CONF_STR = {
 	"TGFX16;;",
@@ -115,11 +117,13 @@ localparam CONF_STR = {
 	"O3,ROM Data Swap,No,Yes;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
+	"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"-;",
 	"O2,Turbo Tap,Disable,Enable;",
 	"-;",
 	"T6,Reset;",
 	"J1,Button I,Button II,Select,Run;",
-	"V,v1.00.",`BUILD_DATE
+	"V,v1.10.",`BUILD_DATE
 };
 
 ////////////////////   CLOCKS   ///////////////////
@@ -148,6 +152,7 @@ wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire [15:0] ioctl_dout;
 reg         ioctl_wait;
+wire        forced_scandoubler;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 (
@@ -158,6 +163,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 
 	.buttons(buttons),
 	.status(status),
+	.forced_scandoubler(forced_scandoubler),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
@@ -169,19 +175,6 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1)
 );
-
-wire [2:0] r,g,b;
-wire vs,hs;
-
-wire ce_vid;
-assign CLK_VIDEO = clk_sys;
-assign CE_PIXEL = ce_vid;
-
-assign VGA_HS = ~hs;
-assign VGA_VS = ~vs;
-assign VGA_R = {r,r,r[2:1]};
-assign VGA_G = {g,g,g[2:1]};
-assign VGA_B = {b,b,b[2:1]};
 
 wire [23:0] audio_l, audio_r;
 assign AUDIO_L = audio_l[23:8];
@@ -216,7 +209,48 @@ pce_top pce_top
 	.VIDEO_CE(ce_vid),
 	.VIDEO_VS_N(vs),
 	.VIDEO_HS_N(hs),
-	.VIDEO_BL_N(VGA_DE)
+	.VIDEO_HBL(hblank),
+	.VIDEO_VBL(vblank)
+);
+
+wire [2:0] r,g,b;
+wire vs,hs;
+wire hblank, vblank;
+
+wire ce_vid;
+assign CLK_VIDEO = clk_ram;
+
+reg ce_pix;
+always @(posedge clk_ram) begin
+	reg old_ce;
+	
+	old_ce <= ce_vid;
+	ce_pix <= ~old_ce & ce_vid;
+end
+
+video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
+(
+	.*,
+
+	.clk_sys(clk_ram),
+	.ce_pix(ce_pix),
+	.ce_pix_out(CE_PIXEL),
+
+	.scanlines({scale == 3, scale == 2}),
+	.scandoubler(scale || forced_scandoubler),
+	.hq2x(scale==1),
+
+	.mono(0),
+
+	.R({r,r[2]}),
+	.G({g,g[2]}),
+	.B({b,b[2]}),
+
+	// Positive pulses.
+	.HSync(~hs),
+	.VSync(~vs),
+	.HBlank(hblank),
+	.VBlank(vblank)
 );
 
 wire [19:0] rom_rdaddr;
