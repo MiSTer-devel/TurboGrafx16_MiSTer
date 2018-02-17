@@ -51,7 +51,7 @@ module emu
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
-	// b[1]: 0 - LED status is system status ORed with b[0]
+	// b[1]: 0 - LED status is system status OR'd with b[0]
 	//       1 - LED status is controled solely by b[0]
 	// hint: supply 2'b00 to let the system control the LED.
 	output  [1:0] LED_POWER,
@@ -60,6 +60,7 @@ module emu
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
 	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
+	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 	input         TAPE_IN,
 
 	// SD-SPI
@@ -67,6 +68,7 @@ module emu
 	output        SD_MOSI,
 	input         SD_MISO,
 	output        SD_CS,
+	input         SD_CD,
 
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
@@ -185,6 +187,7 @@ wire [23:0] audio_l, audio_r;
 assign AUDIO_L = audio_l[23:8];
 assign AUDIO_R = audio_r[23:8];
 assign AUDIO_S = 1;
+assign AUDIO_MIX = 0;
 
 wire reset = (RESET | status[0] | status[6] | buttons[1]);
 

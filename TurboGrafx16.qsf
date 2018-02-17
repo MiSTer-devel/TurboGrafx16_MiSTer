@@ -49,7 +49,7 @@ set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS OFF
 set_global_assignment -name OPTIMIZE_POWER_DURING_FITTING OFF
 set_global_assignment -name FINAL_PLACEMENT_OPTIMIZATION ALWAYS
 set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
-set_global_assignment -name OPTIMIZATION_MODE BALANCED
+set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
 set_global_assignment -name SEED 1
 
 #============================================================
@@ -353,9 +353,10 @@ set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:sys/build_id.tcl"
 
 set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
-set_global_assignment -name QIP_FILE sys/vip.qip
+set_global_assignment -name QSYS_FILE sys/vip.qsys
 set_global_assignment -name VHDL_FILE voltab.vhd
 set_global_assignment -name VHDL_FILE scanline.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE ddram.sv
 set_global_assignment -name VHDL_FILE satram.vhd
 set_global_assignment -name VHDL_FILE ram_controller.vhd
 set_global_assignment -name VHDL_FILE ram.vhd

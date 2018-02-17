@@ -79,7 +79,10 @@ module hps_io #(parameter STRLEN=0, PS2DIV=2000, WIDE=0, VDNUM=1, PS2WE=0)
 	input             ioctl_wait,
 
 	// RTC MSM6242B layout
-	output reg [63:0] RTC,
+	output reg [64:0] RTC,
+
+	// Seconds since 1970-01-01 00:00:00
+	output reg [32:0] TIMESTAMP,
 
 	// ps2 keyboard emulation
 	output            ps2_kbd_clk_out,
@@ -96,7 +99,11 @@ module hps_io #(parameter STRLEN=0, PS2DIV=2000, WIDE=0, VDNUM=1, PS2WE=0)
 	input             ps2_mouse_data_in,
 
 	// ps2 alternative interface.
-	output reg [64:0] ps2_key   = 0, // up to 8 bytes per key (pause)
+
+	// [8] - extended, [9] - pressed, [10] - toggles with every press/release
+	output reg [10:0] ps2_key = 0,
+	
+	// [24] - toggles with every event
 	output reg [24:0] ps2_mouse = 0
 );
 
@@ -221,11 +228,16 @@ end
 
 /////////////////////////////////////////////////////////
 
+reg [31:0] ps2_key_raw = 0;
+wire       pressed  = (ps2_key_raw[15:8] != 8'hf0);
+wire       extended = (~pressed ? (ps2_key_raw[23:16] == 8'he0) : (ps2_key_raw[15:8] == 8'he0));
+
 always@(posedge clk_sys) begin
 	reg [15:0] cmd;
 	reg  [9:0] byte_cnt;   // counts bytes
 	reg  [2:0] b_wr;
 	reg  [2:0] stick_idx;
+	reg        ps2skip = 0;
 
 	sd_buff_wr <= b_wr[0];
 	if(b_wr[2] && (~&sd_buff_addr)) sd_buff_addr <= sd_buff_addr + 1'b1;
@@ -234,13 +246,21 @@ always@(posedge clk_sys) begin
 	{kbd_rd,kbd_we,mouse_rd,mouse_we} <= 0;
 	
 	if(~io_enable) begin
-		if(cmd == 4 && !PS2WE) ps2_mouse[24] <= ~ps2_mouse[24];
-		if(cmd == 5 && !PS2WE) ps2_key[64]   <= ~ps2_key[64];
+		if(cmd == 4 && !ps2skip) ps2_mouse[24] <= ~ps2_mouse[24];
+		if(cmd == 5 && !ps2skip) begin
+			ps2_key <= {~ps2_key[10], pressed, extended, ps2_key_raw[7:0]};
+			if(ps2_key_raw == 'hE012E07C) ps2_key[9:0] <= 'h37C; // prnscr pressed
+			if(ps2_key_raw == 'h7CE0F012) ps2_key[9:0] <= 'h17C; // prnscr released
+			if(ps2_key_raw == 'hF014F077) ps2_key[9:0] <= 'h377; // pause  pressed
+		end
+		if(cmd == 'h22) RTC[64] <= ~RTC[64];
+		if(cmd == 'h24) TIMESTAMP[32] <= ~TIMESTAMP[32];
 		cmd <= 0;
 		byte_cnt <= 0;
 		sd_ack <= 0;
 		sd_ack_conf <= 0;
 		io_dout <= 0;
+		ps2skip <= 0;
 	end else begin
 		if(io_strobe) begin
 
@@ -258,7 +278,7 @@ always@(posedge clk_sys) begin
 
 				sd_buff_addr <= 0;
 				img_mounted <= 0;
-				if(io_din == 5) ps2_key[63:0] <= 0;
+				if(io_din == 5) ps2_key_raw <= 0;
 			end else begin
 
 				case(cmd)
@@ -271,7 +291,8 @@ always@(posedge clk_sys) begin
 					'h04: begin
 							mouse_data <= io_din[7:0];
 							mouse_we   <= 1;
-							if(!PS2WE) begin
+							if(&io_din[15:8]) ps2skip <= 1;
+							if(~&io_din[15:8] & ~ps2skip) begin
 								case(byte_cnt)
 									1: ps2_mouse[7:0]   <= io_din[7:0];
 									2: ps2_mouse[15:8]  <= io_din[7:0];
@@ -282,7 +303,8 @@ always@(posedge clk_sys) begin
 
 					// store incoming ps2 keyboard bytes 
 					'h05: begin
-							if(!PS2WE) ps2_key[63:0] <= {ps2_key[55:0], io_din[7:0]};
+							if(&io_din[15:8]) ps2skip <= 1;
+							if(~&io_din[15:8] & ~ps2skip) ps2_key_raw[31:0] <= {ps2_key_raw[23:0], io_din[7:0]};
 							kbd_data <= io_din[7:0];
 							kbd_we <= 1;
 						end
@@ -377,6 +399,9 @@ always@(posedge clk_sys) begin
 								  11: io_dout <= vid_pix[31:16];
 								endcase
 						end
+
+					//RTC
+					'h24: TIMESTAMP[(byte_cnt-6'd1)<<4 +:16] <= io_din;
 				endcase
 			end
 		end
@@ -511,6 +536,7 @@ module ps2_device #(parameter PS2_FIFO_BITS=5)
 	input        ps2_clk,
 	output reg   ps2_clk_out,
 	output reg   ps2_dat_out,
+	output reg   tx_empty,
 
 	input        ps2_clk_in,
 	input        ps2_dat_in,
@@ -542,6 +568,8 @@ always@(posedge clk_sys) begin
 	reg [3:0] rx_cnt;
 
 	reg c1,c2,d1;
+
+	tx_empty <= ((wptr == rptr) && (tx_state == 0));
 
 	if(we) begin
 		fifo[wptr] <= wdata;
