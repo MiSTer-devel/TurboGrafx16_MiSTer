@@ -393,9 +393,13 @@ begin
 							-- Perform address mangling to mimic HuCard chip mapping.
 							-- Straight mapping
 							-- 384K ROM, split in 3, mapped ABABCCCC
-							-- 768K ROM, straight mapping for now
+							-- Are these needed?
+							-- 768K ROM, split in 6, mapped ABCDEFEF
+							-- 512K ROM,             mapped ABCDABCD
+							-- 256K ROM,             mapped ABABABAB
+							-- 128K ROM,             mapped AAAAAAAA
 							
-							if rom_sz = X"30" then                    -- bits 19 downto 16
+							if rom_sz = X"06" then                    -- bits 19 downto 16
 								-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
 								-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
 								-- 40000 -> 60000  => 00000 -> 20000		0100 -> 0000
@@ -407,6 +411,25 @@ begin
 								romrd_a(19)<='0';
 								romrd_a(18)<=CPU_A(19);
 								romrd_a(17)<=CPU_A(17) and not CPU_A(19);
+							elsif rom_sz = X"0C" then                    -- bits 19 downto 16
+								-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
+								-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
+								-- 40000 -> 60000  => 40000 -> 60000		0100 -> 0100
+								-- 60000 -> 80000  => 60000 -> 80000		0110 -> 0110
+								-- 80000 -> A0000  => 80000 -> A0000		1000 -> 1000
+								-- A0000 -> C0000  => A0000 -> C0000		1010 -> 1010
+								-- C0000 -> E0000  => 80000 -> A0000		1100 -> 1000
+								-- E0000 ->100000  => A0000 -> C0000		1110 -> 1010
+								romrd_a(18)<=CPU_A(18) and not CPU_A(19);
+							elsif rom_sz = X"08" then                    -- bits 19 downto 16
+								romrd_a(19)<='0';
+							elsif rom_sz = X"04" then                    -- bits 19 downto 16
+								romrd_a(19)<='0';
+								romrd_a(18)<='0';
+							elsif rom_sz = X"02" then                    -- bits 19 downto 16
+								romrd_a(19)<='0';
+								romrd_a(18)<='0';
+								romrd_a(17)<='0';
 							end if;
 								
 
