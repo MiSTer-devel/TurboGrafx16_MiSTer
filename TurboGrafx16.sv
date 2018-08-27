@@ -333,7 +333,7 @@ wire [7:0] bram_q;
 wire bram_wr;
 
 reg [3:0] defbram;
-integer defval[4] = '{ 16'h4855, 16'h424D, 16'h0088, 16'h1080 }; //{ HUBM,0x00881080 };
+integer defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
 
 backram backram
 (
