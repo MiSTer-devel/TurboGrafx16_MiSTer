@@ -29,6 +29,7 @@ entity huc6280 is
 		CEK_N	: out std_logic; -- VCE
 		CE7_N	: out std_logic; -- VDC
 		CER_N	: out std_logic; -- RAM
+		CEB_N	: out std_logic; -- BRM
 		
 		K		: in std_logic_vector(7 downto 0);
 		O		: out std_logic_vector(7 downto 0);
@@ -88,6 +89,7 @@ signal PSG_CLKEN	: std_logic := '0';
 -- Address decoding
 signal ROM_SEL_N	: std_logic;
 signal RAM_SEL_N	: std_logic;
+signal BRM_SEL_N	: std_logic;
 signal VDC_SEL_N	: std_logic;
 signal VCE_SEL_N	: std_logic;
 signal PSG_SEL_N	: std_logic; -- PSG
@@ -186,6 +188,7 @@ DO <= CPU_DO;
 CEK_N <= VCE_SEL_N;
 CE7_N <= VDC_SEL_N;
 CER_N <= RAM_SEL_N;
+CEB_N <= BRM_SEL_N;
 
 O <= O_FF;
 CLKOUT <= CLKOUT_FF;
@@ -289,6 +292,7 @@ process( CPU_A )
 begin	
 	ROM_SEL_N <= '1';
 	RAM_SEL_N <= '1';
+	BRM_SEL_N <= '1';
 	VDC_SEL_N <= '1';
 	VCE_SEL_N <= '1';
 	PSG_SEL_N <= '1';
@@ -301,6 +305,11 @@ begin
 		ROM_SEL_N <= '0';
 	end if;
 	
+	-- BRM : Page $F7       (1111 0111)
+	if CPU_A(20 downto 13) = "11110111" then
+		BRM_SEL_N <= '0';
+	end if;
+
 	-- RAM : Page $F8 - $FB (1111 1000 - 1111 1011)
 	if CPU_A(20 downto 15) = "111110" then
 		RAM_SEL_N <= '0';
@@ -454,14 +463,14 @@ begin
 end process;
 
 -- CPU data bus
-CPU_DI <= DI when ROM_SEL_N = '0' or RAM_SEL_N = '0' or VDC_SEL_N = '0' or VCE_SEL_N = '0'
+CPU_DI <= DI when ROM_SEL_N = '0' or RAM_SEL_N = '0' or BRM_SEL_N = '0' or VDC_SEL_N = '0' or VCE_SEL_N = '0'
 	else PSG_DO when PSG_SEL_N = '0'
 	else TMR_DO when TMR_SEL_N = '0'
 	else IOP_DO when IOP_SEL_N = '0'
 	else INT_DO when INT_SEL_N = '0'
 	else x"FF";
 
-CPU_RDY <= RDY when ROM_SEL_N = '0' or RAM_SEL_N = '0' or VDC_SEL_N = '0' or VCE_SEL_N = '0'
+CPU_RDY <= RDY when ROM_SEL_N = '0' or RAM_SEL_N = '0' or BRM_SEL_N = '0' or VDC_SEL_N = '0' or VCE_SEL_N = '0'
 	else '1' when PSG_SEL_N = '0'
 	else '1' when TMR_SEL_N = '0'
 	else '1' when IOP_SEL_N = '0'

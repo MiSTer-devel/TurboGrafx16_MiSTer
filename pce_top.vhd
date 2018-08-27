@@ -19,6 +19,11 @@ entity pce_top is
 		romrd_q 		: in std_logic_vector(63 downto 0);
 		rom_sz 		: in std_logic_vector(7 downto 0);
 
+		BRM_A 		: out std_logic_vector(10 downto 0);
+		BRM_DI 		: out std_logic_vector(7 downto 0);
+		BRM_DO 		: in std_logic_vector(7 downto 0);
+		BRM_WE 		: out std_logic;
+
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
 		AUD_RDATA	: out std_logic_vector(23 downto 0);
 
@@ -67,6 +72,7 @@ signal CPU_RDY			: std_logic;
 signal CPU_VCE_SEL_N	: std_logic;
 signal CPU_VDC_SEL_N	: std_logic;
 signal CPU_RAM_SEL_N	: std_logic;
+signal CPU_BRM_SEL_N	: std_logic;
 
 signal CPU_IO_DI		: std_logic_vector(7 downto 0);
 signal CPU_IO_DO		: std_logic_vector(7 downto 0);
@@ -173,6 +179,7 @@ CPU : entity work.huc6280 port map(
 	CEK_N	=> CPU_VCE_SEL_N,
 	CE7_N	=> CPU_VDC_SEL_N,
 	CER_N	=> CPU_RAM_SEL_N,
+	CEB_N	=> CPU_BRM_SEL_N,
 	
 	K		=> CPU_IO_DI,
 	O		=> CPU_IO_DO,
@@ -325,6 +332,7 @@ CPU_RDY <= VDC_BUSY_N and ROM_RDY;
 
 -- CPU data bus
 CPU_DI <= RAM_DO when CPU_RD_N = '0' and CPU_RAM_SEL_N = '0' 
+	else BRM_DO when CPU_RD_N = '0' and CPU_BRM_SEL_N = '0' 
 	else ROM_DO when CPU_RD_N = '0' and CPU_A(20) = '0'
 	else VCE_DO when CPU_RD_N = '0' and CPU_VCE_SEL_N = '0'
 	else VDC_DO when CPU_RD_N = '0' and CPU_VDC_SEL_N = '0'
@@ -472,6 +480,9 @@ begin
 end process;
 
 
+-- Backup RAM
+BRM_A <= CPU_A(10 downto 0);
+BRM_DI <= CPU_DO;
 -- Block RAM
 RAM_A <= CPU_A(12 downto 0);
 RAM_DI <= CPU_DO;
@@ -481,6 +492,10 @@ begin
 		RAM_WE <= '0';
 		if CPU_CLKOUT = '1' and CPU_RAM_SEL_N = '0' and CPU_WR_N = '0' then
 			RAM_WE <= '1';
+		end if;
+		BRM_WE <= '0';
+		if CPU_CLKOUT = '1' and CPU_BRM_SEL_N = '0' and CPU_WR_N = '0' then
+			BRM_WE <= '1';
 		end if;
 	end if;
 end process;
