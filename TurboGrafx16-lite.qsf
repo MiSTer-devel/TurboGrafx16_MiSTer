@@ -369,6 +369,7 @@ set_global_assignment -name VHDL_FILE huc6270.vhd
 set_global_assignment -name VHDL_FILE huc6260.vhd
 set_global_assignment -name VHDL_FILE cpu65xx_fast.vhd
 set_global_assignment -name VHDL_FILE cpu65xx_e.vhd
+set_global_assignment -name VHDL_FILE bram.vhd
 set_global_assignment -name VHDL_FILE colram.vhd
 set_global_assignment -name VHDL_FILE sram.vhd
 set_global_assignment -name VHDL_FILE pce_top.vhd
