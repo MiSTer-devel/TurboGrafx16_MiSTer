@@ -126,7 +126,11 @@ parameter CONF_STR3 = {
 };
 
 parameter CONF_STR4 = {
-	"7,Save state;",
+	"7,Save state;"
+};
+
+parameter CONF_STR5 = {
+	"C,Format Save;",
 	"O3,ROM Data Swap,No,Yes;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
@@ -179,12 +183,12 @@ wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 
-hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + 3), .WIDE(1)) hps_io
+hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + ($size(CONF_STR5)>>3) + 4), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
-	.conf_str({CONF_STR1,bk_ena ? "O" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4}),
+	.conf_str({CONF_STR1,bk_ena ? "O" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4,bk_ena ? "R" : "+",CONF_STR5}),
 
 	.buttons(buttons),
 	.status(status),
@@ -332,33 +336,34 @@ wire [7:0] bram_data;
 wire [7:0] bram_q;
 wire bram_wr;
 
-reg [3:0] defbram;
+wire format = status[12];
+reg [3:0] defbram = 4'hF;
 integer defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
 
 backram backram
 (
-   .address_a({4'h0,bram_addr}),
-   .address_b(bk_ena ? {sd_lba[5:0],sd_buff_addr} : {11'h00,defbram[3:1]}),
+   .address_a({2'b00,bram_addr}),
+   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
 	.clock(clk_sys),
 	.data_a(bram_data),
-	.data_b(bk_ena ? sd_buff_dout : defval[defbram[3:1]]),
+	.data_b(defbram[3] ? sd_buff_dout : defval[defbram[2:1]]),
 	.wren_a(bram_wr),
-	.wren_b(bk_ena ? sd_buff_wr & sd_ack : defbram[0]),
+	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
 	.q_a(bram_q),
 	.q_b(sd_buff_din)
 );
 
 always @(posedge clk_sys) begin
-	reg old_download, old_reset;
+	reg old_download, old_reset, old_format;
 
 	old_download <= ioctl_download;
 	old_reset <= reset;
+	old_format <= format;
 
 	if(~old_reset && reset) ioctl_wait <= 0;
 	if(~old_download && ioctl_download) begin
 		rom_wr <= 0;
 		romwr_a <= 0;
-		defbram <= 0;
 	end
 	else begin
 		if(ioctl_wr) begin
@@ -368,6 +373,9 @@ always @(posedge clk_sys) begin
 			ioctl_wait <= 0;
 			romwr_a <= romwr_a + 2'd2;
 		end
+	end
+	if(~old_format && format) begin
+		defbram <= 0;
 	end
 	if(~defbram[3]) begin
 		defbram <= defbram + 4'd1;
@@ -407,13 +415,13 @@ always @(posedge clk_sys) begin
 		if((~old_load & bk_load) | (~old_save & bk_save)) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
-			sd_lba <= {status[11:10],6'd0};
+			sd_lba <= {status[11:10],4'd0};
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
 		end
 	end else begin
 		if(old_ack & ~sd_ack) begin
-			if(&sd_lba[5:0]) begin
+			if(&sd_lba[3:0]) begin
 				bk_loading <= 0;
 				bk_state <= 0;
 			end else begin
