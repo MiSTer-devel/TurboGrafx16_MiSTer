@@ -42,8 +42,8 @@ USE altera_mf.all;
 ENTITY backram IS
 	PORT
 	(
-		address_a		: IN STD_LOGIC_VECTOR (14 DOWNTO 0);
-		address_b		: IN STD_LOGIC_VECTOR (13 DOWNTO 0);
+		address_a		: IN STD_LOGIC_VECTOR (12 DOWNTO 0);
+		address_b		: IN STD_LOGIC_VECTOR (11 DOWNTO 0);
 		clock		: IN STD_LOGIC ;
 		data_a		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
 		data_b		: IN STD_LOGIC_VECTOR (15 DOWNTO 0);
@@ -94,8 +94,8 @@ ARCHITECTURE SYN OF backram IS
 			wren_a	: IN STD_LOGIC ;
 			clock0	: IN STD_LOGIC ;
 			wren_b	: IN STD_LOGIC ;
-			address_a	: IN STD_LOGIC_VECTOR (14 DOWNTO 0);
-			address_b	: IN STD_LOGIC_VECTOR (13 DOWNTO 0);
+			address_a	: IN STD_LOGIC_VECTOR (12 DOWNTO 0);
+			address_b	: IN STD_LOGIC_VECTOR (11 DOWNTO 0);
 			q_a	: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
 			q_b	: OUT STD_LOGIC_VECTOR (15 DOWNTO 0);
 			data_a	: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
@@ -118,8 +118,8 @@ BEGIN
 		init_file => "data/vce.mif",
 		intended_device_family => "Cyclone II",
 		lpm_type => "altsyncram",
-		numwords_a => 32768,
-		numwords_b => 16384,
+		numwords_a => 8192,
+		numwords_b => 4096,
 		operation_mode => "BIDIR_DUAL_PORT",
 		outdata_aclr_a => "NONE",
 		outdata_aclr_b => "NONE",
@@ -127,8 +127,8 @@ BEGIN
 		outdata_reg_b => "CLOCK0",
 		power_up_uninitialized => "FALSE",
 		read_during_write_mode_mixed_ports => "DONT_CARE",
-		widthad_a => 15,
-		widthad_b => 14,
+		widthad_a => 13,
+		widthad_b => 12,
 		width_a => 8,
 		width_b => 16,
 		width_byteena_a => 1,
