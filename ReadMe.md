@@ -9,6 +9,11 @@ This version is optimized for MiSTer:
 ## Installation:
 Copy the *.rbf file at the root of the SD card. Copy roms (*PCE,*BIN) to **TGFX16** folder. You may rename ROM of your favorite game to **boot.rom** - it will be automatically loaded upon core loading.
 
+## Save file
+Some games support saves. Place an empty file with size 2048 bytes and name the same as ROM file with extension .sav
+It will be automatically loaded with ROM.
+
+
 ### Notes:
 * Do not forget to assign joystick buttons on keyboard in order to play on keyboard.
 * Both headerless ROMs and ROMs with header (512b) are supported and automatically distinguished by file size.
