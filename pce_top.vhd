@@ -135,6 +135,8 @@ signal VDCDMAS_RAM_ACK	: std_logic;
 signal romrd_a_cached : std_logic_vector((12+8+2) downto 3);
 signal romrd_q_cached : std_logic_vector(63 downto 0);
 
+signal rombank        : std_logic_vector(1 downto 0);
+
 type romStates is (ROM_IDLE, ROM_READ);
 signal romState : romStates := ROM_IDLE;
 
@@ -361,9 +363,14 @@ begin
 				romrd_a_cached(19 downto 3) <= CPU_A(19 downto 3);
 				ROM_RDY <= '0';
 				romState <= ROM_READ;				
+				rombank <= (others=>'0');
 				RESET_N <= '1';
 			end if;
 		else
+			-- CPU_A(12 downto 2) = X"7FC" means CPU_A & 0x1FFC = 0x1FF0
+			if CPU_A(20) = '0' and ('0' & CPU_A(12 downto 2)) = X"7FC" and CPU_WR_N = '0' then
+				rombank <= CPU_A(1 downto 0);
+			end if;
 			case romState is
 			when ROM_IDLE =>
 				if CPU_CLKOUT = '1' then
@@ -401,11 +408,12 @@ begin
 							-- Perform address mangling to mimic HuCard chip mapping.
 							-- Straight mapping
 							-- 384K ROM, split in 3, mapped ABABCCCC
-							-- Are these needed?
+							-- Are these needed? or correct?
 							-- 768K ROM, split in 6, mapped ABCDEFEF
 							-- 512K ROM,             mapped ABCDABCD
 							-- 256K ROM,             mapped ABABABAB
 							-- 128K ROM,             mapped AAAAAAAA
+							--2560K ROM, ABCDEFGH, ABCDIJKL, ABCDMNOP, ABCDQRST = SF2
 							
 							if rom_sz = X"06" then                    -- bits 19 downto 16
 								-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
@@ -430,7 +438,18 @@ begin
 								-- E0000 ->100000  => A0000 -> C0000		1110 -> 1010
 								romrd_a(18)<=CPU_A(18) and not CPU_A(19);
 							elsif rom_sz = X"08" then                    -- bits 19 downto 16
+							-- Some documentation suggests this...not sure if this is correct...
+								-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
+								-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
+								-- 40000 -> 60000  => 40000 -> 60000		0100 -> 0100
+								-- 60000 -> 80000  => 60000 -> 80000		0110 -> 0110
+								-- 80000 -> A0000  => 40000 -> 60000		1000 -> 0100
+								-- A0000 -> C0000  => 60000 -> 80000		1010 -> 0110
+								-- C0000 -> E0000  => 40000 -> 60000		1100 -> 0100
+								-- E0000 ->100000  => 60000 -> 80000		1110 -> 0110
 								romrd_a(19)<='0';
+								--Use this if above is correct.
+								--romrd_a(18)<=CPU_A(18) or CPU_A(19);
 							elsif rom_sz = X"04" then                    -- bits 19 downto 16
 								romrd_a(19)<='0';
 								romrd_a(18)<='0';
@@ -438,6 +457,15 @@ begin
 								romrd_a(19)<='0';
 								romrd_a(18)<='0';
 								romrd_a(17)<='0';
+							elsif rom_sz = X"28" then                    -- bits 21 downto 19
+								-- 00000 -> 80000 XX => 00000 -> 80000		0 XX -> 000
+								-- 80000 ->100000 00 => 80000 ->100000		1 00 -> 001
+								-- 80000 ->100000 01 =>100000 ->180000		1 01 -> 010
+								-- 80000 ->100000 10 =>180000 ->200000		1 10 -> 011
+								-- 80000 ->100000 11 =>200000 ->280000		1 11 -> 100
+								romrd_a(21)<=CPU_A(19) and (rombank(0) and rombank(1));
+								romrd_a(20)<=CPU_A(19) and (rombank(0) xor rombank(1));
+								romrd_a(19)<=CPU_A(19) and not rombank(0);
 							end if;
 								
 
