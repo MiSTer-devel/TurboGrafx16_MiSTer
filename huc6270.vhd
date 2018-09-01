@@ -664,16 +664,16 @@ begin
 						Y <= (others => '0');
 					end if;
 					
-					if Y = Y_BGREN_END or Y = 262 then
-						-- VBlank Interrupt
-						if CR(3) = '1' then
-							IRQ_VBL_SET <= '1';
-						end if;
-						DBG_VBL <= '1';
-						DMAS_DY <= x"4";
-					else
-						DBG_VBL <= '0';
-					end if;
+					--if Y = Y_BGREN_END or Y = 262 then
+					--	-- VBlank Interrupt
+					--	if CR(3) = '1' then
+					--		IRQ_VBL_SET <= '1';
+					--	end if;
+					--	DBG_VBL <= '1';
+					--	DMAS_DY <= x"4";
+					--else
+					--	DBG_VBL <= '0';
+					--end if;
 					
 					-- VRAM-SAT DMA
 					if DMAS_DY /= x"0" then
@@ -687,8 +687,8 @@ begin
 					
 					-- Raster counter
 					RCNT <= RCNT + 1;
-					--if Y = Y_DISP_START then
 					if Y = Y_DISP_START - 1 then
+					--if Y = Y_BGREN_START - 1 then
 						RCNT <= "0" & x"40";
 					end if;
 					-- Raster compare interrupt
@@ -706,6 +706,16 @@ begin
 						DMA_ACTIVE <= '0';
 					end if;
 					
+				end if;
+				if X = X_REN_START and (Y = Y_BGREN_END) then
+					-- VBlank Interrupt
+					if CR(3) = '1' then
+						IRQ_VBL_SET <= '1';
+					end if;
+					DBG_VBL <= '1';
+					DMAS_DY <= x"4";
+				else
+					DBG_VBL <= '0';
 				end if;
 			end if; -- CLKEN
 		end if;
