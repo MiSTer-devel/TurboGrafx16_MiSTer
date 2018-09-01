@@ -51,7 +51,7 @@ module ddram
    output reg    rd_ack
 );
 
-assign DDRAM_BURSTCNT = 1;
+assign DDRAM_BURSTCNT = ram_burst;
 assign DDRAM_BE       = (8'd3<<{ram_address[2:1],1'b0}) | {8{ram_read}};
 assign DDRAM_ADDR     = {4'b0011, ram_address[27:3]}; // RAM at 0x30000000
 assign DDRAM_RD       = ram_read;
@@ -60,58 +60,71 @@ assign DDRAM_WE       = ram_write;
 
 assign dout           = ram_q;
 
-reg [63:0] ram_q;
+reg  [7:0] ram_burst;
+reg [63:0] ram_q, next_q;
 reg [63:0] ram_data;
 reg [27:0] ram_address;
 reg        ram_read;
 reg        ram_write;
 
-reg [1:0]  state  = 0;
+reg [1:0]  state = 0;
 
 always @(posedge DDRAM_CLK)
 begin
 	reg old_rd, old_we;
 
-	if(reset)
-	begin
+	if(reset) begin
 		state  <= 0;
 		rd_ack <= 0;
 		we_ack <= 0;
 		ram_write <= 0;
 		ram_read  <= 0;
 	end
-	else
-	if(!DDRAM_BUSY)
-	begin
+	else if(!DDRAM_BUSY) begin
 		ram_write <= 0;
 		ram_read  <= 0;
 
 		case(state)
-		 3,0: if(we_ack != we_req)
-				begin
+			0: if(we_ack != we_req) begin
 					ram_data		<= {4{din}};
 					ram_address <= wraddr;
 					ram_write 	<= 1;
+					ram_burst   <= 1;
 					state       <= 1;
 				end
-				else
-				if(rd_ack != rd_req)
-				begin
-					ram_address <= rdaddr;
-					ram_read    <= 1;
-					state       <= 2;
+				else if(rd_ack != rd_req) begin
+					if(ram_address == rdaddr) begin
+						ram_q       <= next_q;
+						rd_ack      <= rd_req;
+						ram_address <= ram_address + 1'd1;
+						ram_read    <= 1;
+						ram_burst   <= 1;
+						state       <= 3;
+					end
+					else begin
+						ram_address <= rdaddr;
+						ram_read    <= 1;
+						ram_burst   <= 2;
+						state       <= 2;
+					end
 				end
 
 			1: begin
+					ram_address <= '1;
 					we_ack <= we_req;
 					state  <= 0;
 				end
 		
-			2: if(DDRAM_DOUT_READY)
-				begin
-					ram_q  <= DDRAM_DOUT;
-					rd_ack <= rd_req;
-					state  <= 0;
+			2: if(DDRAM_DOUT_READY) begin
+					ram_q       <= DDRAM_DOUT;
+					rd_ack      <= rd_req;
+					ram_address <= ram_address + 1'd1;
+					state       <= 3;
+				end
+
+			3: if(DDRAM_DOUT_READY) begin
+					next_q      <= DDRAM_DOUT;
+					state       <= 0;
 				end
 		endcase
 	end
