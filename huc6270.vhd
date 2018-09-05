@@ -1675,6 +1675,7 @@ begin
 				DMA_RAM_REQ_FF <= not DMA_RAM_REQ_FF;
 				DMA_RAM_A_FF <= DESR;
 				DMA_RAM_WE_FF <= '1';
+				DMA <= DMA_WRITE1;
 
 			when DMA_WRITE1 =>
 				if CLKEN = '1' and DMA_RAM_REQ_FF = DMA_RAM_ACK then
