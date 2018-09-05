@@ -405,14 +405,14 @@ reg  bk_state   = 0;
 always @(posedge clk_sys) begin
 	reg old_load = 0, old_save = 0, old_ack;
 
-	old_load <= bk_load & bk_ena;
-	old_save <= bk_save & bk_ena;
+	old_load <= bk_load;
+	old_save <= bk_save;
 	old_ack  <= sd_ack;
 	
 	if(~old_ack & sd_ack) {sd_rd, sd_wr} <= 0;
 	
 	if(!bk_state) begin
-		if((~old_load & bk_load) | (~old_save & bk_save)) begin
+		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
 			sd_lba <= {status[11:10],4'd0};
