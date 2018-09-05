@@ -116,6 +116,7 @@ signal IRQ_VBL_SET	: std_logic;
 
 -- Intermediate signals
 signal X		: std_logic_vector(9 downto 0);
+signal PREVX: std_logic_vector(9 downto 0);
 signal Y		: std_logic_vector(8 downto 0);
 signal HS_N_PREV	: std_logic;
 signal VS_N_PREV	: std_logic;
@@ -479,6 +480,7 @@ begin
 	
 		if RESET_N = '0' then
 			X <= (others => '0');
+			PREVX <= (others => '0');
 			Y <= (others => '1'); -- /!\
 			
 			HS_N_PREV <= '1';
@@ -519,6 +521,7 @@ begin
 		else
 			if CLKEN = '1' then
 				HS_N_PREV <= HS_N;
+				PREVX <= X;
 				X <= X + 1;
 				
 				Y_UPDATE <= '0';
@@ -574,6 +577,7 @@ begin
 						YOFS <= YOFS + 1;
 					end if;
 				end if;
+				-- prevx will be x when processed in line renderer; Could test with X_REN_START-1 instead...
 				if X = X_REN_START and Y >= Y_BGREN_START and Y < Y_BGREN_END then
 					REN_ACTIVE <= '1';
 				end if;
@@ -1034,7 +1038,7 @@ begin
 			when SP1_INI =>
 				if SP1_ACTIVE = '1' then
 					SP_NB <= "00000";					
-					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64;
+					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64 + 1;
 					SP_SAT_A <= "000000" & "11";
 					
 					SP1_CNT <= "00";
@@ -1241,13 +1245,15 @@ begin
 			case SP2 is
 			when SP2_INI =>
 				SP_BUSY <= '0';
+				if SP2_ACTIVE = '1' or SP_ON = '0' then
+					for I in 0 to 15 loop
+						SP_BUF(I).X <= "1111111100"; -- Set off-screen
+					end loop;
+				end if;
 				if SP2_ACTIVE = '1' then
 					SP_BUSY <= '1';
 					SP_CYC <= "00";
 					
-					for I in 0 to 15 loop
-						SP_BUF(I).X <= "1111111100"; -- Set off-screen
-					end loop;
 					SP_CUR <= "0000";
 			
 					SP2 <= SP2_INI_W;
@@ -1488,17 +1494,17 @@ begin
 					-- COLNO_FF <= "0" & "00000000";
 				else
 					REN <= REN_BGW;
-					REN_MEM_A <= X;
+					REN_MEM_A <= PREVX;
 					REN_MEM_WE <= '0';
 				end if;
 
 			when REN_BGW =>
 				for I in 0 to 15 loop
-					if (X >= SP_BUF(I).X) and (X < SP_BUF(I).X + 16) and SP_ON = '1' then
+					if (PREVX >= SP_BUF(I).X) and (PREVX < SP_BUF(I).X + 16) and SP_ON = '1' then
 						if SP_BUF(I).HF = '0' then
-							V_X := "0000001111" - (X - SP_BUF(I).X);
+							V_X := "0000001111" - (PREVX - SP_BUF(I).X);
 						else
-							V_X := X - SP_BUF(I).X;
+							V_X := PREVX - SP_BUF(I).X;
 						end if;
 						
 						REN_SP_COLTAB(I) <= SP_BUF(I).PRI & SP_BUF(I).PAL 
