@@ -137,9 +137,9 @@ parameter CONF_STR5 = {
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"-;",
 	"O2,Turbo Tap,Disable,Enable;",
-	"-;",
+	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
-	"J1,Button I,Button II,Select,Run;",
+	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
 	"V,v1.10.",`BUILD_DATE
 };
 
@@ -246,8 +246,9 @@ pce_top pce_top
 	.AUD_RDATA(audio_r),
 
 	.TURBOTAP(status[2]),
-	.JOY1(~joystick_0[7:0]),
-	.JOY2(~joystick_1[7:0]),
+	.SIXBUTTON(status[4]),
+	.JOY1(~joystick_0[15:0]),
+	.JOY2(~joystick_1[15:0]),
 
 	.VIDEO_R(r),
 	.VIDEO_G(g),

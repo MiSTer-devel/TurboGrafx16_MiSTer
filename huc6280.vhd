@@ -30,6 +30,7 @@ entity huc6280 is
 		CE7_N	: out std_logic; -- VDC
 		CER_N	: out std_logic; -- RAM
 		CEB_N	: out std_logic; -- BRM
+		CEI_N	: out std_logic; -- I/O
 		
 		K		: in std_logic_vector(7 downto 0);
 		O		: out std_logic_vector(7 downto 0);
@@ -189,6 +190,7 @@ CEK_N <= VCE_SEL_N;
 CE7_N <= VDC_SEL_N;
 CER_N <= RAM_SEL_N;
 CEB_N <= BRM_SEL_N;
+CEI_N <= IOP_SEL_N;
 
 O <= O_FF;
 CLKOUT <= CLKOUT_FF;
