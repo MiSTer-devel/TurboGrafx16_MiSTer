@@ -116,7 +116,6 @@ signal IRQ_VBL_SET	: std_logic;
 
 -- Intermediate signals
 signal X		: std_logic_vector(9 downto 0);
-signal PREVX: std_logic_vector(9 downto 0);
 signal Y		: std_logic_vector(8 downto 0);
 signal HS_N_PREV	: std_logic;
 signal VS_N_PREV	: std_logic;
@@ -480,7 +479,6 @@ begin
 	
 		if RESET_N = '0' then
 			X <= (others => '0');
-			PREVX <= (others => '0');
 			Y <= (others => '1'); -- /!\
 			
 			HS_N_PREV <= '1';
@@ -521,7 +519,6 @@ begin
 		else
 			if CLKEN = '1' then
 				HS_N_PREV <= HS_N;
-				PREVX <= X;
 				X <= X + 1;
 				
 				Y_UPDATE <= '0';
@@ -563,7 +560,7 @@ begin
 						-- prevent to reach the end of the active display
 						-- BG_ACTIVE <= '0';
 						Y_UPDATE <= '1';
-						-- REN_ACTIVE <= '0';
+						REN_ACTIVE <= '0';
 						-- SP1_ACTIVE <= '0';
 					end if;
 				end if;
@@ -577,8 +574,7 @@ begin
 						YOFS <= YOFS + 1;
 					end if;
 				end if;
-				-- prevx will be x when processed in line renderer; Could test with X_REN_START-1 instead...
-				if X = X_REN_START and Y >= Y_BGREN_START and Y < Y_BGREN_END then
+				if X = X_REN_START - 1 and Y >= Y_BGREN_START and Y < Y_BGREN_END then
 					REN_ACTIVE <= '1';
 				end if;
 				if X = X_REN_START and Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
@@ -595,7 +591,7 @@ begin
 				if X = X_REN_END then
 					-- BG_ACTIVE <= '0';
 					Y_UPDATE <= '1';
-					-- REN_ACTIVE <= '0';
+					REN_ACTIVE <= '0';
 					-- SP1_ACTIVE <= '0';
 				end if;
 				
@@ -1494,17 +1490,17 @@ begin
 					-- COLNO_FF <= "0" & "00000000";
 				else
 					REN <= REN_BGW;
-					REN_MEM_A <= PREVX;
+					REN_MEM_A <= X;
 					REN_MEM_WE <= '0';
 				end if;
 
 			when REN_BGW =>
 				for I in 0 to 15 loop
-					if (PREVX >= SP_BUF(I).X) and (PREVX < SP_BUF(I).X + 16) and SP_ON = '1' then
+					if (X >= SP_BUF(I).X) and (X < SP_BUF(I).X + 16) and SP_ON = '1' then
 						if SP_BUF(I).HF = '0' then
-							V_X := "0000001111" - (PREVX - SP_BUF(I).X);
+							V_X := "0000001111" - (X - SP_BUF(I).X);
 						else
-							V_X := PREVX - SP_BUF(I).X;
+							V_X := X - SP_BUF(I).X;
 						end if;
 						
 						REN_SP_COLTAB(I) <= SP_BUF(I).PRI & SP_BUF(I).PAL 
