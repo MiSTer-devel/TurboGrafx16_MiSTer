@@ -87,6 +87,7 @@ signal RAM_DO			: std_logic_vector(7 downto 0);
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
+signal DOTCLOCK		: std_logic_vector(1 downto 0);
 
 -- VDC signals
 signal VDC_DO			: std_logic_vector(7 downto 0);
@@ -221,6 +222,7 @@ VIDEO_HS_N <= HS_N;
 VCE : entity work.huc6260 port map(
 	CLK 		=> CLK,
 	RESET_N		=> RESET_N,
+	DOTCLOCK_O => DOTCLOCK,
 
 	-- CPU Interface
 	A			=> CPU_A(2 downto 0),
@@ -248,6 +250,7 @@ VCE : entity work.huc6260 port map(
 VDC : entity work.huc6270 port map(
 	CLK 		=> CLK,
 	RESET_N		=> RESET_N,
+	DOTCLOCK => DOTCLOCK,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),

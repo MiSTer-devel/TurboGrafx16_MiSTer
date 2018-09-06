@@ -10,6 +10,8 @@ entity huc6260 is
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
+		--For convenience
+		DOTCLOCK_O : out std_logic_vector(1 downto 0);
 
 		-- CPU Interface
 		A			: in std_logic_vector(2 downto 0);
@@ -273,5 +275,6 @@ begin
 	end if;
 end process;
 
+DOTCLOCK_O <= DOTCLOCK;
 
 end rtl;

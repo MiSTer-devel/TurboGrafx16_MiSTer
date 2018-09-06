@@ -15,6 +15,7 @@ entity huc6270 is
 	port (
 		CLK 		: in std_logic;
 		RESET_N		: in std_logic;
+		DOTCLOCK	: in std_logic_vector(1 downto 0);
 
 		-- CPU Interface
 		A			: in std_logic_vector(1 downto 0);
@@ -100,7 +101,7 @@ signal SATB		: std_logic_vector(15 downto 0);
 --------------------------------------------------------------------------------
 -- Registers
 signal HDS : std_logic_vector(6 downto 0);
-signal HSW : std_logic_vector(4 downto 0);
+signal HSW : std_logic_vector(7 downto 0);
 signal HDE : std_logic_vector(6 downto 0);
 signal HDW : std_logic_vector(6 downto 0);
 
@@ -462,7 +463,7 @@ sat : entity work.satram port map(
 process( CLK )
 
 variable V_HDS : std_logic_vector(6 downto 0);
-variable V_HSW : std_logic_vector(4 downto 0);
+variable V_HSW : std_logic_vector(7 downto 0);
 variable V_HDE : std_logic_vector(6 downto 0);
 variable V_HDW : std_logic_vector(6 downto 0);
 
@@ -527,7 +528,19 @@ begin
 					X <= (others => '0');
 					
 					V_HDS := HPR(14 downto 8);
-					V_HSW := HPR(4 downto 0);
+					-- For external sync, HSW is whatever the HUC6260 generates (3 * 8 cycles).
+					-- Does it change with clock frequency? i.e. 2, 3.5, 5 (3,4.5,6)-1
+					case DOTCLOCK is
+					when "00" =>
+						V_HSW := "00010000";
+					when "01" =>
+						V_HSW := "00010000";
+						--V_HSW := "00011100";
+					when others =>
+						V_HSW := "00010000";
+						--V_HSW := "00101000";
+					end case;
+					--V_HSW := HPR(4 downto 0);
 					V_HDE := HDR(14 downto 8);
 					V_HDW := HDR(6 downto 0);
 		
@@ -536,20 +549,20 @@ begin
 					HDE <= V_HDE;
 					HDW <= V_HDW;
 		
-					X_REN_START <= ("00" & V_HSW & "000") 
+					X_REN_START <= ("00" & V_HSW) 
 						+ ( V_HDS & "000" ) 
 						+ ( "0000011" & "000" ); -- (HSW+1+HDS+1)<<3
 
-					X_REN_END <= ("00" & V_HSW & "000") 
+					X_REN_END <= ("00" & V_HSW) 
 						+ ( V_HDS & "000" ) 
 						+ ( V_HDW & "000" )
 						+ ( "0000011" & "111" ); -- (HSW+1+HDS+1+HDW+1)<<3
 				
-					X_BG_START <= ("00" & V_HSW & "000") 
+					X_BG_START <= ("00" & V_HSW) 
 						+ ( V_HDS & "000" ) 
 						+ ( "0000000" & "000" ); -- (HSW+1+HDS+1 -1 - 1)<<3
 									
-					-- X_BG_END <= ("00" & V_HSW & "000") 
+					-- X_BG_END <= ("00" & V_HSW) 
 						-- + ( V_HDS & "000" ) 
 						-- + ( V_HDW & "000" )
 						-- + ( "0000010" & "000" ); -- (HSW+1+HDS+1+HDW+1 -1+1 - 1)<<3
