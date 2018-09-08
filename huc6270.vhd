@@ -130,6 +130,7 @@ signal Y_BGREN_START	: std_logic_vector(8 downto 0);
 signal Y_BGREN_END	: std_logic_vector(8 downto 0);
 signal Y_DISP_START	: std_logic_vector(8 downto 0);
 signal Y_DISP_END	: std_logic_vector(8 downto 0);
+signal VBLANK_DONE : std_logic;
 
 -- signal X_SP_START	: std_logic_vector(9 downto 0);
 -- signal X_SP_END		: std_logic_vector(9 downto 0);
@@ -511,6 +512,7 @@ begin
 
 			DMAS_DY <= (others => '0');
 			RCNT <= (others => '1');
+			VBLANK_DONE <= '1';
 			
 			SP_ON <= '0';
 			BG_ON <= '0';
@@ -622,6 +624,7 @@ begin
 					
 					if VS_N_PREV = '0' and VS_N = '1' then
 						Y <= (others => '0');
+						VBLANK_DONE <= '0';
 						
 						V_VDS := VSR(15 downto 8);
 						V_VSW := VSR(4 downto 0);
@@ -720,8 +723,9 @@ begin
 					end if;
 					
 				end if;
-				if X = X_REN_START and (Y = Y_BGREN_END) then
+				if X = X_REN_START and (Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0')) then
 					-- VBlank Interrupt
+					VBLANK_DONE <= '1';
 					if CR(3) = '1' then
 						IRQ_VBL_SET <= '1';
 					end if;
@@ -1994,7 +1998,7 @@ SATB <= x"0000";
 					-- CPU Read
 					PREV_A <= A;
 					CPU <= CPU_WAIT;
-					DO_FF <= x"FF";
+					DO_FF <= x"00";
 					case A is
 					when "00" =>
 						DO_FF <= "0" 

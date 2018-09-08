@@ -415,6 +415,7 @@ begin
 						IOP_DO <= (others => '0');
 					else	
 						IOP_DO <= K;
+--						DATA_BUF <= K;
 					end if;
 				elsif INT_SEL_N = '0' then
 					if CPU_BLK = '1' then
@@ -428,7 +429,7 @@ begin
 							DATA_BUF <= DATA_BUF(7 downto 3) & TMR_IRQ & not( IRQ1_N ) & not( IRQ2_N );
 							INT_DO <= DATA_BUF(7 downto 3) & TMR_IRQ & not( IRQ1_N ) & not( IRQ2_N );
 						when others =>
-							null;
+							INT_DO <= DATA_BUF;
 						end case;
 					end if;
 				end if;
