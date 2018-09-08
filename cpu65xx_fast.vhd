@@ -1000,9 +1000,23 @@ processAlu: process(clk, opcInfo, aluInput, aluCmpInput, A, U, irqActive, N, V, 
 
 		if (opcInfo(aluMode1From to aluMode1To) = aluModeFlg) then
 			varZ := rmwBits(1);
+--		elsif (opcInfo(aluMode1From to aluMode1To) = aluModeTrb)	--GE Mednafen/ArchaicPixels.com and TGEmu/Hu-GO!
+--		or (opcInfo(aluMode1From to aluMode1To) = aluModeTsb) then	--GE hold different information about Z flag handling in this case
+--			if (aluInput and Acc) = x"00" then
+--				varZ := '1';
+--			else
+--				varZ := '0';
+--			end if;
 		elsif (opcInfo(aluMode1From to aluMode1To) = aluModeTrb)	--GE Mednafen/ArchaicPixels.com and TGEmu/Hu-GO!
-		or (opcInfo(aluMode1From to aluMode1To) = aluModeTsb) then	--GE hold different information about Z flag handling in this case
-			if (aluInput and Acc) = x"00" then
+		 then	--GE hold different information about Z flag handling in this case
+			if (aluInput and not Acc) = x"00" then
+				varZ := '1';
+			else
+				varZ := '0';
+			end if;
+		elsif (opcInfo(aluMode1From to aluMode1To) = aluModeTsb) --GE Mednafen/ArchaicPixels.com and TGEmu/Hu-GO!
+		  then	--GE hold different information about Z flag handling in this case
+			if (aluInput or Acc) = x"00" then
 				varZ := '1';
 			else
 				varZ := '0';
@@ -1031,6 +1045,9 @@ processAlu: process(clk, opcInfo, aluInput, aluCmpInput, A, U, irqActive, N, V, 
 		if (opcInfo(aluMode1From to aluMode1To) = aluModeBit)
 		or (opcInfo(aluMode1From to aluMode1To) = aluModeFlg) then
 			varN := rmwBits(7);
+		elsif (opcInfo(aluMode1From to aluMode1To) = aluModeTrb)
+		or (opcInfo(aluMode1From to aluMode1To) = aluModeTsb) then
+			varN := aluInput(7);
 		else
 			varN := nineBits(7);
 		end if;
@@ -1076,6 +1093,10 @@ processAlu: process(clk, opcInfo, aluInput, aluCmpInput, A, U, irqActive, N, V, 
 					varC := '0';
 				end if;
 			end if;
+		when aluModeTsb =>
+			varV := aluInput(6);
+		when aluModeTrb =>
+			varV := aluInput(6);
 		when others =>
 			null;
 		end case;
