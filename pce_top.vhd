@@ -343,7 +343,7 @@ CPU_DI <= RAM_DO when CPU_RD_N = '0' and CPU_RAM_SEL_N = '0'
 	else ROM_DO when CPU_RD_N = '0' and CPU_A(20) = '0'
 	else VCE_DO when CPU_RD_N = '0' and CPU_VCE_SEL_N = '0'
 	else VDC_DO when CPU_RD_N = '0' and CPU_VDC_SEL_N = '0'
-	else "ZZZZZZZZ";
+	else X"FF";
 
 -- ROM_RDY <= '1' when romrd_req = romrd_ack else '0';
 
