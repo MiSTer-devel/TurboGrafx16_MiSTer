@@ -247,8 +247,8 @@ pce_top pce_top
 
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
-	.JOY1(~joystick_0[15:0]),
-	.JOY2(~joystick_1[15:0]),
+	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
+	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
 
 	.VIDEO_R(r),
 	.VIDEO_G(g),
