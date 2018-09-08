@@ -1994,7 +1994,7 @@ SATB <= x"0000";
 					-- CPU Read
 					PREV_A <= A;
 					CPU <= CPU_WAIT;
-					DO_FF <= x"FF";
+					DO_FF <= x"00";
 					case A is
 					when "00" =>
 						DO_FF <= "0" 
