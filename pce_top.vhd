@@ -74,7 +74,6 @@ signal CPU_VCE_SEL_N	: std_logic;
 signal CPU_VDC_SEL_N	: std_logic;
 signal CPU_RAM_SEL_N	: std_logic;
 signal CPU_BRM_SEL_N	: std_logic;
-signal CPU_IOP_SEL_N	: std_logic;
 
 signal CPU_IO_DI		: std_logic_vector(7 downto 0);
 signal CPU_IO_DO		: std_logic_vector(7 downto 0);
@@ -149,10 +148,9 @@ signal ROM_DO	: std_logic_vector(7 downto 0);
 
 signal romrd_reqReg : std_logic;
 
-signal gamepad_port : unsigned(2 downto 0);
-signal prev_sel : std_logic;
-signal gamepad_nibble : std_logic_vector(1 downto 0);
-signal prev_write : std_logic;
+signal gamepad_out    : std_logic_vector(1 downto 0);
+signal gamepad_port   : unsigned(2 downto 0);
+signal gamepad_nibble : std_logic;
 
 begin
 
@@ -187,7 +185,6 @@ CPU : entity work.huc6280 port map(
 	CE7_N	=> CPU_VDC_SEL_N,
 	CER_N	=> CPU_RAM_SEL_N,
 	CEB_N	=> CPU_BRM_SEL_N,
-	CEI_N	=> CPU_IOP_SEL_N,
 	
 	K		=> CPU_IO_DI,
 	O		=> CPU_IO_DO,
@@ -538,29 +535,27 @@ end process;
 
 -- I/O Port
 CPU_IO_DI(7 downto 4) <= "1011"; -- No CD-Rom unit, TGFX-16
-CPU_IO_DI(3 downto 0) <=  joy1(7 downto 4)  when CPU_IO_DO(1 downto 0) = "00" and gamepad_port = "000" and gamepad_nibble(0) = '0'
-							else joy1(1) & joy1(2) & joy1(0) & joy1(3) when CPU_IO_DO(1 downto 0) = "01" and gamepad_port = "000" and gamepad_nibble(0) = '0'
-							else joy1(11 downto 8)  when CPU_IO_DO(1 downto 0) = "00" and gamepad_port = "000" and gamepad_nibble(0) = '1'
-							else joy2(7 downto 4)  when CPU_IO_DO(1 downto 0) = "00" and gamepad_port = "001" and gamepad_nibble(0) = '0'
-							else joy2(1) & joy2(2) & joy2(0) & joy2(3) when CPU_IO_DO(1 downto 0) = "01" and gamepad_port = "001" and gamepad_nibble(0) = '0'
-							else joy2(11 downto 8)  when CPU_IO_DO(1 downto 0) = "00" and gamepad_port = "001" and gamepad_nibble(1) = '1'
-							else "1111" when CPU_IO_DO(1) = '0' and (gamepad_port = "010" or gamepad_port = "011" or gamepad_port = "100")
-							else "0000";
-
+CPU_IO_DI(3 downto 0) <= 
+	     "0000"            when CPU_IO_DO(1) = '1' or  (CPU_IO_DO(0) = '1'  and gamepad_nibble = '1')
+	else joy1( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = "000" and gamepad_nibble = '0'
+	else joy1( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = "000" and gamepad_nibble = '0'
+	else joy1(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = "000" and gamepad_nibble = '1'
+	else joy2( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = "001" and gamepad_nibble = '0'
+	else joy2( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = "001" and gamepad_nibble = '0'
+	else joy2(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = "001" and gamepad_nibble = '1'
+	else "1111";
 
 process(clk)
 begin
 	if rising_edge(clk) then
-		prev_write <= CPU_WR_N nor CPU_IOP_SEL_N;
-		if prev_write='0' and CPU_WR_N='0' and CPU_IOP_SEL_N='0' then
-			if CPU_IO_DO(1)='1' then -- reset pad
-				gamepad_port<=(others => '0');
-				gamepad_nibble(0) <= sixbutton and not gamepad_nibble(0);
-				gamepad_nibble(1) <= sixbutton and not gamepad_nibble(1);
-			elsif prev_sel='0' and CPU_IO_DO(0)='1' and turbotap='1' and gamepad_port /= "101" then -- Rising edge of select bit
-				gamepad_port<=gamepad_port+1;
+		gamepad_out<=CPU_IO_DO(1 downto 0);
+		if CPU_IO_DO(1)='1' then -- reset pad
+			gamepad_port<="000";
+			if(gamepad_out(1) = '0') then
+				gamepad_nibble <= sixbutton and not gamepad_nibble;
 			end if;
-			prev_sel<=CPU_IO_DO(0);
+		elsif gamepad_out(0)='0' and CPU_IO_DO(0)='1' and turbotap='1' then -- Rising edge of select bit
+			gamepad_port<=gamepad_port+1;
 		end if;
 	end if;
 end process;
