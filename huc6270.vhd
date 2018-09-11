@@ -174,6 +174,7 @@ signal YOFS			: std_logic_vector(8 downto 0);
 signal YOFS_RELOAD	: std_logic;
 signal YOFS_REL_REQ	: std_logic;
 signal YOFS_REL_ACK	: std_logic;
+signal XOFS			: std_logic_vector(9 downto 0);
 
 -- State machine - Part 1
 type bg1_t is ( BG1_INI, BG1_INI_W,
@@ -553,12 +554,12 @@ begin
 		
 					X_REN_START <= ("00" & V_HSW) 
 						+ ( V_HDS & "000" ) 
-						+ ( "0000011" & "000" ); -- (HSW+1+HDS+1)<<3
+						+ ( "0000010" & "101" ); -- (HSW+1+HDS+1)<<3
 
 					X_REN_END <= ("00" & V_HSW) 
 						+ ( V_HDS & "000" ) 
 						+ ( V_HDW & "000" )
-						+ ( "0000011" & "111" ); -- (HSW+1+HDS+1+HDW+1)<<3
+						+ ( "0000011" & "100" ); -- (HSW+1+HDS+1+HDW+1)<<3
 				
 					X_BG_START <= ("00" & V_HSW) 
 						+ ( V_HDS & "000" ) 
@@ -583,11 +584,14 @@ begin
 				if X = X_BG_START and Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
 					BG_ACTIVE <= '1';
 					YOFS_REL_ACK <= '1';
-					if Y = Y_BGREN_START or YOFS_RELOAD = '1' then
+					if Y = Y_BGREN_START then
+						YOFS <= BYR(8 downto 0);
+					elsif YOFS_RELOAD = '1' then
 						YOFS <= BYR(8 downto 0) + 1;
 					else
 						YOFS <= YOFS + 1;
 					end if;
+					XOFS <= BXR(9 downto 0);
 				end if;
 				if X = X_REN_START - 1 and Y >= Y_BGREN_START and Y < Y_BGREN_END then
 					REN_ACTIVE <= '1';
@@ -623,11 +627,11 @@ begin
 					BG_ON <= CR(7);
 					
 					if VS_N_PREV = '0' and VS_N = '1' then
-						Y <= (others => '0');
+						Y <= "000000001"; --(others => '0');
 						VBLANK_DONE <= '0';
 						
 						V_VDS := VSR(15 downto 8);
-						V_VSW := VSR(4 downto 0);
+						V_VSW := VSR(4 downto 0) - 2;
 						V_VDW := VDR(8 downto 0);
 						V_VCR := VDE(7 downto 0);
 						
@@ -636,23 +640,29 @@ begin
 						VDW <= V_VDW;
 						VCR <= V_VCR;
 
-						Y_DISP_START <= ("0" & V_VDS);
+						Y_DISP_START <= ("0000" & V_VSW)
+							+ ("0" & V_VDS);
 						
-						Y_BGREN_START <= ("0" & V_VDS)
+						Y_BGREN_START <= ("0000" & V_VSW)
+							+ ("0" & V_VDS)
 							+ ( "000000010" );
 						
-						Y_BGREN_END <= ("0" & V_VDS)
+						Y_BGREN_END <= ("0000" & V_VSW)
+							+ ("0" & V_VDS)
 							+ V_VDW
 							+ ( "000000011" );							
 							
-						Y_SP_START <= ("0" & V_VDS)
+						Y_SP_START <= ("0000" & V_VSW)
+							+ ("0" & V_VDS)
 							+ ( "000000001" );
 						
-						Y_SP_END <= ("0" & V_VDS)
+						Y_SP_END <= ("0000" & V_VSW)
+							+ ("0" & V_VDS)
 							+ V_VDW
 							+ ( "000000010" );
 			
-						Y_DISP_END <= ("0" & V_VDS)
+						Y_DISP_END <= ("0000" & V_VSW)
+							+ ("0" & V_VDS)
 							+ V_VDW
 							+ ("0" & V_VCR)
 							+ ( "000000011" );
@@ -790,12 +800,12 @@ begin
 					else
 						BG_Y <= V_BG_Y;
 					end if;
-					BG_TX <= BXR(9 downto 3);
+					BG_TX <= XOFS(9 downto 3);
 				
-					BG_PX <= X_REN_START - ("0000000" & BXR(2 downto 0));
+					BG_PX <= X_REN_START - ("0000000" & XOFS(2 downto 0));
 					
 					TX <= (others => '0');
-					if BXR(2 downto 0) = "000" then
+					if XOFS(2 downto 0) = "000" then
 						TX_MAX <= HDW;
 					else
 						TX_MAX <= HDW + 1;

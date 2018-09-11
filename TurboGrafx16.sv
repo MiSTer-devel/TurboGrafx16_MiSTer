@@ -194,6 +194,8 @@ hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR
 	.status(status),
 	.forced_scandoubler(forced_scandoubler),
 
+	.new_vmode(0),
+	
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
