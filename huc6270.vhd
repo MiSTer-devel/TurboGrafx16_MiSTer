@@ -1307,7 +1307,7 @@ begin
 				SP_BUF(conv_integer(SP_CUR)).P2 <= (others => '0');
 				SP_BUF(conv_integer(SP_CUR)).P3 <= (others => '0');
 				
-				if SP_DW(1) = '1' and SP_PREBUF(conv_integer(SP_CUR)).CG = '1' then
+				if SP_DW = "11" and SP_PREBUF(conv_integer(SP_CUR)).CG = '1' then
 					SP_RAM_A_FF <= V_ADDR(15 downto 6) & "10" & V_ADDR(3 downto 0);
 				else
 					SP_RAM_A_FF <= V_ADDR;
@@ -1329,7 +1329,7 @@ begin
 						when "00" =>
 							SP_BUF(conv_integer(SP_CUR)).P0 <= SP_RAM_DO;
 							SP2 <= SP2_RD1;
-						when "01" =>
+						when "01" | "10" =>
 							if SP_CYC = "01" then
 								SP_BUF(conv_integer(SP_CUR)).P0 <= SP_RAM_DO;
 								SP2 <= SP2_RD1;
@@ -1416,7 +1416,7 @@ begin
 				
 				SP_CYC <= "00";
 
-				if SP_DW(1) = '1' and SP_PREBUF(conv_integer(SP_CUR)).CG = '0' then
+				if SP_DW = "11" and SP_PREBUF(conv_integer(SP_CUR)).CG = '0' then
 					SP_RAM_A_FF <= V_ADDR(15 downto 6) & "01" & V_ADDR(3 downto 0);
 				else
 					SP_RAM_A_FF <= V_ADDR(15 downto 6) & "11" & V_ADDR(3 downto 0);
@@ -1445,7 +1445,7 @@ begin
 								SP2 <= SP2_RD0;
 							end if;
 							
-						when "01" =>
+						when "01" | "10" =>
 							if SP_CYC = "01" then
 								SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
