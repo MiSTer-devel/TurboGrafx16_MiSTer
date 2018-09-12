@@ -6,7 +6,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 -- -----------------------------------------------------------------------
 
-entity ram_controller is
+entity vram_controller is
 	port (
 		-- System
 		clk : in std_logic;
@@ -44,7 +44,7 @@ end entity;
 
 -- -----------------------------------------------------------------------
 
-architecture rtl of ram_controller is
+architecture rtl of vram_controller is
 	signal ram_a : std_logic_vector(15 downto 0);
 	signal ram_d : std_logic_vector(15 downto 0);
 	signal ram_q : std_logic_vector(15 downto 0);

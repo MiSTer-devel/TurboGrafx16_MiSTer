@@ -358,7 +358,7 @@ set_global_assignment -name VHDL_FILE voltab.vhd
 set_global_assignment -name VHDL_FILE scanline.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE ddram.sv
 set_global_assignment -name VHDL_FILE satram.vhd
-set_global_assignment -name VHDL_FILE ram_controller.vhd
+set_global_assignment -name VHDL_FILE vram_controller.vhd
 set_global_assignment -name VHDL_FILE ram.vhd
 set_global_assignment -name VHDL_FILE psg.vhd
 set_global_assignment -name VHDL_FILE g00_audio_interface.vhd
