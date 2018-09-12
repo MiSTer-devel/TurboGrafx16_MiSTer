@@ -462,11 +462,11 @@ begin
 		if RESET_N = '0' then
 			TMR_VALUE <= (others => '0');
 		elsif TMR_RELOAD = '1' then
-			TMR_VALUE <= TMR_LATCH & "1111111111";
+			TMR_VALUE <= TMR_LATCH & "1111111110";
 		elsif TMR_CLKEN = '1' and TMR_EN = '1' then
 			TMR_VALUE <= TMR_VALUE - 1;
-			if TMR_VALUE = "0000000" & "0000000000" then
-				TMR_VALUE <= TMR_LATCH & "1111111111";
+			if TMR_VALUE = "1111111" & "1111111111" then
+				TMR_VALUE <= TMR_LATCH & "1111111110";
 				TMR_IRQ_REQ <= '1';
 			end if;
 		end if;
