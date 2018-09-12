@@ -302,8 +302,8 @@ video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
 	.VBlank(vblank)
 );
 
-wire [19:0] rom_rdaddr;
-wire [63:0] rom_data;
+wire [21:0] rom_rdaddr;
+wire [7:0] rom_data;
 wire rom_rd, rom_rdack;
 
 assign DDRAM_CLK = clk_ram;
@@ -318,7 +318,7 @@ ddram ddram
    .we_req(rom_wr),
    .we_ack(rom_wrack),
 
-   .rdaddr({rom_rdaddr, 3'b000} + (romwr_a[9] ? 28'h200 : 28'h0)),
+   .rdaddr(rom_rdaddr + (romwr_a[9] ? 28'h200 : 28'h0)),
    .dout(rom_data),
    .rd_req(rom_rd),
    .rd_ack(rom_rdack)
