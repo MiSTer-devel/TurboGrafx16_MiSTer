@@ -336,24 +336,42 @@ wire rom_wrack;
 
 wire [10:0] bram_addr;
 wire [7:0] bram_data;
-wire [7:0] bram_q;
+wire [7:0] bram_q = bram_addr[0] ? bram_qh : bram_ql;
+wire [7:0] bram_ql,bram_qh;
 wire bram_wr;
 
 wire format = status[12];
 reg [3:0] defbram = 4'hF;
 integer defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
 
-backram backram
+dpram #(12) backram_l
 (
-   .address_a({2'b00,bram_addr}),
-   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
 	.clock(clk_sys),
+
+   .address_a({2'b00,bram_addr[10:1]}),
 	.data_a(bram_data),
-	.data_b(defbram[3] ? sd_buff_dout : defval[defbram[2:1]]),
-	.wren_a(bram_wr),
+	.wren_a(bram_wr & ~bram_addr[0]),
+	.q_a(bram_ql),
+
+   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
+	.data_b(defbram[3] ? sd_buff_dout[7:0] : defval[defbram[2:1]][7:0]),
 	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
-	.q_a(bram_q),
-	.q_b(sd_buff_din)
+	.q_b(sd_buff_din[7:0])
+);
+
+dpram #(12) backram_h
+(
+	.clock(clk_sys),
+
+   .address_a({2'b00,bram_addr[10:1]}),
+	.data_a(bram_data),
+	.wren_a(bram_wr & bram_addr[0]),
+	.q_a(bram_qh),
+
+   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
+	.data_b(defbram[3] ? sd_buff_dout[15:8] : defval[defbram[2:1]][15:8]),
+	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
+	.q_b(sd_buff_din[15:8])
 );
 
 always @(posedge clk_sys) begin

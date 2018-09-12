@@ -78,13 +78,13 @@ begin
 	vdcbg_ack   <= vdcbg_ackReg;
 	vdcdmas_ack <= vdcdmas_ackReg;
 
-	ram : entity work.sram
+	ram : entity work.dpram generic map (16,16)
 		port map (
-			clk => clk,
-			addr => ram_a,
-			dout => ram_q,
-			we => ram_we,
-			din => ram_d
+			clock     => clk,
+			address_a => ram_a,
+			q_a       => ram_q,
+			wren_a    => ram_we,
+			data_a    => ram_d
 		);
 	
 	process(clk) begin

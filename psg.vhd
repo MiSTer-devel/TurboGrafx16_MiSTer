@@ -857,10 +857,11 @@ end process;
 
 
 -- Channels mixing
-VT : entity work.voltab port map (
-	address		=> VT_ADDR,
+VT : entity work.dpram generic map (12,24,"data/voltab.mif")
+port map (
 	clock		=> CLK,
-	q			=> VT_DATA
+	address_a=> VT_ADDR,
+	q_a		=> VT_DATA
 );
 
 process( CLK )

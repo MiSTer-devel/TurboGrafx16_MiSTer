@@ -78,9 +78,10 @@ signal CLKEN_CNT	: std_logic_vector(2 downto 0);
 begin
 
 -- Color RAM
-ram : entity work.colram port map(
-	clock		=> CLK,
-	
+ram : entity work.dpram generic map (9,9)
+port map(
+	clock			=> CLK,
+
 	address_a	=> RAM_A,
 	data_a		=> RAM_DI,
 	wren_a		=> RAM_WE,

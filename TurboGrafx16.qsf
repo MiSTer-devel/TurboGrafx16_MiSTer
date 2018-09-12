@@ -354,23 +354,14 @@ set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:sys/build_id.tcl"
 set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name QSYS_FILE sys/vip.qsys
-set_global_assignment -name VHDL_FILE voltab.vhd
-set_global_assignment -name VHDL_FILE scanline.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE ddram.sv
-set_global_assignment -name VHDL_FILE satram.vhd
+set_global_assignment -name VHDL_FILE dpram.vhd
 set_global_assignment -name VHDL_FILE vram_controller.vhd
-set_global_assignment -name VHDL_FILE ram.vhd
 set_global_assignment -name VHDL_FILE psg.vhd
-set_global_assignment -name VHDL_FILE g00_audio_interface.vhd
-set_global_assignment -name VHDL_FILE linebuf.vhd
+set_global_assignment -name VHDL_FILE cpu65xx.vhd
 set_global_assignment -name VHDL_FILE huc6280.vhd
 set_global_assignment -name VHDL_FILE huc6270.vhd
 set_global_assignment -name VHDL_FILE huc6260.vhd
-set_global_assignment -name VHDL_FILE cpu65xx_fast.vhd
-set_global_assignment -name VHDL_FILE cpu65xx_e.vhd
-set_global_assignment -name VHDL_FILE bram.vhd
-set_global_assignment -name VHDL_FILE colram.vhd
-set_global_assignment -name VHDL_FILE sram.vhd
 set_global_assignment -name VHDL_FILE pce_top.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE TurboGrafx16.sv
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

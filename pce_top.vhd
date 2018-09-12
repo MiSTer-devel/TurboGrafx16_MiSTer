@@ -27,13 +27,6 @@ entity pce_top is
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
 		AUD_RDATA	: out std_logic_vector(23 downto 0);
 
-		AUD_XCK		: out std_logic;
-		AUD_BCLK		: out std_logic;
-		AUD_DACDAT	: out std_logic;
-		AUD_DACLRCK	: out std_logic;
-		I2C_SDAT		: out std_logic;
-		I2C_SCLK		: out std_logic;
-
 		TURBOTAP    : in std_logic;
 		SIXBUTTON   : in std_logic;
 		JOY1 		   : in std_logic_vector(15 downto 0);
@@ -160,23 +153,17 @@ CPU : entity work.huc6280 port map(
 	O		=> CPU_IO_DO,
 	
 	AUD_LDATA => AUD_LDATA,
-	AUD_RDATA => AUD_RDATA,
-
-	AUD_XCK		=> AUD_XCK,
-	AUD_BCLK	=> AUD_BCLK,
-	AUD_DACDAT	=> AUD_DACDAT,
-	AUD_DACLRCK	=> AUD_DACLRCK,
-	I2C_SDAT	=> I2C_SDAT,
-	I2C_SCLK	=> I2C_SCLK
+	AUD_RDATA => AUD_RDATA
 );
 
 -- RAM
-RAM : entity work.ram port map(
-	address	=> RAM_A,
-	clock	=> CLK,
-	data	=> RAM_DI,
-	wren	=> RAM_WE,
-	q		=> RAM_DO
+ram : entity work.dpram generic map (13,8)
+port map (
+	clock		=> CLK,
+	address_a=> RAM_A,
+	data_a	=> RAM_DI,
+	wren_a	=> RAM_WE,
+	q_a		=> RAM_DO
 );
 
 VIDEO_R <= R;
