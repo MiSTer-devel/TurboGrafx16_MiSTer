@@ -631,7 +631,7 @@ begin
 						VBLANK_DONE <= '0';
 						
 						V_VDS := VSR(15 downto 8);
-						V_VSW := VSR(4 downto 0) - 2;
+						V_VSW := VSR(4 downto 0);
 						V_VDW := VDR(8 downto 0);
 						V_VCR := VDE(7 downto 0);
 						
@@ -641,31 +641,37 @@ begin
 						VCR <= V_VCR;
 
 						Y_DISP_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS);
+							+ ("0" & V_VDS)
+							- 2;
 						
 						Y_BGREN_START <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
-							+ ( "000000010" );
+							+ ( "000000010" )
+							- 2;
 						
 						Y_BGREN_END <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
 							+ V_VDW
-							+ ( "000000011" );							
+							+ ( "000000011" )
+							- 2;							
 							
 						Y_SP_START <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
-							+ ( "000000001" );
+							+ ( "000000001" )
+							- 2;
 						
 						Y_SP_END <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
 							+ V_VDW
-							+ ( "000000010" );
+							+ ( "000000010" )
+							- 2;
 			
 						Y_DISP_END <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
 							+ V_VDW
 							+ ("0" & V_VCR)
-							+ ( "000000011" );
+							+ ( "000000011" )
+							- 2;
 
 						-- Is it needed ?
 						if CR(7 downto 6) = "00" then
