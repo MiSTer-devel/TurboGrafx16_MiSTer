@@ -364,6 +364,7 @@ set_global_assignment -name VHDL_FILE dpram.vhd
 set_global_assignment -name VHDL_FILE vram_controller.vhd
 set_global_assignment -name VHDL_FILE psg.vhd
 set_global_assignment -name VHDL_FILE cpu65xx.vhd
+set_global_assignment -name VHDL_FILE huc6202.vhd
 set_global_assignment -name VHDL_FILE huc6280.vhd
 set_global_assignment -name VHDL_FILE huc6270.vhd
 set_global_assignment -name VHDL_FILE huc6260.vhd
