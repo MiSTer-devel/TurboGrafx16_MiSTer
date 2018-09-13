@@ -55,6 +55,7 @@ signal PRIN : std_logic_vector(1 downto 0);
 signal PRI  : std_logic_vector(3 downto 0);
 
 signal HS_N_PREV : std_logic;
+signal VDC_PRI   : std_logic_vector(8 downto 0);
 
 begin
 
@@ -65,53 +66,49 @@ PRI <= PRI0(3 downto 0) when PRIN = "00" else
 		 PRI1(3 downto 0) when PRIN = "10" else
 		 PRI1(7 downto 4);
 
+VDC_PRI <= VDC0_IN when VDC0_IN(3 downto 0) /= "0000" else VDC1_IN;
+
 process( CLK )
-	variable VDC0DATA : std_logic_vector(8 downto 0);
-	variable VDC1DATA : std_logic_vector(8 downto 0);
+	variable VDCDATA : std_logic_vector(8 downto 0);
 begin
 	if rising_edge(CLK) then
-		if RESET_N = '0' then
-			X <= (others => '0');
-		else
-			if CLKEN = '1' then
-				HS_N_PREV <= HS_N;
-				X <= X + 1;
-				if HS_N_PREV = '1' and HS_N = '0' then
-					X <= (others => '0');
-				end if;
-				
-				VDC0DATA := (others => '0');
-				if PRI(0) = '1' then
-					VDC0DATA := VDC0_IN;
-				end if;
+		if CLKEN = '1' then
+			HS_N_PREV <= HS_N;
+			X <= X + 1;
+			if HS_N_PREV = '1' and HS_N = '0' then
+				X <= (others => '0');
+			end if;
 
-				VDC1DATA := (others => '0');
-				if PRI(1) = '1' then
-					VDC1DATA := VDC1_IN;
-				end if;
-				
-				case PRI(3 downto 2) is
-					when "01" =>
-						if VDC1DATA(8) = '1' and VDC0DATA(8) = '0' and VDC1DATA(3 downto 0) /= "0000" then
-							VDC0DATA := (others => '0');
-						end if;
-					when "10" =>
-						if VDC0DATA(8) = '1' and VDC1DATA(8) = '0' and VDC1DATA(3 downto 0) /= "0000" then
-							VDC0DATA := (others => '0');
-						end if;
-					when others => null;
-				end case;
-				
-				if VDC0DATA(3 downto 0) /= "0000" then
-					VDC_OUT <= VDC0DATA;
-				else
-					VDC_OUT <= VDC1DATA;
-				end if;
+			case PRI(1 downto 0) is
+				when "00" =>
+					VDCDATA := (others => '0');
+				when "01" =>
+					VDCDATA := VDC0_IN;
+				when "10" =>
+					VDCDATA := VDC1_IN;
+				when others =>
+					VDCDATA := VDC_PRI;
+					case PRI(3 downto 2) is
+						when "01" =>
+							if VDC1_IN(8) = '1' and VDC0_IN(8) = '0' and VDC1_IN(3 downto 0) /= "0000" then
+								VDCDATA := VDC1_IN;
+							end if;
+						when "10" =>
+							if VDC1_IN(8) = '0' and VDC0_IN(8) = '1' and VDC1_IN(3 downto 0) /= "0000" then
+								VDCDATA := VDC1_IN;
+							end if;
+						when others => null;
+					end case;
+			end case;
+
+			if PRI(1 downto 0) /= "01" and VDCDATA(7 downto 0) = x"00" then
+				VDC_OUT <= "100000000"; -- this looks wrong but fixes 1941's white flash
+			else
+				VDC_OUT <= VDCDATA;
 			end if;
 		end if;
 	end if;
 end process;
-
 
 process( CLK ) begin
 	if rising_edge(CLK) then

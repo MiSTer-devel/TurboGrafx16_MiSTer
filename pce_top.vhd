@@ -27,6 +27,7 @@ entity pce_top is
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
 		AUD_RDATA	: out std_logic_vector(23 downto 0);
 
+		SGX			: in std_logic;
 		TURBOTAP    : in std_logic;
 		SIXBUTTON   : in std_logic;
 		JOY1 		   : in std_logic_vector(15 downto 0);
@@ -78,6 +79,7 @@ signal CPU_IO_DO		: std_logic_vector(7 downto 0);
 -- RAM signals
 signal RAM_WE			: std_logic;
 signal RAM_DO			: std_logic_vector(7 downto 0);
+signal RAM_A			: std_logic_vector(14 downto 0);
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
@@ -161,11 +163,14 @@ port map(
 RAM : entity work.dpram generic map (15,8)
 port map (
 	clock		=> CLK,
-	address_a=> CPU_A(14 downto 0),
+	address_a=> RAM_A,
 	data_a	=> CPU_DO,
 	wren_a	=> RAM_WE,
 	q_a		=> RAM_DO
 );
+
+RAM_A(12 downto 0)  <= CPU_A(12 downto 0);
+RAM_A(14 downto 13) <= CPU_A(14 downto 13) when SGX = '1' else "00";
 
 VIDEO_R <= R;
 VIDEO_G <= G;
@@ -270,9 +275,9 @@ port map(
 	VDCNUM   => VDCNUM
 );
 
-CPU_VDC0_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or     CPU_A(4);
-CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4);
-CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3);
+CPU_VDC0_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or     CPU_A(4) when SGX = '1' else CPU_VDC_SEL_N;
+CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4) when SGX = '1' else '1';
+CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' else '1';
 
 -- Interrupt signals
 CPU_NMI_N <= '1';

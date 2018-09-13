@@ -136,6 +136,7 @@ parameter CONF_STR5 = {
 	"O1,Aspect ratio,4:3,16:9;",
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"-;",
+	"O5,SuperGrafx,Enable,Disable;",
 	"O2,Turbo Tap,Disable,Enable;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
@@ -247,6 +248,7 @@ pce_top pce_top
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
+	.SGX(~status[5]),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
