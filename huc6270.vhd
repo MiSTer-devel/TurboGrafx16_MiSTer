@@ -14,7 +14,7 @@ use IEEE.NUMERIC_STD.ALL;
 entity huc6270 is
 	port (
 		CLK 		: in std_logic;
-		RESET_N		: in std_logic;
+		RESET_N	: in std_logic;
 		DOTCLOCK	: in std_logic_vector(1 downto 0);
 
 		-- CPU Interface
@@ -23,45 +23,15 @@ entity huc6270 is
 		WR_N		: in std_logic;
 		RD_N		: in std_logic;		
 		DI			: in std_logic_vector(7 downto 0);
-		DO 			: out std_logic_vector(7 downto 0);
-		BUSY_N		: out std_logic;
+		DO 		: out std_logic_vector(7 downto 0);
+		BUSY_N	: out std_logic;
 		IRQ_N		: out std_logic;
 
-		BG_RAM_A	: out std_logic_vector(15 downto 0);		
-		BG_RAM_DO	: in std_logic_vector(15 downto 0);
-		BG_RAM_REQ	: out std_logic;
-		BG_RAM_ACK	: in std_logic;
-		
-		SP_RAM_A	: out std_logic_vector(15 downto 0);
-		SP_RAM_DO	: in std_logic_vector(15 downto 0);
-		SP_RAM_REQ	: out std_logic;
-		SP_RAM_ACK	: in std_logic;
-
-		CPU_RAM_REQ	: out std_logic;
-		CPU_RAM_A	: out std_logic_vector(15 downto 0);
-		CPU_RAM_DO	: in std_logic_vector(15 downto 0); -- Output from RAM
-		CPU_RAM_DI	: out std_logic_vector(15 downto 0);
-		CPU_RAM_WE	: out std_logic;
-		CPU_RAM_ACK	: in std_logic;
-
-		DMA_RAM_REQ	: out std_logic;
-		DMA_RAM_A	: out std_logic_vector(15 downto 0);
-		DMA_RAM_DO	: in std_logic_vector(15 downto 0); -- Output from RAM
-		DMA_RAM_DI	: out std_logic_vector(15 downto 0);
-		DMA_RAM_WE	: out std_logic;
-		DMA_RAM_ACK	: in std_logic;
-
-		DMAS_RAM_REQ	: out std_logic;
-		DMAS_RAM_A		: out std_logic_vector(15 downto 0);
-		DMAS_RAM_DO		: in std_logic_vector(15 downto 0); -- Output from RAM
-		DMAS_RAM_ACK	: in std_logic;
-		
 		-- VCE Interface
 		COLNO		: out std_logic_vector(8 downto 0);
 		CLKEN		: in std_logic;
 		HS_N		: in std_logic;
 		VS_N		: in std_logic
-
 	);
 end huc6270;
 
@@ -210,6 +180,8 @@ signal BG2			: bg2_t;
 -- Background engine - RAM access signals
 signal BG_RAM_A_FF		: std_logic_vector(15 downto 0);
 signal BG_RAM_REQ_FF	: std_logic := '0';
+signal BG_RAM_DO		: std_logic_vector(15 downto 0);
+signal BG_RAM_ACK		: std_logic;
 
 
 --------------------------------------------------------------------------------
@@ -290,6 +262,8 @@ signal SP_BUF	: sp_buf_t;
 -- Sprite engine - RAM access signals
 signal SP_RAM_A_FF		: std_logic_vector(15 downto 0);
 signal SP_RAM_REQ_FF	: std_logic := '0';
+signal SP_RAM_DO		: std_logic_vector(15 downto 0);
+signal SP_RAM_ACK		: std_logic;
 
 -- State machine - Part 2
 type sp2_t is ( SP2_INI, SP2_INI_W,
@@ -361,6 +335,8 @@ signal CPU_RAM_REQ_FF		: std_logic := '0';
 signal CPU_RAM_A_FF		: std_logic_vector(15 downto 0);
 signal CPU_RAM_DI_FF		: std_logic_vector(15 downto 0);
 signal CPU_RAM_WE_FF		: std_logic := '0';
+signal CPU_RAM_DO		: std_logic_vector(15 downto 0);
+signal CPU_RAM_ACK	: std_logic;
 
 -- Output buffers
 signal DO_FF		: std_logic_vector(7 downto 0);
@@ -388,6 +364,8 @@ signal DMA_RAM_REQ_FF		: std_logic := '0';
 signal DMA_RAM_A_FF		: std_logic_vector(15 downto 0);
 signal DMA_RAM_DI_FF		: std_logic_vector(15 downto 0);
 signal DMA_RAM_WE_FF		: std_logic := '0';
+signal DMA_RAM_DO		: std_logic_vector(15 downto 0);
+signal DMA_RAM_ACK	: std_logic;
 
 signal DMA_SOUR_SET_REQ	: std_logic;
 signal DMA_DESR_SET_REQ	: std_logic;
@@ -412,6 +390,8 @@ signal DMAS_BUSY		: std_logic;
 
 signal DMAS_RAM_REQ_FF		: std_logic := '0';
 signal DMAS_RAM_A_FF		: std_logic_vector(15 downto 0);
+signal DMAS_RAM_DO	: std_logic_vector(15 downto 0);
+signal DMAS_RAM_ACK	: std_logic;
 
 signal DMAS_SAT_A		: std_logic_vector(7 downto 0);
 signal DMAS_SAT_DI		: std_logic_vector(15 downto 0);
@@ -429,32 +409,35 @@ begin
 --------------------------------------------------------------------------------
 -- Background line buffer
 --------------------------------------------------------------------------------
-bg_buf : entity work.linebuf port map(
+
+bg_buf : entity work.dpram generic map (10,8)
+port map(
 	clock		=> CLK,
-	
-	address_a	=> BG2_MEM_A,
-	data_a		=> BG2_MEM_DI,
-	wren_a		=> BG2_MEM_WE,
-	q_a			=> open,
-	
-	address_b	=> REN_MEM_A,
-	data_b		=> "00000000",
-	wren_b		=> REN_MEM_WE,
-	q_b			=> REN_MEM_DO
+
+	address_a=> BG2_MEM_A,
+	data_a	=> BG2_MEM_DI,
+	wren_a	=> BG2_MEM_WE,
+	q_a		=> open,
+
+	address_b=> REN_MEM_A,
+	data_b	=> "00000000",
+	wren_b	=> REN_MEM_WE,
+	q_b		=> REN_MEM_DO
 );
 
 --------------------------------------------------------------------------------
 -- SAT
 --------------------------------------------------------------------------------
-sat : entity work.satram port map(
+sat : entity work.dpram generic map (8,16)
+port map(
 	clock		=> CLK,
 	
-	data		=> DMAS_SAT_DI,
-	wraddress	=> DMAS_SAT_A,
-	wren		=> DMAS_SAT_WE,
+	data_a	=> DMAS_SAT_DI,
+	address_a=> DMAS_SAT_A,
+	wren_a	=> DMAS_SAT_WE,
 	
-	rdaddress	=> SP_SAT_A,
-	q			=> SP_SAT_DO
+	address_b=> SP_SAT_A,
+	q_b		=> SP_SAT_DO
 );
 
 --------------------------------------------------------------------------------
@@ -2285,25 +2268,39 @@ IRQ_N <= IRQ_N_FF;
 COLNO <= COLNO_FF;
 DO <= DO_FF;
 
+vram : entity work.vram_controller port map
+(
+	clk			=> CLK,
+	
+	vdccpu_req	=> CPU_RAM_REQ_FF,
+	vdccpu_we	=> CPU_RAM_WE_FF,
+	vdccpu_a		=> CPU_RAM_A_FF,
+	vdccpu_d		=> CPU_RAM_DI_FF,
+	vdccpu_ack	=> CPU_RAM_ACK,
+	vdccpu_q		=> CPU_RAM_DO,
 
+	vdcbg_a		=> BG_RAM_A_FF,
+	vdcbg_req	=> BG_RAM_REQ_FF,
+	vdcbg_q		=> BG_RAM_DO,
+	vdcbg_ack	=> BG_RAM_ACK,
+	
+	vdcsp_a		=> SP_RAM_A_FF,
+	vdcsp_req	=> SP_RAM_REQ_FF,
+	vdcsp_q		=> SP_RAM_DO,
+	vdcsp_ack	=> SP_RAM_ACK,
+	
+	vdcdma_req 	=> DMA_RAM_REQ_FF,
+	vdcdma_a		=> DMA_RAM_A_FF,
+	vdcdma_d		=> DMA_RAM_DI_FF,
+	vdcdma_we	=> DMA_RAM_WE_FF,
+	vdcdma_q		=> DMA_RAM_DO,
+	vdcdma_ack	=> DMA_RAM_ACK,
+	
+	vdcdmas_req	=> DMAS_RAM_REQ_FF,
+	vdcdmas_a	=> DMAS_RAM_A_FF,
+	vdcdmas_q	=> DMAS_RAM_DO,
+	vdcdmas_ack	=> DMAS_RAM_ACK
+);
 
-BG_RAM_A	<= BG_RAM_A_FF;
-BG_RAM_REQ	<= BG_RAM_REQ_FF;
-		
-SP_RAM_A	<= SP_RAM_A_FF;
-SP_RAM_REQ	<= SP_RAM_REQ_FF;
-
-CPU_RAM_REQ	<= CPU_RAM_REQ_FF;
-CPU_RAM_A	<= CPU_RAM_A_FF;
-CPU_RAM_DI	<= CPU_RAM_DI_FF;
-CPU_RAM_WE	<= CPU_RAM_WE_FF;
-
-DMA_RAM_REQ	<= DMA_RAM_REQ_FF;
-DMA_RAM_A	<= DMA_RAM_A_FF;
-DMA_RAM_DI	<= DMA_RAM_DI_FF;
-DMA_RAM_WE	<= DMA_RAM_WE_FF;
-
-DMAS_RAM_REQ	<= DMAS_RAM_REQ_FF;
-DMAS_RAM_A		<= DMAS_RAM_A_FF;
 
 end rtl;

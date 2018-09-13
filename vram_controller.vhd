@@ -6,7 +6,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 -- -----------------------------------------------------------------------
 
-entity ram_controller is
+entity vram_controller is
 	port (
 		-- System
 		clk : in std_logic;
@@ -44,7 +44,7 @@ end entity;
 
 -- -----------------------------------------------------------------------
 
-architecture rtl of ram_controller is
+architecture rtl of vram_controller is
 	signal ram_a : std_logic_vector(15 downto 0);
 	signal ram_d : std_logic_vector(15 downto 0);
 	signal ram_q : std_logic_vector(15 downto 0);
@@ -78,13 +78,13 @@ begin
 	vdcbg_ack   <= vdcbg_ackReg;
 	vdcdmas_ack <= vdcdmas_ackReg;
 
-	ram : entity work.sram
+	ram : entity work.dpram generic map (16,16)
 		port map (
-			clk => clk,
-			addr => ram_a,
-			dout => ram_q,
-			we => ram_we,
-			din => ram_d
+			clock     => clk,
+			address_a => ram_a,
+			q_a       => ram_q,
+			wren_a    => ram_we,
+			data_a    => ram_d
 		);
 	
 	process(clk) begin

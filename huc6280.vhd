@@ -36,14 +36,7 @@ entity huc6280 is
 		O		: out std_logic_vector(7 downto 0);
 		
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
-		AUD_RDATA	: out std_logic_vector(23 downto 0);
-
-		AUD_XCK		: out std_logic;
-		AUD_BCLK		: out std_logic;
-		AUD_DACDAT	: out std_logic;
-		AUD_DACLRCK	: out std_logic;
-		I2C_SDAT		: out std_logic;
-		I2C_SCLK		: out std_logic
+		AUD_RDATA	: out std_logic_vector(23 downto 0)
 	);
 end huc6280;
 
@@ -104,6 +97,7 @@ signal IOP_DO		: std_logic_vector(7 downto 0);
 signal INT_DO		: std_logic_vector(7 downto 0);
 
 signal PSG_WE		: std_logic;
+signal pulse_48K	: std_logic;
 
 -- Internal data buffer
 signal DATA_BUF		: std_logic_vector(7 downto 0);
@@ -124,14 +118,6 @@ signal INT_MASK		: std_logic_vector(2 downto 0);
 signal O_FF			: std_logic_vector(7 downto 0);
 
 signal CLKOUT_FF	: std_logic;
-
-
-signal DAC_CLKEN	: std_logic;
-signal DAC_INIT		: std_logic;
-signal DAC_INIT_CNT	: std_logic_vector(3 downto 0);
-signal DAC_LDATA	: std_logic_vector(23 downto 0);
-signal DAC_RDATA	: std_logic_vector(23 downto 0);
-signal DAC_LATCH	: std_logic;
 
 signal clockDone	: std_logic := '0';
 signal romHCycles	: integer range 0 to 32767 := 0;
@@ -203,12 +189,11 @@ CPU_NMI_N <= NMI_N;
 process( CLK, CPU_RDY )
 begin
 	if rising_edge( CLK ) then
-        -- CPU_CLKEN <= '0';
 		CLKRST_FF <= '0';
-        TMR_CLKEN <= '0';
-        PSG_CLKEN <= '0';
-        CPU_EN <= '0';
-        CLKDIV_HI <= CLKDIV_HI + 1;
+		TMR_CLKEN <= '0';
+		PSG_CLKEN <= '0';
+		CPU_EN <= '0';
+		CLKDIV_HI <= CLKDIV_HI + 1;
 
 		if RESET_N = '0' then
 			romHCycles <= 0;
@@ -222,58 +207,50 @@ begin
 			CLKRST_FF <= '1';
 		end if;
 		
-        if CLKDIV_HI = "010" or CLKDIV_HI = "101" then
-            -- if CPU_HSM = '1' then
-                if ROM_RDY = '0' then
-                    romHCycles <= romHCycles + 1;
-                else
-                    romHCycles <= 0;
-                    if romHCycles > 0 then
-						-- ROM Read
-						if romHCycles > 1 or lateHCycles > 0 then
-							if clockDone = '1' then
-								lateHCycles <= lateHCycles + romHCycles - 1;
-							else
-								lateHCycles <= lateHCycles + romHCycles;
-							end if;
-							CPU_EN <= '1';
-							clockDone <= '1';
+		if CLKDIV_HI = "010" or CLKDIV_HI = "101" then
+			-- if CPU_HSM = '1' then
+			if ROM_RDY = '0' then
+				romHCycles <= romHCycles + 1;
+			else
+				romHCycles <= 0;
+				if romHCycles > 0 then
+					-- ROM Read
+					if romHCycles > 1 or lateHCycles > 0 then
+						if clockDone = '1' then
+							lateHCycles <= lateHCycles + romHCycles - 1;
 						else
-							CPU_EN <= not clockDone;
-							clockDone <= not clockDone;
+							lateHCycles <= lateHCycles + romHCycles;
 						end if;
+						CPU_EN <= '1';
+						clockDone <= '1';
 					else
-						if lateHCycles > 0 and CPU_RDY = '1' then
-							if clockDone = '1' then
-								lateHCycles <= lateHCycles - 1;
-							end if;
-							CPU_EN <= '1';
-							clockDone <= '1';
-						else
-							if CPU_RDY = '1' then
-								CPU_EN <= not clockDone;
-							end if;
-							clockDone <= not clockDone;
+						CPU_EN <= not clockDone;
+						clockDone <= not clockDone;
+					end if;
+				else
+					if lateHCycles > 0 and CPU_RDY = '1' then
+						if clockDone = '1' then
+							lateHCycles <= lateHCycles - 1;
 						end if;
+						CPU_EN <= '1';
+						clockDone <= '1';
+					else
+						if CPU_RDY = '1' then
+							CPU_EN <= not clockDone;
+						end if;
+						clockDone <= not clockDone;
 					end if;
 				end if;
-			-- end if;
+			end if;
 		end if;
 
-        if CLKDIV_HI = "101" then
-            TMR_CLKEN <= '1';
-            PSG_CLKEN <= '1';
-            CLKDIV_HI <= "000";
-            CLKDIV_LO <= CLKDIV_LO + 1;
- 
-            -- if CLKDIV_LO = "11" then
-                -- -- CPU_CLKEN <= '1';
-                -- if CPU_RDY = '1' then
-                    -- CPU_EN <= '1';
-                -- end if;                     
-            -- end if;
-        end if;
-    end if;
+		if CLKDIV_HI = "101" then
+			TMR_CLKEN <= '1';
+			PSG_CLKEN <= '1';
+			CLKDIV_HI <= "000";
+			CLKDIV_LO <= CLKDIV_LO + 1;
+		end if;
+	end if;
 end process;
 
  
@@ -495,60 +472,34 @@ CPU_IRQ2_N <= IRQ2_N or INT_MASK(0);
 -- PSG
 PSG : entity work.psg port map (
 	CLK		=> CLK,
-	CLKEN	=> PSG_CLKEN,	-- 7.16 Mhz clock
+	CLKEN		=> PSG_CLKEN,	-- 7.16 Mhz clock
 	RESET_N	=> RESET_N,
 	
-	DI		=> CPU_DO(7 downto 0),
-	A		=> CPU_A(3 downto 0),
-	WE		=> PSG_WE,
+	DI			=> CPU_DO(7 downto 0),
+	A			=> CPU_A(3 downto 0),
+	WE			=> PSG_WE,
 	
-	DAC_LATCH	=> DAC_LATCH,
-	LDATA		=> DAC_LDATA,
-	RDATA		=> DAC_RDATA
+	DAC_LATCH=> pulse_48K,
+	LDATA		=> AUD_LDATA,
+	RDATA		=> AUD_RDATA
 );
 
-AUD_LDATA <= DAC_LDATA;
-AUD_RDATA <= DAC_RDATA;
-
--- Audio DAC
-DAC : entity work.g00_audio_interface port map(
-	LDATA	=> DAC_LDATA,
-	RDATA	=> DAC_RDATA,
-	
-	clk		=> CLK,
-	rst		=> RESET,
-	INIT	=> DAC_INIT,
-	W_EN	=> '1',
-	CLKEN	=> DAC_CLKEN,
-	
-	pulse_48KHz	=> DAC_LATCH,
-	AUD_MCLK	=> AUD_XCK,
-	AUD_BCLK	=> AUD_BCLK,
-	AUD_DACDAT	=> AUD_DACDAT,
-	AUD_DACLRCK	=> AUD_DACLRCK,
-	I2C_SDAT	=> I2C_SDAT,
-	I2C_SCLK	=> I2C_SCLK
-);
-
-process( CLK )
+process (CLK)
+	variable cnt : integer range 0 to 1000;
 begin
-	if rising_edge( CLK ) then
-		if RESET_N = '0' then
-			DAC_CLKEN <= '0';
-			DAC_INIT <= '0';
-			DAC_INIT_CNT <= (others => '0');
+	if rising_edge(CLK) then
+		if RESET_N='0' then
+			cnt := 0;
+			pulse_48K <= '0';
 		else
-			DAC_CLKEN <= not DAC_CLKEN;
-			if DAC_CLKEN = '1' then
-				if DAC_INIT_CNT = "1111" then
-					DAC_INIT <= '1';
-				else
-					DAC_INIT_CNT <= DAC_INIT_CNT + 1;
-				end if;
+			cnt := cnt + 1;
+			pulse_48K <= '0';
+			if cnt = 893 then
+				pulse_48K <= '1';
+				cnt := 0;
 			end if;
 		end if;
 	end if;
 end process;
-
 
 end rtl;
