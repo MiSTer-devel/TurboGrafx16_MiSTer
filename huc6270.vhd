@@ -632,7 +632,11 @@ begin
 						
 						V_VDS := VSR(15 downto 8);
 						V_VSW := VSR(4 downto 0);
-						V_VDW := VDR(8 downto 0);
+						V_VDW := VDR(8 downto 0); 
+						--Prevent addition overflow; >263 doesn't matter
+						if (V_VDW >= 264) then
+							V_VDW := "100000111";
+						end if;
 						V_VCR := VDE(7 downto 0);
 						
 						VDS <= V_VDS;
