@@ -38,6 +38,7 @@ entity cpu65xx is
 		irq1_n : in std_logic; --GE HuC6280
 		irq2_n : in std_logic; --GE HuC6280 replaces irq_n
 		tiq_n : in std_logic;  --GE HuC6280
+		vdcn : in std_logic;
 		
 		so_n : in std_logic := '1';
 
@@ -2530,7 +2531,7 @@ calcAddr: process(clk)
 	myAddrDecrH <= myAddr(15 downto 8) - 1;
 
 	--GE addr <= myAddr;
-	addr <= x"FF" & myAddr(12 downto 0) when vdcAddr = '1'
+	addr <= x"FF00" & vdcn & myAddr(3 downto 0) when vdcAddr = '1'
 		else MPR(to_integer(myAddr(15 downto 13))) & myAddr(12 downto 0); --GE
 
 	debugA <= A;

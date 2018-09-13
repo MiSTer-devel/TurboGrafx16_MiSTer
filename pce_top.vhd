@@ -68,12 +68,14 @@ signal CPU_VDC_SEL_N	: std_logic;
 signal CPU_RAM_SEL_N	: std_logic;
 signal CPU_BRM_SEL_N	: std_logic;
 
+signal CPU_VDC0_SEL_N: std_logic;
+signal CPU_VDC1_SEL_N: std_logic;
+signal CPU_VPC_SEL_N	: std_logic;
+
 signal CPU_IO_DI		: std_logic_vector(7 downto 0);
 signal CPU_IO_DO		: std_logic_vector(7 downto 0);
 
 -- RAM signals
-signal RAM_A			: std_logic_vector(12 downto 0);
-signal RAM_DI			: std_logic_vector(7 downto 0);
 signal RAM_WE			: std_logic;
 signal RAM_DO			: std_logic_vector(7 downto 0);
 
@@ -82,9 +84,18 @@ signal VCE_DO			: std_logic_vector(7 downto 0);
 signal DOTCLOCK		: std_logic_vector(1 downto 0);
 
 -- VDC signals
-signal VDC_DO			: std_logic_vector(7 downto 0);
-signal VDC_BUSY_N		: std_logic;
-signal VDC_IRQ_N		: std_logic;
+signal VDC0_DO			: std_logic_vector(7 downto 0);
+signal VDC0_BUSY_N	: std_logic;
+signal VDC0_IRQ_N		: std_logic;
+signal VDC0_COLNO		: std_logic_vector(8 downto 0);
+signal VDC1_DO			: std_logic_vector(7 downto 0);
+signal VDC1_BUSY_N	: std_logic;
+signal VDC1_IRQ_N		: std_logic;
+signal VDC1_COLNO		: std_logic_vector(8 downto 0);
+signal VDC_CLKEN		: std_logic;
+signal VPC_DO			: std_logic_vector(7 downto 0);
+signal VDCNUM    		: std_logic;
+signal VDC_COLNO		: std_logic_vector(8 downto 0);
 
 -- NTSC/RGB Video Output
 signal R					: std_logic_vector(2 downto 0);
@@ -93,9 +104,6 @@ signal B					: std_logic_vector(2 downto 0);
 signal VS_N				: std_logic;
 signal HS_N				: std_logic;
 
--- VDC signals
-signal VDC_COLNO		: std_logic_vector(8 downto 0);
-signal VDC_CLKEN		: std_logic;
 
 signal CPU_A_PREV 	: std_logic_vector(20 downto 0);
 signal ROM_RDY			: std_logic;
@@ -141,7 +149,8 @@ port map(
 	CE7_N		=> CPU_VDC_SEL_N,
 	CER_N		=> CPU_RAM_SEL_N,
 	CEB_N		=> CPU_BRM_SEL_N,
-	
+	VDCNUM   => VDCNUM,
+
 	K			=> CPU_IO_DI,
 	O			=> CPU_IO_DO,
 	
@@ -149,11 +158,11 @@ port map(
 	AUD_RDATA=> AUD_RDATA
 );
 
-RAM : entity work.dpram generic map (13,8)
+RAM : entity work.dpram generic map (15,8)
 port map (
 	clock		=> CLK,
-	address_a=> RAM_A,
-	data_a	=> RAM_DI,
+	address_a=> CPU_A(14 downto 0),
+	data_a	=> CPU_DO,
 	wren_a	=> RAM_WE,
 	q_a		=> RAM_DO
 );
@@ -193,8 +202,7 @@ port map(
 	VBL		=> VIDEO_VBL
 );
 
-
-VDC : entity work.huc6270
+VDC0 : entity work.huc6270
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
@@ -202,34 +210,84 @@ port map(
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
-	CE_N		=> CPU_VDC_SEL_N,
+	CE_N		=> CPU_VDC0_SEL_N,
 	WR_N		=> CPU_WR_N,
 	RD_N		=> CPU_RD_N,
 	DI			=> CPU_DO,
-	DO 		=> VDC_DO,
-	BUSY_N	=> VDC_BUSY_N,
-	IRQ_N		=> VDC_IRQ_N,
+	DO 		=> VDC0_DO,
+	BUSY_N	=> VDC0_BUSY_N,
+	IRQ_N		=> VDC0_IRQ_N,
 	
 	-- VCE Interface
-	COLNO		=> VDC_COLNO,
+	COLNO		=> VDC0_COLNO,
 	CLKEN		=> VDC_CLKEN,
 	HS_N		=> HS_N,
 	VS_N		=> VS_N
 );
 
+VDC1 : entity work.huc6270
+port map(
+	CLK 		=> CLK,
+	RESET_N	=> RESET_N,
+	DOTCLOCK => DOTCLOCK,
+
+	-- CPU Interface
+	A			=> CPU_A(1 downto 0),
+	CE_N		=> CPU_VDC1_SEL_N,
+	WR_N		=> CPU_WR_N,
+	RD_N		=> CPU_RD_N,
+	DI			=> CPU_DO,
+	DO 		=> VDC1_DO,
+	BUSY_N	=> VDC1_BUSY_N,
+	IRQ_N		=> VDC1_IRQ_N,
+	
+	-- VCE Interface
+	COLNO		=> VDC1_COLNO,
+	CLKEN		=> VDC_CLKEN,
+	HS_N		=> HS_N,
+	VS_N		=> VS_N
+);
+
+VPC : entity work.huc6202
+port map(
+	CLK 		=> CLK,
+	CLKEN		=> VDC_CLKEN,
+	RESET_N	=> RESET_N,
+
+	-- CPU Interface
+	A			=> CPU_A(2 downto 0),
+	CE_N		=> CPU_VPC_SEL_N,
+	WR_N		=> CPU_WR_N,
+	RD_N		=> CPU_RD_N,
+	DI			=> CPU_DO,
+	DO 		=> VPC_DO,
+	
+	HS_N		=> HS_N,
+	VDC0_IN  => VDC0_COLNO,
+	VDC1_IN  => VDC1_COLNO,
+	VDC_OUT  => VDC_COLNO,
+
+	VDCNUM   => VDCNUM
+);
+
+CPU_VDC0_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or     CPU_A(4);
+CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4);
+CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3);
 
 -- Interrupt signals
 CPU_NMI_N <= '1';
-CPU_IRQ1_N <= VDC_IRQ_N;
+CPU_IRQ1_N <= VDC0_IRQ_N and VDC1_IRQ_N;
 CPU_IRQ2_N <= '1';
-CPU_RDY <= VDC_BUSY_N and ROM_RDY;
+CPU_RDY <= ROM_RDY and VDC0_BUSY_N and VDC1_BUSY_N;
 
 -- CPU data bus
-CPU_DI <= RAM_DO when CPU_RD_N = '0' and CPU_RAM_SEL_N = '0' 
-	  else BRM_DO when CPU_RD_N = '0' and CPU_BRM_SEL_N = '0' 
-	  else ROM_DO when CPU_RD_N = '0' and CPU_A(20) = '0'
-	  else VCE_DO when CPU_RD_N = '0' and CPU_VCE_SEL_N = '0'
-	  else VDC_DO when CPU_RD_N = '0' and CPU_VDC_SEL_N = '0'
+CPU_DI <= RAM_DO  when CPU_RD_N = '0' and CPU_RAM_SEL_N = '0' 
+	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N = '0' 
+	  else ROM_DO  when CPU_RD_N = '0' and CPU_A(20) = '0'
+	  else VCE_DO  when CPU_RD_N = '0' and CPU_VCE_SEL_N = '0'
+	  else VDC0_DO when CPU_RD_N = '0' and CPU_VDC0_SEL_N = '0'
+	  else VDC1_DO when CPU_RD_N = '0' and CPU_VDC1_SEL_N = '0'
+	  else VPC_DO  when CPU_RD_N = '0' and CPU_VPC_SEL_N = '0'
 	  else X"FF";
 
 ROM_RDY <= '1' when romrd_reqReg = romrd_ack else '0';
@@ -335,9 +393,7 @@ end process;
 -- Backup RAM
 BRM_A <= CPU_A(10 downto 0);
 BRM_DI <= CPU_DO;
--- Block RAM
-RAM_A <= CPU_A(12 downto 0);
-RAM_DI <= CPU_DO;
+
 process( CLK )
 begin
 	if rising_edge( CLK ) then
