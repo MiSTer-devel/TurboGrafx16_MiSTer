@@ -615,7 +615,11 @@ begin
 						
 						V_VDS := VSR(15 downto 8);
 						V_VSW := VSR(4 downto 0);
-						V_VDW := VDR(8 downto 0);
+						V_VDW := VDR(8 downto 0); 
+						--Prevent addition overflow; >263 doesn't matter
+						if (V_VDW >= 264) then
+							V_VDW := "100000111";
+						end if;
 						V_VCR := VDE(7 downto 0);
 						
 						VDS <= V_VDS;
@@ -679,22 +683,16 @@ begin
 						Y <= (others => '0');
 					end if;
 					
-					--if Y = Y_BGREN_END or Y = 262 then
-					--	-- VBlank Interrupt
-					--	if CR(3) = '1' then
-					--		IRQ_VBL_SET <= '1';
-					--	end if;
-					--	DBG_VBL <= '1';
-					--	DMAS_DY <= x"4";
-					--else
-					--	DBG_VBL <= '0';
-					--end if;
+					if Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0') then
+						DMAS_DY <= x"4";
+					end if;
 					
 					-- VRAM-SAT DMA
 					if DMAS_DY /= x"0" then
 						DMAS_DY <= DMAS_DY - 1;
 					end if;
-					if DMAS_DY >= 1 and DMAS_DY < 3 then
+					--if DMAS_DY >= 1 and DMAS_DY < 3 then
+					if DMAS_DY = 4 then
 						DMAS_ACTIVE <= '1';
 					else
 						DMAS_ACTIVE <= '0';
@@ -729,7 +727,6 @@ begin
 						IRQ_VBL_SET <= '1';
 					end if;
 					DBG_VBL <= '1';
-					DMAS_DY <= x"4";
 				else
 					DBG_VBL <= '0';
 				end if;
@@ -1801,7 +1798,7 @@ end process;
 -- CPU Interface
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-BUSY <= BG_BUSY2 or SP_BUSY or DMA_BUSY or DMAS_BUSY;
+BUSY <= DMA_BUSY or DMAS_BUSY;
 IRQ_N_FF <= not ( IRQ_COL or IRQ_OVF or IRQ_RCR or IRQ_DMAS or IRQ_DMA or IRQ_VBL);
 
 process( CLK )
