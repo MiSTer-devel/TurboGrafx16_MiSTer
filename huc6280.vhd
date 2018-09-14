@@ -5,49 +5,44 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity huc6280 is
 	port (
-		CLK 	: in std_logic;
+		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
 
-		NMI_N	: in std_logic;
-		IRQ1_N	: in std_logic;
-		IRQ2_N	: in std_logic;
+		NMI_N		: in std_logic := '1';
+		IRQ1_N	: in std_logic := '1';
+		IRQ2_N	: in std_logic := '1';
 		
-		DI		: in std_logic_vector(7 downto 0);
+		DI			: in std_logic_vector(7 downto 0);
 		DO 		: out std_logic_vector(7 downto 0);
 		
 		HSM		: out std_logic;
 		
-		A 		: out std_logic_vector(20 downto 0);
-		WR_N 	: out std_logic;
-		RD_N	: out std_logic;
+		A 			: out std_logic_vector(20 downto 0);
+		WR_N 		: out std_logic;
+		RD_N		: out std_logic;
 		
 		RDY		: in std_logic;
-		ROM_RDY	: in std_logic;
 		CLKOUT	: out std_logic;
-		CLKRST	: out std_logic;
 		
-		CEK_N	: out std_logic; -- VCE
-		CE7_N	: out std_logic; -- VDC
-		CER_N	: out std_logic; -- RAM
-		CEB_N	: out std_logic; -- BRM
-		CEI_N	: out std_logic; -- I/O
+		CEK_N		: out std_logic; -- VCE
+		CE7_N		: out std_logic; -- VDC
+		CER_N		: out std_logic; -- RAM
+		CEB_N		: out std_logic; -- BRM
+		CEI_N		: out std_logic; -- I/O
 
-		VDCNUM: in std_logic;
+		VDCNUM	: in std_logic;
 
-		K		: in std_logic_vector(7 downto 0);
-		O		: out std_logic_vector(7 downto 0);
+		K			: in std_logic_vector(7 downto 0);
+		O			: out std_logic_vector(7 downto 0);
 		
-		AUD_LDATA	: out std_logic_vector(23 downto 0);
-		AUD_RDATA	: out std_logic_vector(23 downto 0)
+		AUD_LDATA: out std_logic_vector(23 downto 0);
+		AUD_RDATA: out std_logic_vector(23 downto 0)
 	);
 end huc6280;
 
 architecture rtl of huc6280 is
 
-signal RESET		: std_logic;
-
-signal CPU_ADDR_U 	: unsigned(20 downto 0);
-signal CPU_DI_U 	: unsigned(7 downto 0);
+signal CPU_ADDR_U : unsigned(20 downto 0);
 signal CPU_DO_U 	: unsigned(7 downto 0);
 
 signal CPU_A		: std_logic_vector(20 downto 0);
@@ -65,19 +60,10 @@ signal CPU_IRQ1_N	: std_logic;
 signal CPU_IRQ2_N	: std_logic;
 signal CPU_TIQ_N	: std_logic;
 
-signal D_OPCODE 	: unsigned(7 downto 0);
-signal D_PC 		: unsigned(15 downto 0);
-signal D_A 			: unsigned(7 downto 0);
-signal D_X 			: unsigned(7 downto 0);
-signal D_Y 			: unsigned(7 downto 0);
-signal D_S 			: unsigned(7 downto 0);
-
-signal CPU_RDY		: std_logic;
 signal CPU_EN		: std_logic;
 
 -- Clock dividers
 signal CLKDIV_HI	: std_logic_vector(2 downto 0) := (others => '0');
-signal CLKDIV_LO	: std_logic_vector(1 downto 0) := (others => '0');
 signal CPU_CLKEN	: std_logic := '0';
 signal TMR_CLKEN	: std_logic := '0';
 signal PSG_CLKEN	: std_logic := '0';
@@ -102,7 +88,7 @@ signal PSG_WE		: std_logic;
 signal pulse_48K	: std_logic;
 
 -- Internal data buffer
-signal DATA_BUF		: std_logic_vector(7 downto 0);
+signal DATA_BUF	: std_logic_vector(7 downto 0);
 
 -- Timer
 signal TMR_LATCH	: std_logic_vector(6 downto 0);
@@ -110,22 +96,16 @@ signal TMR_VALUE	: std_logic_vector(16 downto 0);
 signal TMR_EN		: std_logic;
 signal TMR_RELOAD	: std_logic;
 signal TMR_IRQ		: std_logic;
-signal TMR_IRQ_REQ	: std_logic;
-signal TMR_IRQ_ACK	: std_logic;
+signal TMR_IRQ_REQ: std_logic;
+signal TMR_IRQ_ACK: std_logic;
 
 -- Interrupt controller
-signal INT_MASK		: std_logic_vector(2 downto 0);
+signal INT_MASK	: std_logic_vector(2 downto 0);
 
 -- Output port buffer
 signal O_FF			: std_logic_vector(7 downto 0);
 
 signal CLKOUT_FF	: std_logic;
-
-signal clockDone	: std_logic := '0';
-signal romHCycles	: integer range 0 to 32767 := 0;
-signal lateHCycles	: integer range 0 to 32767 := 0;
-
-signal CLKRST_FF	: std_logic := '0';
 
 begin
 
@@ -138,36 +118,26 @@ CPU: entity work.cpu65xx(fast)
 	port map (
 		clk 			=> CLK,
 		enable 		=> CPU_EN,
-		reset 		=> RESET,
+		reset 		=> not RESET_N,
 		nmi_n 		=> CPU_NMI_N,
 		irq1_n 		=> CPU_IRQ1_N,
 		irq2_n 		=> CPU_IRQ2_N,
 		tiq_n			=> CPU_TIQ_N,
 		vdcn   		=> VDCNUM,
 
-		di 			=> CPU_DI_U,
+		di 			=> unsigned(CPU_DI),
 		do 			=> CPU_DO_U,
 		addr 			=> CPU_ADDR_U,
 		we 			=> CPU_WE,
 		oe				=> CPU_OE,
 		
 		hsm			=> CPU_HSM,
-		blk			=> CPU_BLK,
-		
-		debugOpcode	=> D_OPCODE,
-		debugPc		=> D_PC,
-		debugA		=> D_A,
-		debugX		=> D_X,
-		debugY		=> D_Y,
-		debugS		=> D_S
+		blk			=> CPU_BLK
 	);
-
-RESET <= not RESET_N;
 
 -- Unsigned / std_logic_vector conversion
 CPU_A <= std_logic_vector(CPU_ADDR_U);
 CPU_DO <= std_logic_vector(CPU_DO_U);
-CPU_DI_U <= unsigned(CPU_DI);
 
 -- Output wires
 WR_N <= not CPU_WE;
@@ -183,145 +153,51 @@ CEI_N <= IOP_SEL_N;
 
 O <= O_FF;
 CLKOUT <= CLKOUT_FF;
-CLKRST <= CLKRST_FF;
 
 -- Input wires
 CPU_NMI_N <= NMI_N;
 
 -- Clock dividers
-process( CLK, CPU_RDY )
+process( CLK )
 begin
 	if rising_edge( CLK ) then
-		CLKRST_FF <= '0';
 		TMR_CLKEN <= '0';
 		PSG_CLKEN <= '0';
 		CPU_EN <= '0';
 		CLKDIV_HI <= CLKDIV_HI + 1;
 
-		if RESET_N = '0' then
-			romHCycles <= 0;
-			lateHCycles <= 0;
-			if CLKDIV_HI = "101" then
-				CPU_EN <= '1';
-			end if;
-		end if;
-		
-		if CLKDIV_HI = "000" then
-			CLKRST_FF <= '1';
-		end if;
-		
-		if CLKDIV_HI = "010" or CLKDIV_HI = "101" then
-			-- if CPU_HSM = '1' then
-			if ROM_RDY = '0' then
-				romHCycles <= romHCycles + 1;
-			else
-				romHCycles <= 0;
-				if romHCycles > 0 then
-					-- ROM Read
-					if romHCycles > 1 or lateHCycles > 0 then
-						if clockDone = '1' then
-							lateHCycles <= lateHCycles + romHCycles - 1;
-						else
-							lateHCycles <= lateHCycles + romHCycles;
-						end if;
-						CPU_EN <= '1';
-						clockDone <= '1';
-					else
-						CPU_EN <= not clockDone;
-						clockDone <= not clockDone;
-					end if;
-				else
-					if lateHCycles > 0 and CPU_RDY = '1' then
-						if clockDone = '1' then
-							lateHCycles <= lateHCycles - 1;
-						end if;
-						CPU_EN <= '1';
-						clockDone <= '1';
-					else
-						if CPU_RDY = '1' then
-							CPU_EN <= not clockDone;
-						end if;
-						clockDone <= not clockDone;
-					end if;
-				end if;
-			end if;
-		end if;
-
 		if CLKDIV_HI = "101" then
+			CPU_EN    <= RDY;
 			TMR_CLKEN <= '1';
 			PSG_CLKEN <= '1';
 			CLKDIV_HI <= "000";
-			CLKDIV_LO <= CLKDIV_LO + 1;
 		end if;
 	end if;
 end process;
-
- 
 
 -- XOUT signal is probably set that way
 -- Here it will be used to drive the WE signal of the synchronous BRAM
 process( CLK )
 begin
     if rising_edge( CLK ) then
-        -- CLKOUT_FF <= CPU_CLKEN;
         CLKOUT_FF <= CPU_EN;
     end if;
 end process;
 
 
 -- Address decoding
-process( CPU_A )
-begin	
-	ROM_SEL_N <= '1';
-	RAM_SEL_N <= '1';
-	BRM_SEL_N <= '1';
-	VDC_SEL_N <= '1';
-	VCE_SEL_N <= '1';
-	PSG_SEL_N <= '1';
-	TMR_SEL_N <= '1';
-	IOP_SEL_N <= '1';
-	INT_SEL_N <= '1';
-	
-	-- ROM : Page $00 - $7F (0000 0000 - 0111 1111)
-	if CPU_A(20) = '0' then
-		ROM_SEL_N <= '0';
-	end if;
-	
-	-- BRM : Page $F7       (1111 0111)
-	if CPU_A(20 downto 13) = "11110111" then
-		BRM_SEL_N <= '0';
-	end if;
+ROM_SEL_N <= CPU_A(20);                                        -- ROM : Page $00 - $7F
+RAM_SEL_N <= '0' when CPU_A(20 downto 15) = "111110" else '1'; -- RAM : Page $F8 - $FB
+BRM_SEL_N <= '0' when CPU_A(20 downto 13) = x"F7"    else '1'; -- BRM : Page $F7
 
-	-- RAM : Page $F8 - $FB (1111 1000 - 1111 1011)
-	if CPU_A(20 downto 15) = "111110" then
-		RAM_SEL_N <= '0';
-	end if;
-	
-	-- VDC : Page $FF $0000 - $03FF  (1111 1111 0 0000 0000 0000)
-	--                               (1111 1111 0 0011 1111 1111)
-	-- VCE : Page $FF $0400 - $07FF  (1111 1111 0 0100 0000 0000)
-	--                               (1111 1111 0 0111 1111 1111)
-	-- PSG : Page $FF $0800 - $0BFF  (1111 1111 0 1000 0000 0000)
-	--                               (1111 1111 0 1011 1111 1111)
-	-- TMR : Page $FF $0C00 - $0FFF  (1111 1111 0 1100 0000 0000)
-	--                               (1111 1111 0 1111 1111 1111)
-	-- IOP : Page $FF $1000 - $13FF  (1111 1111 1 0000 0000 0000)
-	--                               (1111 1111 1 0011 1111 1111)
-	-- INT : Page $FF $1400 - $17FF  (1111 1111 1 0100 0000 0000)
-	--                               (1111 1111 1 0111 1111 1111)
-	
-	if CPU_A(20 downto 13) = x"FF" then
-		case CPU_A(12 downto 10) is
-		when "000" => VDC_SEL_N <= '0';
-		when "001" => VCE_SEL_N <= '0';
-		when "010" => PSG_SEL_N <= '0';
-		when "011" => TMR_SEL_N <= '0';
-		when "100" => IOP_SEL_N <= '0';
-		when "101" => INT_SEL_N <= '0';
-		when others => null;
-		end case;
-	end if;
-end process;
+-- I/O Page $FF
+VDC_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "000" else '1'; -- VDC : $0000 - $03FF
+VCE_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "001" else '1'; -- VCE : $0400 - $07FF
+PSG_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "010" else '1'; -- PSG : $0800 - $0BFF
+TMR_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "011" else '1'; -- TMR : $0C00 - $0FFF
+IOP_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "100" else '1'; -- IOP : $1000 - $13FF
+INT_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "101" else '1'; -- INT : $1400 - $17FF
+
 
 -- On-chip hardware CPU interface
 process( CLK )
@@ -454,22 +330,15 @@ begin
 end process;
 
 -- CPU data bus
-CPU_DI <= DI when ROM_SEL_N = '0' or RAM_SEL_N = '0' or BRM_SEL_N = '0' or VDC_SEL_N = '0' or VCE_SEL_N = '0'
+CPU_DI <=   DI when (ROM_SEL_N and RAM_SEL_N and BRM_SEL_N and VDC_SEL_N and VCE_SEL_N) = '0'
 	else PSG_DO when PSG_SEL_N = '0'
 	else TMR_DO when TMR_SEL_N = '0'
 	else IOP_DO when IOP_SEL_N = '0'
 	else INT_DO when INT_SEL_N = '0'
 	else x"FF";
 
-CPU_RDY <= RDY when ROM_SEL_N = '0' or RAM_SEL_N = '0' or BRM_SEL_N = '0' or VDC_SEL_N = '0' or VCE_SEL_N = '0'
-	else '1' when PSG_SEL_N = '0'
-	else '1' when TMR_SEL_N = '0'
-	else '1' when IOP_SEL_N = '0'
-	else '1' when INT_SEL_N = '0'
-	else '1';
-
 CPU_TIQ_N <= not( TMR_IRQ ) or INT_MASK(2);
-CPU_IRQ1_N <= IRQ1_N or INT_MASK(1) ;
+CPU_IRQ1_N <= IRQ1_N or INT_MASK(1);
 CPU_IRQ2_N <= IRQ2_N or INT_MASK(0);
 
 -- PSG
@@ -488,16 +357,16 @@ PSG : entity work.psg port map (
 );
 
 process (CLK)
-	variable cnt : integer range 0 to 1000;
+	variable cnt : integer range 0 to 150;
 begin
 	if rising_edge(CLK) then
+		pulse_48K <= '0';
 		if RESET_N='0' then
 			cnt := 0;
-			pulse_48K <= '0';
-		else
+		elsif PSG_CLKEN = '1' then
 			cnt := cnt + 1;
 			pulse_48K <= '0';
-			if cnt = 893 then
+			if cnt = 149 then
 				pulse_48K <= '1';
 				cnt := 0;
 			end if;

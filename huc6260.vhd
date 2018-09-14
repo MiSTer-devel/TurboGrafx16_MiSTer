@@ -46,7 +46,6 @@ signal CTRL		: ctrl_t;
 signal CR		: std_logic_vector(7 downto 0);
 
 -- VCE Registers
-signal BW		: std_logic;
 signal DOTCLOCK	: std_logic_vector(1 downto 0);
 
 -- CPU Color RAM Interface
@@ -177,7 +176,6 @@ begin
 			H_CNT <= (others => '0');
 			V_CNT <= (others => '0');
 			
-			BW <= '0';
 			-- DOTCLOCK <= "11";
 			DOTCLOCK <= "00";
 			
@@ -205,7 +203,6 @@ begin
 				if V_CNT = TOTAL_LINES-1 then
 					V_CNT <= (others => '0');
 					-- Reload registers
-					BW <= CR(7);
 					DOTCLOCK <= CR(1 downto 0);
 				end if;
 			end if;

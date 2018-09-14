@@ -2543,7 +2543,7 @@ calcAddr: process(clk)
 
 	blk <= opcInfo(opcBlock); --GE HuC6280 Block Transfer Operation
 	
-	nvtbdizc <= N & V & T & (not irqActive) & D & I & Z & C; --GE
+	--nvtbdizc <= N & V & T & (not irqActive) & D & I & Z & C; --GE
 	
 end architecture;
 

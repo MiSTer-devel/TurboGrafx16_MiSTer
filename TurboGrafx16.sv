@@ -234,11 +234,11 @@ pce_top pce_top
 
 	.CLK(clk_sys),
 
-	.romrd_req(rom_rd),
-	.romrd_ack(rom_rdack),
-	.romrd_a(rom_rdaddr),
-	.romrd_q(rom_data),
-	.rom_sz(romwr_a[23:16]),
+	.ROM_REQ(rom_rd),
+	.ROM_ACK(rom_rdack),
+	.ROM_A(rom_rdaddr),
+	.ROM_DO(rom_data),
+	.ROM_SZ(romwr_a[23:16]),
 
 	.BRM_A(bram_addr),
 	.BRM_DO(bram_q),
