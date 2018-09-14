@@ -684,7 +684,7 @@ begin
 					end if;
 					
 					if Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0') then
-						DMAS_DY <= x"4";
+						--DMAS_DY <= x"4";
 					end if;
 					
 					-- VRAM-SAT DMA
@@ -727,6 +727,7 @@ begin
 						IRQ_VBL_SET <= '1';
 					end if;
 					--DBG_VBL <= '1';
+					DMAS_DY <= x"4";
 				else
 					--DBG_VBL <= '0';
 				end if;
