@@ -22,7 +22,7 @@ entity huc6280 is
 		RD_N		: out std_logic;
 		
 		RDY		: in std_logic;
-		CLKOUT	: out std_logic;
+		CLKEN		: out std_logic;
 		
 		CEK_N		: out std_logic; -- VCE
 		CE7_N		: out std_logic; -- VDC
@@ -105,7 +105,7 @@ signal INT_MASK	: std_logic_vector(2 downto 0);
 -- Output port buffer
 signal O_FF			: std_logic_vector(7 downto 0);
 
-signal CLKOUT_FF	: std_logic;
+signal CLKEN_FF	: std_logic;
 
 begin
 
@@ -152,7 +152,7 @@ CEB_N <= BRM_SEL_N;
 CEI_N <= IOP_SEL_N;
 
 O <= O_FF;
-CLKOUT <= CLKOUT_FF;
+CLKEN <= CLKEN_FF;
 
 -- Input wires
 CPU_NMI_N <= NMI_N;
@@ -180,7 +180,7 @@ end process;
 process( CLK )
 begin
     if rising_edge( CLK ) then
-        CLKOUT_FF <= CPU_EN;
+        CLKEN_FF <= CPU_EN;
     end if;
 end process;
 
@@ -219,7 +219,7 @@ begin
 			O_FF <= (others => '0');
 		else
 			-- if CPU_EN = '1' and CPU_WE = '1' then
-			if CLKOUT_FF = '1' and CPU_WE = '1' then
+			if CLKEN_FF = '1' and CPU_WE = '1' then
 				-- CPU Write
 				if PSG_SEL_N = '0' then
 					DATA_BUF <= CPU_DO;
@@ -251,7 +251,7 @@ begin
 					end case;
 				end if;
 			-- elsif CPU_EN = '1' and CPU_OE = '1' then
-			elsif CLKOUT_FF = '1' and CPU_OE = '1' then
+			elsif CLKEN_FF = '1' and CPU_OE = '1' then
 				-- CPU Read
 				if PSG_SEL_N = '0' then
 					if CPU_BLK = '1' then

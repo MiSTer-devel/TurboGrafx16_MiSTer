@@ -230,7 +230,7 @@ wire reset = (RESET | status[0] | buttons[1] | bk_loading);
 
 pce_top pce_top
 (
-	.ROM_RESET_N(~(reset|ioctl_download)),
+	.RESET(reset|ioctl_download),
 
 	.CLK(clk_sys),
 
@@ -258,15 +258,15 @@ pce_top pce_top
 	.VIDEO_G(g),
 	.VIDEO_B(b),
 	.VIDEO_CE(ce_vid),
-	.VIDEO_VS_N(vs),
-	.VIDEO_HS_N(hs),
-	.VIDEO_HBL(hblank),
-	.VIDEO_VBL(vblank)
+	.VIDEO_VS(VSync),
+	.VIDEO_HS(HSync),
+	.VIDEO_HBL(HBlank),
+	.VIDEO_VBL(VBlank)
 );
 
 wire [2:0] r,g,b;
-wire vs,hs;
-wire hblank, vblank;
+wire HSync,VSync;
+wire HBlank,VBlank;
 
 wire ce_vid;
 assign CLK_VIDEO = clk_ram;
@@ -290,18 +290,11 @@ video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
 	.scanlines({scale == 3, scale == 2}),
 	.scandoubler(scale || forced_scandoubler),
 	.hq2x(scale==1),
-
 	.mono(0),
 
 	.R({r,r[2]}),
 	.G({g,g[2]}),
-	.B({b,b[2]}),
-
-	// Positive pulses.
-	.HSync(~hs),
-	.VSync(~vs),
-	.HBlank(hblank),
-	.VBlank(vblank)
+	.B({b,b[2]})
 );
 
 wire [21:0] rom_rdaddr;
@@ -313,7 +306,6 @@ assign DDRAM_CLK = clk_ram;
 ddram ddram
 (
 	.*,
-	.reset(reset & ~ioctl_download),
 
    .wraddr(romwr_a),
    .din(romwr_d),
@@ -333,7 +325,7 @@ wire [15:0] romwr_d = status[3] ?
 		  ioctl_dout[0], ioctl_dout[1], ioctl_dout[2], ioctl_dout[3], ioctl_dout[4], ioctl_dout[5], ioctl_dout[6], ioctl_dout[7] }
 		: ioctl_dout;
 
-reg  rom_wr;
+reg  rom_wr = 0;
 wire rom_wrack;
 
 wire [10:0] bram_addr;
@@ -385,13 +377,12 @@ always @(posedge clk_sys) begin
 
 	if(~old_reset && reset) ioctl_wait <= 0;
 	if(~old_download && ioctl_download) begin
-		rom_wr <= 0;
 		romwr_a <= 0;
 	end
 	else begin
 		if(ioctl_wr) begin
 			ioctl_wait <= 1;
-			rom_wr <= ~rom_wr;
+			rom_wr <= ~rom_wrack;
 		end else if(ioctl_wait && (rom_wr == rom_wrack)) begin
 			ioctl_wait <= 0;
 			romwr_a <= romwr_a + 2'd2;

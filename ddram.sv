@@ -35,8 +35,6 @@ module ddram
 	output  [7:0] DDRAM_BE,
 	output        DDRAM_WE,
 
-	input         reset,
-
 	input  [27:0] wraddr,
 	input  [15:0] din,
 	input         we_req,
@@ -59,25 +57,16 @@ assign dout = ram_q[{rdaddr[2:0], 3'b000} +:8];
 
 reg [63:0] ram_q;
 reg [63:0] ram_data;
-reg [27:0] ram_address;
-reg        ram_read;
-reg        ram_write;
+reg [27:0] ram_address = 0;
+reg        ram_read = 0;
+reg        ram_write = 0;
 
 reg [1:0]  state  = 0;
 
-always @(posedge DDRAM_CLK)
-begin
+always @(posedge DDRAM_CLK) begin
 	reg old_rd, old_we;
 
-	if(reset) begin
-		state  <= 0;
-		ram_write <= 0;
-		ram_read  <= 0;
-		ram_address <= '1;
-	end
-	else
-	if(!DDRAM_BUSY)
-	begin
+	if(!DDRAM_BUSY) begin
 		if(ram_write) ram_address <= '1;
 		ram_write <= 0;
 		ram_read  <= 0;
@@ -89,8 +78,7 @@ begin
 					ram_write 	<= 1;
 					state       <= 1;
 				end
-				else
-				if(rd_ack != rd_req) begin
+				else if(rd_ack != rd_req) begin
 					if(ram_address[27:3] == rdaddr[27:3]) rd_ack <= rd_req;
 					else begin
 						ram_address <= {rdaddr[27:3],3'b000};
@@ -104,8 +92,7 @@ begin
 					state  <= 0;
 				end
 		
-			2: if(DDRAM_DOUT_READY)
-				begin
+			2: if(DDRAM_DOUT_READY) begin
 					ram_q  <= DDRAM_DOUT;
 					rd_ack <= rd_req;
 					state  <= 0;
