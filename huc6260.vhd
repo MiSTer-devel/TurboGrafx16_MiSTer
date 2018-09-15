@@ -46,6 +46,7 @@ signal CTRL		: ctrl_t;
 signal CR		: std_logic_vector(7 downto 0);
 
 -- VCE Registers
+signal BW		: std_logic;
 signal DOTCLOCK	: std_logic_vector(1 downto 0);
 
 -- CPU Color RAM Interface
@@ -176,6 +177,7 @@ begin
 			H_CNT <= (others => '0');
 			V_CNT <= (others => '0');
 			
+			BW <= '0';
 			-- DOTCLOCK <= "11";
 			DOTCLOCK <= "00";
 			
@@ -203,6 +205,7 @@ begin
 				if V_CNT = TOTAL_LINES-1 then
 					V_CNT <= (others => '0');
 					-- Reload registers
+					BW <= CR(7);
 					DOTCLOCK <= CR(1 downto 0);
 				end if;
 			end if;
@@ -248,6 +251,13 @@ end process;
 -- It is performed "at the source" by clearing the input of the scanline RAMs
 -- Based on VGA blanking periods
 process( CLK )
+
+variable L_V : std_logic_vector(4 downto 0);
+variable BW_V : std_logic_vector(2 downto 0);
+variable R_V : std_logic_vector(2 downto 0);
+variable B_V : std_logic_vector(2 downto 0);
+variable G_V : std_logic_vector(2 downto 0);
+
 begin
 	if rising_edge( CLK ) then
 		if RESET_N = '0' then
@@ -266,9 +276,38 @@ begin
 				VBL <= '1';
 			end if;
 
-			G <= COLOR(8 downto 6);
-			R <= COLOR(5 downto 3);
-			B <= COLOR(2 downto 0);
+			G_V := COLOR(8 downto 6);
+			R_V := COLOR(5 downto 3);
+			B_V := COLOR(2 downto 0);
+			if (BW = '1') then
+				L_V := ("00" & G_V) + ("00" & R_V) + ("00" & B_V);
+				-- Divide by 3 (dropped lowest bit)
+				-- Patent uses a ROM table to get 5-bit luminance (not just divide by 3).
+				case L_V(4 downto 1) is
+				when "0000" =>
+					BW_V := "000";
+				when "0001" | "0010" =>
+					BW_V := "001";
+				when "0011" =>
+					BW_V := "010";
+				when "0100" =>
+					BW_V := "011";
+				when "0101" | "0110" =>
+					BW_V := "100";
+				when "0111" =>
+					BW_V := "101";
+				when "1000" | "1001" =>
+					BW_V := "110";
+				when others =>
+					BW_V := "111";
+				end case;
+				G_V := BW_V;
+				R_V := BW_V;
+				B_V := BW_V;
+			end if;
+			G <= G_V;
+			R <= R_V;
+			B <= B_V;
 		end if;
 	end if;
 end process;
