@@ -527,12 +527,12 @@ begin
 						--V_HSW := "00101000";
 					end case;
 					--V_HSW := HPR(4 downto 0);
-					V_HDE := HDR(14 downto 8);
+					--V_HDE := HDR(14 downto 8);
 					V_HDW := HDR(6 downto 0);
 		
-					HDS <= V_HDS;
-					HSW <= V_HSW;
-					HDE <= V_HDE;
+					--HDS <= V_HDS;
+					--HSW <= V_HSW;
+					--HDE <= V_HDE;
 					HDW <= V_HDW;
 		
 					X_REN_START <= ("00" & V_HSW) 
@@ -622,10 +622,10 @@ begin
 						end if;
 						V_VCR := VDE(7 downto 0);
 						
-						VDS <= V_VDS;
-						VSW <= V_VSW;
-						VDW <= V_VDW;
-						VCR <= V_VCR;
+						--VDS <= V_VDS;
+						--VSW <= V_VSW;
+						--VDW <= V_VDW;
+						--VCR <= V_VCR;
 
 						Y_DISP_START <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
@@ -684,7 +684,7 @@ begin
 					end if;
 					
 					if Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0') then
-						DMAS_DY <= x"4";
+						--DMAS_DY <= x"4";
 					end if;
 					
 					-- VRAM-SAT DMA
@@ -726,9 +726,10 @@ begin
 					if CR(3) = '1' then
 						IRQ_VBL_SET <= '1';
 					end if;
-					DBG_VBL <= '1';
+					--DBG_VBL <= '1';
+					DMAS_DY <= x"4";
 				else
-					DBG_VBL <= '0';
+					--DBG_VBL <= '0';
 				end if;
 			end if; -- CLKEN
 		end if;
@@ -768,16 +769,16 @@ begin
 			BG_RAM_REQ_FF <= '0';
 			
 			BG_BUSY <= '0';			
-			BG_BUSY2 <= '0';			
+			--BG_BUSY2 <= '0';			
 		else			
 			case BG1 is
 			when BG1_INI =>
 				BG_BUSY <= '0';
-				BG_BUSY2 <= '0';			
+				--BG_BUSY2 <= '0';			
 				
 				if BG_ACTIVE = '1' then
 					BG_BUSY <= '1';
-					BG_BUSY2 <= '1';
+					--BG_BUSY2 <= '1';
 					
 					-- V_BG_Y := Y - Y_BGREN_START + BYR(8 downto 0);
 					V_BG_Y := YOFS;
@@ -816,7 +817,7 @@ begin
 			when BG1_CPU =>
 				-- Allow one pending CPU VRAM request to be handled
 				BG_BUSY <= '0';
-				BG_BUSY2 <= '0';
+				--BG_BUSY2 <= '0';
 				BG1 <= BG1_CPU_W;
 			
 			when BG1_CPU_W =>
@@ -826,7 +827,7 @@ begin
 					BG_CYC <= BG_CYC + 1;
 					case BG_DW is
 					when "00" =>
-						BG_BUSY2 <= '1';
+						--BG_BUSY2 <= '1';
 						case BG_CYC(2 downto 1) is
 						when "00" => BG1 <= BG1_BAT; 
 						when "01" => BG1 <= BG1_NOP;
@@ -836,7 +837,7 @@ begin
 						end case;
 					when others =>
 						if BG_CYC = "011" then
-							BG_BUSY2 <= '1';
+							--BG_BUSY2 <= '1';
 							BG1 <= BG1_CG0;
 						end if;
 					end case;
@@ -949,7 +950,7 @@ begin
 				
 			when BG1_END =>
 				BG_BUSY <= '0';
-				BG_BUSY2 <= '0';
+				--BG_BUSY2 <= '0';
 				if BG_ACTIVE = '0' then
 					BG1 <= BG1_INI;
 				end if;
@@ -1164,7 +1165,8 @@ begin
 				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).X <= SP_X + X_REN_START - 32;
 				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).HF <= SP_HF;
 				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
-				
+				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).CG <= SP_CG;
+
 				if SP_CGX = '1' then
 					if SP_NB = "01111" then
 						SP_NB <= "11111"; -- Overflow
@@ -1215,6 +1217,7 @@ begin
 				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).X <= SP_X + X_REN_START - 32 + 16;
 				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).HF <= SP_HF;
 				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
+				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).CG <= SP_CG;
 
 				SP_NB <= SP_NB + 1;
 				SP1 <= SP1_LOOP;
@@ -1819,8 +1822,8 @@ begin
 			MAWR <= x"0000";
 			MARR <= x"0000";
 			
-			VRR <= x"FFFF";
-			VWR <= x"FFFF";
+			--VRR <= x"FFFF";
+			--VWR <= x"FFFF";
 			
 			RCR <= x"0000";
 						
