@@ -111,13 +111,7 @@ begin
 					vdcdmas_q <= ram_q;
 					vdcdmas_ackReg <= vdcdmas_req;
 				when others =>
-					if vdccpu_req /= vdccpu_ackReg then
-						ram_a <= vdccpu_a;
-						ram_d <= vdccpu_d;
-						ram_we <= vdccpu_we;
-						ramport <= PORT_VDCCPU;
-						ramstage <= '1';
-					elsif vdcbg_req /= vdcbg_ackReg then
+					if vdcbg_req /= vdcbg_ackReg then
 						ram_a <= vdcbg_a;
 						ramport <= PORT_VDCBG;
 						ramstage <= '1';
@@ -125,15 +119,21 @@ begin
 						ram_a <= vdcsp_a;
 						ramport <= PORT_VDCSP;
 						ramstage <= '1';
+					elsif vdcdmas_req /= vdcdmas_ackReg then
+						ram_a <= vdcdmas_a;
+						ramport <= PORT_VDCDMAS;
+						ramstage <= '1';
 					elsif vdcdma_req /= vdcdma_ackReg then
 						ram_a <= vdcdma_a;
 						ram_d <= vdcdma_d;
 						ram_we <= vdcdma_we;
 						ramport <= PORT_VDCDMA;
 						ramstage <= '1';
-					elsif vdcdmas_req /= vdcdmas_ackReg then
-						ram_a <= vdcdmas_a;
-						ramport <= PORT_VDCDMAS;
+					elsif vdccpu_req /= vdccpu_ackReg then
+						ram_a <= vdccpu_a;
+						ram_d <= vdccpu_d;
+						ram_we <= vdccpu_we;
+						ramport <= PORT_VDCCPU;
 						ramstage <= '1';
 					end if;
 				end case;
