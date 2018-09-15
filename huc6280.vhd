@@ -23,6 +23,7 @@ entity huc6280 is
 		
 		RDY		: in std_logic;
 		CLKEN		: out std_logic;
+		CLKEN7	: out std_logic;
 		
 		CEK_N		: out std_logic; -- VCE
 		CE7_N		: out std_logic; -- VDC
@@ -106,6 +107,7 @@ signal INT_MASK	: std_logic_vector(2 downto 0);
 signal O_FF			: std_logic_vector(7 downto 0);
 
 signal CLKEN_FF	: std_logic;
+signal CLKEN7_FF	: std_logic;
 
 begin
 
@@ -163,11 +165,13 @@ begin
 	if rising_edge( CLK ) then
 		TMR_CLKEN <= '0';
 		PSG_CLKEN <= '0';
-		CPU_EN <= '0';
-		CLKDIV_HI <= CLKDIV_HI + 1;
+		CPU_EN    <= '0';
+		CLKEN7_FF <= '0';
 
+		CLKDIV_HI <= CLKDIV_HI + 1;
 		if CLKDIV_HI = "101" then
 			CPU_EN    <= RDY;
+			CLKEN7_FF <= '1';
 			TMR_CLKEN <= '1';
 			PSG_CLKEN <= '1';
 			CLKDIV_HI <= "000";
@@ -181,6 +185,7 @@ process( CLK )
 begin
     if rising_edge( CLK ) then
         CLKEN_FF <= CPU_EN;
+		  CLKEN7 <= CLKEN7_FF;
     end if;
 end process;
 

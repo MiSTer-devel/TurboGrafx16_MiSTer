@@ -98,7 +98,6 @@ module emu
 );
 
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 
 assign LED_USER  = ioctl_download | bk_state;
 assign LED_DISK  = 0;
@@ -137,11 +136,12 @@ parameter CONF_STR5 = {
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"-;",
 	"O5,SuperGrafx,Enable,Disable;",
+	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disable,Enable;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
-	"V,v1.10.",`BUILD_DATE
+	"V,v1.20.",`BUILD_DATE
 };
 
 ////////////////////   CLOCKS   ///////////////////
@@ -154,7 +154,8 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_ram),
-	.outclk_1(clk_sys),
+	.outclk_1(SDRAM_CLK),
+	.outclk_2(clk_sys),
 	.locked(pll_locked)
 );
 
@@ -177,8 +178,8 @@ reg         sd_rd = 0;
 reg         sd_wr = 0;
 wire        sd_ack;
 wire  [7:0] sd_buff_addr;
-wire  [15:0] sd_buff_dout;
-wire  [15:0] sd_buff_din;
+wire [15:0] sd_buff_dout;
+wire [15:0] sd_buff_din;
 wire        sd_buff_wr;
 wire        img_mounted;
 wire        img_readonly;
@@ -227,6 +228,10 @@ assign AUDIO_S = 1;
 assign AUDIO_MIX = 0;
 
 wire reset = (RESET | status[0] | buttons[1] | bk_loading);
+wire ce_rom;
+
+reg use_sdr = 0;
+always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 
 pce_top pce_top
 (
@@ -234,11 +239,12 @@ pce_top pce_top
 
 	.CLK(clk_sys),
 
-	.ROM_REQ(rom_rd),
-	.ROM_ACK(rom_rdack),
+	.ROM_RD(rom_rd),
+	.ROM_RDY(rom_sdrdy & rom_ddrdy),
 	.ROM_A(rom_rdaddr),
-	.ROM_DO(rom_data),
+	.ROM_DO(use_sdr ? rom_sdata : rom_ddata),
 	.ROM_SZ(romwr_a[23:16]),
+	.ROM_CLKEN(ce_rom),
 
 	.BRM_A(bram_addr),
 	.BRM_DO(bram_q),
@@ -298,11 +304,10 @@ video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
 );
 
 wire [21:0] rom_rdaddr;
-wire [7:0] rom_data;
-wire rom_rd, rom_rdack;
+wire [7:0] rom_ddata, rom_sdata;
+wire rom_rd, rom_sdrdy, rom_ddrdy;
 
 assign DDRAM_CLK = clk_ram;
-
 ddram ddram
 (
 	.*,
@@ -310,12 +315,31 @@ ddram ddram
    .wraddr(romwr_a),
    .din(romwr_d),
    .we_req(rom_wr),
-   .we_ack(rom_wrack),
+   .we_ack(dd_wrack),
 
    .rdaddr(rom_rdaddr + (romwr_a[9] ? 28'h200 : 28'h0)),
-   .dout(rom_data),
-   .rd_req(rom_rd),
-   .rd_ack(rom_rdack)
+   .dout(rom_ddata),
+   .rd_req(~use_sdr & rom_rd),
+   .rd_rdy(rom_ddrdy)
+);
+
+sdram sdram
+(
+	.*,
+
+	.init(~pll_locked),
+	.clk(clk_ram),
+	.clkref(ce_rom),
+
+	.waddr(romwr_a),
+	.din(romwr_d),
+	.we(rom_wr),
+	.we_ack(sd_wrack),
+
+	.raddr(rom_rdaddr + (romwr_a[9] ? 28'h200 : 28'h0)),
+	.rd(use_sdr & rom_rd),
+	.rd_rdy(rom_sdrdy),
+	.dout(rom_sdata)
 );
 
 wire        romwr_ack;
@@ -326,7 +350,30 @@ wire [15:0] romwr_d = status[3] ?
 		: ioctl_dout;
 
 reg  rom_wr = 0;
-wire rom_wrack;
+wire sd_wrack, dd_wrack;
+
+always @(posedge clk_sys) begin
+	reg old_download, old_reset;
+
+	old_download <= ioctl_download;
+	old_reset <= reset;
+
+	if(~old_reset && reset) ioctl_wait <= 0;
+	if(~old_download && ioctl_download) begin
+		romwr_a <= 0;
+	end
+	else begin
+		if(ioctl_wr) begin
+			ioctl_wait <= 1;
+			rom_wr <= ~rom_wr;
+		end else if(ioctl_wait && (rom_wr == dd_wrack) && (rom_wr == sd_wrack)) begin
+			ioctl_wait <= 0;
+			romwr_a <= romwr_a + 2'd2;
+		end
+	end
+end
+
+/////////////////////////  STATE SAVE/LOAD  /////////////////////////////
 
 wire [10:0] bram_addr;
 wire [7:0] bram_data;
@@ -368,35 +415,6 @@ dpram #(12) backram_h
 	.q_b(sd_buff_din[15:8])
 );
 
-always @(posedge clk_sys) begin
-	reg old_download, old_reset, old_format;
-
-	old_download <= ioctl_download;
-	old_reset <= reset;
-	old_format <= format;
-
-	if(~old_reset && reset) ioctl_wait <= 0;
-	if(~old_download && ioctl_download) begin
-		romwr_a <= 0;
-	end
-	else begin
-		if(ioctl_wr) begin
-			ioctl_wait <= 1;
-			rom_wr <= ~rom_wrack;
-		end else if(ioctl_wait && (rom_wr == rom_wrack)) begin
-			ioctl_wait <= 0;
-			romwr_a <= romwr_a + 2'd2;
-		end
-	end
-	if(~old_format && format) begin
-		defbram <= 0;
-	end
-	if(~defbram[3]) begin
-		defbram <= defbram + 4'd1;
-	end
-end
-
-/////////////////////////  STATE SAVE/LOAD  /////////////////////////////
 
 wire downloading = ioctl_download;
 
@@ -417,6 +435,7 @@ reg  bk_loading = 0;
 reg  bk_state   = 0;
 
 always @(posedge clk_sys) begin
+	reg old_format;
 	reg old_load = 0, old_save = 0, old_ack;
 
 	old_load <= bk_load;
@@ -444,6 +463,14 @@ always @(posedge clk_sys) begin
 				sd_wr  <= ~bk_loading;
 			end
 		end
+	end
+	
+	old_format <= format;
+	if(~old_format && format) begin
+		defbram <= 0;
+	end
+	if(~defbram[3]) begin
+		defbram <= defbram + 4'd1;
 	end
 end
 

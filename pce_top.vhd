@@ -12,11 +12,12 @@ entity pce_top is
 		RESET			: in  std_logic;
 		CLK 			: in  std_logic;
 
-		ROM_REQ		: out std_logic;
-		ROM_ACK		: in  std_logic;
+		ROM_RD		: out std_logic;
+		ROM_RDY		: in  std_logic;
 		ROM_A 		: out std_logic_vector(21 downto 0);
 		ROM_DO 		: in  std_logic_vector(7 downto 0);
 		ROM_SZ 		: in  std_logic_vector(7 downto 0);
+		ROM_CLKEN	: out std_logic;
 
 		BRM_A 		: out std_logic_vector(10 downto 0);
 		BRM_DI 		: out std_logic_vector(7 downto 0);
@@ -91,7 +92,8 @@ signal VDC_COLNO		: std_logic_vector(8 downto 0);
 signal VS_N				: std_logic;
 signal HS_N				: std_logic;
 
-signal ROM_RDREQ		: std_logic;
+signal rombank			: std_logic_vector(1 downto 0);
+signal CLKEN7			: std_logic;
 
 signal gamepad_out	: std_logic_vector(1 downto 0);
 signal gamepad_port	: unsigned(2 downto 0);
@@ -118,7 +120,9 @@ port map(
 	RD_N		=> CPU_RD_N,
 	
 	CLKEN		=> CPU_CLKEN,
-	RDY		=> VDC0_BUSY_N and VDC1_BUSY_N and not(ROM_RDREQ xor ROM_ACK),
+	RDY		=> VDC0_BUSY_N and VDC1_BUSY_N and ROM_RDY,
+
+	CLKEN7	=> CLKEN7,
 	
 	CEK_N		=> CPU_VCE_SEL_N,
 	CE7_N		=> CPU_VDC_SEL_N,
@@ -238,100 +242,79 @@ CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4) when SGX = '1' e
 CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' else '1';
 
 -- CPU data bus
-CPU_DI <= RAM_DO  when CPU_RD_N = '0' and CPU_RAM_SEL_N = '0' 
-	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N = '0' 
-	  else ROM_DO  when CPU_RD_N = '0' and CPU_A(20) = '0'
-	  else VCE_DO  when CPU_RD_N = '0' and CPU_VCE_SEL_N = '0'
+CPU_DI <= RAM_DO  when CPU_RD_N = '0' and CPU_RAM_SEL_N  = '0' 
+	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N  = '0' 
+	  else ROM_DO  when CPU_RD_N = '0' and CPU_A(20)      = '0'
+	  else VCE_DO  when CPU_RD_N = '0' and CPU_VCE_SEL_N  = '0'
 	  else VDC0_DO when CPU_RD_N = '0' and CPU_VDC0_SEL_N = '0'
 	  else VDC1_DO when CPU_RD_N = '0' and CPU_VDC1_SEL_N = '0'
-	  else VPC_DO  when CPU_RD_N = '0' and CPU_VPC_SEL_N = '0'
+	  else VPC_DO  when CPU_RD_N = '0' and CPU_VPC_SEL_N  = '0'
 	  else X"FF";
 
-ROM_REQ <= ROM_RDREQ;
+-- Perform address mangling to mimic HuCard chip mapping.
+-- 384K ROM, split in 3, mapped ABABCCCC
+	                                     -- bits 19 downto 16
+	-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
+	-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
+	-- 40000 -> 60000  => 00000 -> 20000		0100 -> 0000
+	-- 60000 -> 80000  => 20000 -> 40000		0110 -> 0010
+	-- 80000 -> A0000  => 40000 -> 60000		1000 -> 0100
+	-- A0000 -> C0000  => 40000 -> 60000		1010 -> 0100
+	-- C0000 -> E0000  => 40000 -> 60000		1100 -> 0100
+	-- E0000 ->100000  => 40000 -> 60000		1110 -> 0100
 
-process( CLK )
-	variable rombank : std_logic_vector(1 downto 0);
-begin
+-- 768K ROM, split in 6, mapped ABCDEFEF
+				                            -- bits 19 downto 16
+	-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
+	-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
+	-- 40000 -> 60000  => 40000 -> 60000		0100 -> 0100
+	-- 60000 -> 80000  => 60000 -> 80000		0110 -> 0110
+	-- 80000 -> A0000  => 80000 -> A0000		1000 -> 1000
+	-- A0000 -> C0000  => A0000 -> C0000		1010 -> 1010
+	-- C0000 -> E0000  => 80000 -> A0000		1100 -> 1000
+	-- E0000 ->100000  => A0000 -> C0000		1110 -> 1010
+
+--2560K ROM, ABCDEFGH, ABCDIJKL, ABCDMNOP, ABCDQRST = SF2
+                                      -- bits 21 downto 19 (bank)
+	-- 00000 -> 80000 XX => 00000 -> 80000		0 XX -> 000
+	-- 80000 ->100000 00 => 80000 ->100000		1 00 -> 001
+	-- 80000 ->100000 01 =>100000 ->180000		1 01 -> 010
+	-- 80000 ->100000 10 =>180000 ->200000		1 10 -> 011
+	-- 80000 ->100000 11 =>200000 ->280000		1 11 -> 100
+
+-- 128K ROM, mapped AAAAAAAA -> simple repeat
+-- 256K ROM, mapped ABABABAB -> simple repeat
+-- 512K ROM, mapped ABCDABCD -> simple repeat
+-- 1MB and others            -> Straight mapping
+
+ROM_A <=   "00000"&CPU_A(16 downto 0)                                       when rom_sz = X"02" -- 128K
+      else "0000"&CPU_A(17 downto 0)                                        when rom_sz = X"04" -- 256K
+      else "000"&CPU_A(19)&(CPU_A(17) and not CPU_A(19))&CPU_A(16 downto 0) when rom_sz = X"06" -- 384K
+      else "000"&CPU_A(18 downto 0)                                         when rom_sz = X"08" -- 512K
+      else "00" &CPU_A(19)&(CPU_A(18) and not CPU_A(19))&CPU_A(17 downto 0) when rom_sz = X"0C" -- 768K
+      else (CPU_A(19) and (rombank(0) and rombank(1)))
+          &(CPU_A(19) and (rombank(0) xor rombank(1)))
+          &(CPU_A(19) and not rombank(0))&CPU_A(18 downto 0)                when rom_sz = X"28" -- SF2
+      else "00"&CPU_A(19 downto 0);                                                             -- 1MB and others
+
+ROM_RD    <= CPU_CLKEN and not CPU_A(20) and not CPU_RD_N and not RESET;
+ROM_CLKEN <= CLKEN7;
+
+process( CLK ) begin
 	if rising_edge( CLK ) then
+
 		if RESET = '1' then
 			RESET_N <= '0';
-			rombank := "00";
+			rombank <= "00";
 		elsif CPU_CLKEN = '1' then
 
 			RESET_N <= '1';
 
 			-- CPU_A(12 downto 2) = X"7FC" means CPU_A & 0x1FFC = 0x1FF0
 			if CPU_A(20) = '0' and ('0' & CPU_A(12 downto 2)) = X"7FC" and CPU_WR_N = '0' then
-				rombank := CPU_A(1 downto 0);
+				rombank <= CPU_A(1 downto 0);
 			end if;
 
-			if CPU_RD_N = '0' and CPU_A(20) = '0' then
-				ROM_RDREQ <= not ROM_ACK;
-				ROM_A <= '0'&CPU_A;
-
-				-- Perform address mangling to mimic HuCard chip mapping.
-				-- Straight mapping
-				-- 384K ROM, split in 3, mapped ABABCCCC
-				-- Are these needed? or correct?
-				-- 768K ROM, split in 6, mapped ABCDEFEF
-				-- 512K ROM,             mapped ABCDABCD
-				-- 256K ROM,             mapped ABABABAB
-				-- 128K ROM,             mapped AAAAAAAA
-				--2560K ROM, ABCDEFGH, ABCDIJKL, ABCDMNOP, ABCDQRST = SF2
-
-				if ROM_SZ = X"06" then                    -- bits 19 downto 16
-					-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
-					-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
-					-- 40000 -> 60000  => 00000 -> 20000		0100 -> 0000
-					-- 60000 -> 80000  => 20000 -> 40000		0110 -> 0010
-					-- 80000 -> A0000  => 40000 -> 60000		1000 -> 0100
-					-- A0000 -> C0000  => 40000 -> 60000		1010 -> 0100
-					-- C0000 -> E0000  => 40000 -> 60000		1100 -> 0100
-					-- E0000 ->100000  => 40000 -> 60000		1110 -> 0100
-					ROM_A(19)<='0';
-					ROM_A(18)<=CPU_A(19);
-					ROM_A(17)<=CPU_A(17) and not CPU_A(19);
-				elsif ROM_SZ = X"0C" then                    -- bits 19 downto 16
-					-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
-					-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
-					-- 40000 -> 60000  => 40000 -> 60000		0100 -> 0100
-					-- 60000 -> 80000  => 60000 -> 80000		0110 -> 0110
-					-- 80000 -> A0000  => 80000 -> A0000		1000 -> 1000
-					-- A0000 -> C0000  => A0000 -> C0000		1010 -> 1010
-					-- C0000 -> E0000  => 80000 -> A0000		1100 -> 1000
-					-- E0000 ->100000  => A0000 -> C0000		1110 -> 1010
-					ROM_A(18)<=CPU_A(18) and not CPU_A(19);
-				elsif ROM_SZ = X"08" then                    -- bits 19 downto 16
-				-- Some documentation suggests this...not sure if this is correct...
-					-- 00000 -> 20000  => 00000 -> 20000		0000 -> 0000
-					-- 20000 -> 40000  => 20000 -> 40000		0010 -> 0010
-					-- 40000 -> 60000  => 40000 -> 60000		0100 -> 0100
-					-- 60000 -> 80000  => 60000 -> 80000		0110 -> 0110
-					-- 80000 -> A0000  => 40000 -> 60000		1000 -> 0100
-					-- A0000 -> C0000  => 60000 -> 80000		1010 -> 0110
-					-- C0000 -> E0000  => 40000 -> 60000		1100 -> 0100
-					-- E0000 ->100000  => 60000 -> 80000		1110 -> 0110
-					ROM_A(19)<='0';
-					--Use this if above is correct.
-					--ROM_A(18)<=CPU_A(18) or CPU_A(19);
-				elsif ROM_SZ = X"04" then                    -- bits 19 downto 16
-					ROM_A(19)<='0';
-					ROM_A(18)<='0';
-				elsif ROM_SZ = X"02" then                    -- bits 19 downto 16
-					ROM_A(19)<='0';
-					ROM_A(18)<='0';
-					ROM_A(17)<='0';
-				elsif ROM_SZ = X"28" then                    -- bits 21 downto 19
-					-- 00000 -> 80000 XX => 00000 -> 80000		0 XX -> 000
-					-- 80000 ->100000 00 => 80000 ->100000		1 00 -> 001
-					-- 80000 ->100000 01 =>100000 ->180000		1 01 -> 010
-					-- 80000 ->100000 10 =>180000 ->200000		1 10 -> 011
-					-- 80000 ->100000 11 =>200000 ->280000		1 11 -> 100
-					ROM_A(21)<=CPU_A(19) and (rombank(0) and rombank(1));
-					ROM_A(20)<=CPU_A(19) and (rombank(0) xor rombank(1));
-					ROM_A(19)<=CPU_A(19) and not rombank(0);
-				end if;
-			end if;
 		end if;
 	end if;
 end process;
