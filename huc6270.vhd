@@ -683,16 +683,12 @@ begin
 						Y <= (others => '0');
 					end if;
 					
-					if Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0') then
-						--DMAS_DY <= x"4";
-					end if;
-					
 					-- VRAM-SAT DMA
 					if DMAS_DY /= x"0" then
 						DMAS_DY <= DMAS_DY - 1;
 					end if;
 					--if DMAS_DY >= 1 and DMAS_DY < 3 then
-					if DMAS_DY = 4 then
+					if DMAS_DY = 3 then
 						DMAS_ACTIVE <= '1';
 					else
 						DMAS_ACTIVE <= '0';
@@ -726,10 +722,7 @@ begin
 					if CR(3) = '1' then
 						IRQ_VBL_SET <= '1';
 					end if;
-					--DBG_VBL <= '1';
 					DMAS_DY <= x"4";
-				else
-					--DBG_VBL <= '0';
 				end if;
 			end if; -- CLKEN
 		end if;
