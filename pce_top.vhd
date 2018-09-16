@@ -17,6 +17,7 @@ entity pce_top is
 		ROM_A 		: out std_logic_vector(21 downto 0);
 		ROM_DO 		: in  std_logic_vector(7 downto 0);
 		ROM_SZ 		: in  std_logic_vector(7 downto 0);
+		ROM_POP		: in  std_logic;
 		ROM_CLKEN	: out std_logic;
 
 		BRM_A 		: out std_logic_vector(10 downto 0);
@@ -69,6 +70,9 @@ signal CPU_VPC_SEL_N	: std_logic;
 -- RAM signals
 signal RAM_DO			: std_logic_vector(7 downto 0);
 signal RAM_A			: std_logic_vector(14 downto 0);
+
+signal PRAM_DO			: std_logic_vector(7 downto 0);
+signal CPU_PRAM_SEL_N: std_logic;
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
@@ -243,7 +247,8 @@ CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' e
 
 -- CPU data bus
 CPU_DI <= RAM_DO  when CPU_RD_N = '0' and CPU_RAM_SEL_N  = '0' 
-	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N  = '0' 
+	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N  = '0'
+	  else PRAM_DO when CPU_RD_N = '0' and CPU_PRAM_SEL_N = '0'
 	  else ROM_DO  when CPU_RD_N = '0' and CPU_A(20)      = '0'
 	  else VCE_DO  when CPU_RD_N = '0' and CPU_VCE_SEL_N  = '0'
 	  else VDC0_DO when CPU_RD_N = '0' and CPU_VDC0_SEL_N = '0'
@@ -297,7 +302,7 @@ ROM_A <=   "00000"&CPU_A(16 downto 0)                                       when
           &(CPU_A(19) and not rombank(0))&CPU_A(18 downto 0)                when rom_sz = X"28" -- SF2
       else "00"&CPU_A(19 downto 0);                                                             -- 1MB and others
 
-ROM_RD    <= CPU_CLKEN and not CPU_A(20) and not CPU_RD_N and not RESET;
+ROM_RD    <= CPU_CLKEN and not CPU_A(20) and not CPU_RD_N and not RESET and CPU_PRAM_SEL_N;
 ROM_CLKEN <= CLKEN7;
 
 process( CLK ) begin
@@ -318,6 +323,17 @@ process( CLK ) begin
 		end if;
 	end if;
 end process;
+
+PRAM : entity work.dpram generic map (15,8)
+port map (
+	clock		=> CLK,
+	address_a=> CPU_A(14 downto 0),
+	data_a	=> CPU_DO,
+	wren_a	=> CPU_CLKEN and not CPU_PRAM_SEL_N and not CPU_WR_N,
+	q_a		=> PRAM_DO
+);
+
+CPU_PRAM_SEL_N <= CPU_A(20) or not CPU_A(19) or not ROM_POP;
 
 
 RAM : entity work.dpram generic map (15,8)

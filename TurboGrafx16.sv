@@ -2,7 +2,7 @@
 //  TurboGrafx16 / PC Engine
 //
 //  Port to MiSTer
-//  Copyright (C) 2017 Sorgelig
+//  Copyright (C) 2017,2018 Sorgelig
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
@@ -244,6 +244,7 @@ pce_top pce_top
 	.ROM_A(rom_rdaddr),
 	.ROM_DO(use_sdr ? rom_sdata : rom_ddata),
 	.ROM_SZ(romwr_a[23:16]),
+	.ROM_POP(populous[romwr_a[9]]),
 	.ROM_CLKEN(ce_rom),
 
 	.BRM_A(bram_addr),
@@ -352,6 +353,7 @@ wire [15:0] romwr_d = status[3] ?
 reg  rom_wr = 0;
 wire sd_wrack, dd_wrack;
 
+reg [1:0] populous;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 
@@ -361,11 +363,20 @@ always @(posedge clk_sys) begin
 	if(~old_reset && reset) ioctl_wait <= 0;
 	if(~old_download && ioctl_download) begin
 		romwr_a <= 0;
+		populous <= 2'b11;
 	end
 	else begin
 		if(ioctl_wr) begin
 			ioctl_wait <= 1;
 			rom_wr <= ~rom_wr;
+			if((romwr_a[23:4] == 'h212) || (romwr_a[23:4] == 'h1f2)) begin
+				case(romwr_a[3:0])
+					 6: if(romwr_d != 'h4F50) populous[romwr_a[13]] <= 0;
+					 8: if(romwr_d != 'h5550) populous[romwr_a[13]] <= 0;
+					10: if(romwr_d != 'h4F4C) populous[romwr_a[13]] <= 0;
+					12: if(romwr_d != 'h5355) populous[romwr_a[13]] <= 0;
+				endcase
+			end
 		end else if(ioctl_wait && (rom_wr == dd_wrack) && (rom_wr == sd_wrack)) begin
 			ioctl_wait <= 0;
 			romwr_a <= romwr_a + 2'd2;
