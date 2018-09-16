@@ -7,6 +7,11 @@ library STD;
 use STD.TEXTIO.ALL;
 
 entity huc6260 is
+	generic
+	(
+		LEFT_BL_CLOCKS	: integer; --should be divisible by 24! (LCM of 4, 6 and 8)
+		DISP_CLOCKS	   : integer  --should be divisible by 24! (LCM of 4, 6 and 8)
+	);
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
@@ -62,8 +67,6 @@ signal COLOR	: std_logic_vector(8 downto 0);
 -- Video Counting. All horizontal constants should be divisible by 24! (LCM of 4, 6 and 8)
 constant LINE_CLOCKS	   : integer := 2736;
 constant HS_CLOCKS		: integer := 192;
-constant LEFT_BL_CLOCKS	: integer := 408;
-constant DISP_CLOCKS	   : integer := 2088;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
