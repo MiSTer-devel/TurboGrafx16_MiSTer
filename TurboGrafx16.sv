@@ -112,7 +112,8 @@ wire [1:0] scale = status[9:8];
 parameter CONF_STR1 = {
 	"TGFX16;;",
 	"-;",
-	"FS,PCEBIN;",
+	"FS,PCEBIN,Load TurboGrafx;",
+	"FS,SGX,Load SuperGrafx;",
 	"-;"
 };
 
@@ -135,7 +136,6 @@ parameter CONF_STR5 = {
 	"O1,Aspect ratio,4:3,16:9;",
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"-;",
-	"O5,SuperGrafx,Disabled,Enabled;",
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
@@ -255,7 +255,7 @@ pce_top pce_top
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
-	.SGX(status[5]),
+	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
@@ -354,6 +354,7 @@ reg  rom_wr = 0;
 wire sd_wrack, dd_wrack;
 
 reg [1:0] populous;
+reg sgx;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 
@@ -364,6 +365,7 @@ always @(posedge clk_sys) begin
 	if(~old_download && ioctl_download) begin
 		romwr_a <= 0;
 		populous <= 2'b11;
+		sgx <= (ioctl_index[4:0] == 2);
 	end
 	else begin
 		if(ioctl_wr) begin
