@@ -61,7 +61,7 @@ signal COLOR	: std_logic_vector(8 downto 0);
 -- Video Counting
 constant LINE_CLOCKS	   : integer := 2736; -- should be divisible by 24 (LCM of 4, 6 and 8)
 constant HS_CLOCKS		: integer := 192;
-constant LEFT_BL_CLOCKS	: integer := 408;
+constant LEFT_BL_CLOCKS	: integer := 416;
 constant DISP_CLOCKS	   : integer := 2088;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
