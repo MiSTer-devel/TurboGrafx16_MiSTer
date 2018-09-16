@@ -12,6 +12,11 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity huc6270 is
+	generic
+	(
+		LEFT_BL_CLOCKS	: integer; --should be divisible by 24! (LCM of 4, 6 and 8)
+		DISP_CLOCKS	   : integer  --should be divisible by 24! (LCM of 4, 6 and 8)
+	);
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
@@ -446,15 +451,23 @@ port map(
 --------------------------------------------------------------------------------
 process( CLK )
 
-variable V_HDS : std_logic_vector(6 downto 0);
-variable V_HSW : std_logic_vector(7 downto 0);
+variable V_HDS : std_logic_vector(9 downto 0);
+variable V_HSW : std_logic_vector(9 downto 0);
 variable V_HDE : std_logic_vector(6 downto 0);
-variable V_HDW : std_logic_vector(6 downto 0);
+variable V_HDW : std_logic_vector(9 downto 0);
 
 variable V_VDS : std_logic_vector(7 downto 0);
 variable V_VSW : std_logic_vector(4 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
+
+constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
+constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
+constant HSIZE2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/4,10));
+
+constant HSTART0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/8,10));
+constant HSTART1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/6,10));
+constant HSTART2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/4,10));
 
 begin
 	if rising_edge(CLK) then
@@ -511,41 +524,34 @@ begin
 				if HS_N_PREV = '1' and HS_N = '0' then
 					X <= (others => '0');
 					
-					V_HDS := HPR(14 downto 8);
+					--V_HDS := HPR(14 downto 8)&"000";
+					V_HDW := (HDR(6 downto 0)+"1")&"000";
+					
 					-- For external sync, HSW is whatever the HUC6260 generates (3 * 8 cycles).
 					-- Does it change with clock frequency? i.e. 2, 3.5, 5 (3,4.5,6)-1
 					case DOTCLOCK is
 					when "00" =>
-						V_HSW := "00010000";
+						if V_HDW >= HSIZE0 then V_HSW := (others => '0'); else V_HSW := HSIZE0 - V_HDW; end if;
+						V_HSW := '0'&V_HSW(9 downto 1) + HSTART0;
 					when "01" =>
-						V_HSW := "00010000";
-						--V_HSW := "00011100";
+						if V_HDW >= HSIZE1 then V_HSW := (others => '0'); else V_HSW := HSIZE1 - V_HDW; end if;
+						V_HSW := '0'&V_HSW(9 downto 1) + HSTART1;
 					when others =>
-						V_HSW := "00010000";
-						--V_HSW := "00101000";
+						if V_HDW >= HSIZE2 then V_HSW := (others => '0'); else V_HSW := HSIZE2 - V_HDW; end if;
+						V_HSW := '0'&V_HSW(9 downto 1) + HSTART2;
 					end case;
 					--V_HSW := HPR(4 downto 0);
 					--V_HDE := HDR(14 downto 8);
-					V_HDW := HDR(6 downto 0);
 		
 					--HDS <= V_HDS;
 					--HSW <= V_HSW;
 					--HDE <= V_HDE;
-					HDW <= V_HDW;
+					HDW <= HDR(6 downto 0);
 		
-					X_REN_START <= ("00" & V_HSW) 
-						+ ( V_HDS & "000" ) 
-						+ ( "0000010" & "101" ); -- (HSW+1+HDS+1)<<3
+					X_REN_START <= V_HSW;
+					X_REN_END   <= V_HSW + V_HDW - "1";
+					X_BG_START  <= V_HSW - "10101"; -- why this offset?
 
-					X_REN_END <= ("00" & V_HSW) 
-						+ ( V_HDS & "000" ) 
-						+ ( V_HDW & "000" )
-						+ ( "0000011" & "100" ); -- (HSW+1+HDS+1+HDW+1)<<3
-				
-					X_BG_START <= ("00" & V_HSW) 
-						+ ( V_HDS & "000" ) 
-						+ ( "0000000" & "000" ); -- (HSW+1+HDS+1 -1 - 1)<<3
-									
 					-- X_BG_END <= ("00" & V_HSW) 
 						-- + ( V_HDS & "000" ) 
 						-- + ( V_HDW & "000" )
@@ -710,9 +716,6 @@ begin
 					if CR(3) = '1' then
 						IRQ_VBL_SET <= '1';
 					end if;
-					--DBG_VBL <= '1';
-				else
-					--DBG_VBL <= '0';
 				end if;
 			end if; -- CLKEN
 		end if;
@@ -1839,35 +1842,35 @@ begin
 			
 			RCR <= x"0000";
 						
--- Values taken from The Kung Fu
--- CR <= x"00CC";
-CR <= x"0000";
--- MWR <= x"0010";
-MWR <= x"0000";
-HPR <= x"0202";
-HDR <= x"031F";
-VSR <= x"0F02";
-VDR <= x"00EF";
-VDE <= x"0003";
-BXR <= x"0000";
-BYR <= x"0000";			
--- DCR <= x"0010";
-DCR <= x"0000";
---SATB <= x"0800";
-SATB <= x"0000";
+			-- Values taken from The Kung Fu
+			-- CR <= x"00CC";
+			CR <= x"0000";
+			-- MWR <= x"0010";
+			MWR <= x"0000";
+			--HPR <= x"0202";
+			HDR <= x"031F";
+			VSR <= x"0F02";
+			VDR <= x"00EF";
+			VDE <= x"0003";
+			BXR <= x"0000";
+			BYR <= x"0000";			
+			-- DCR <= x"0010";
+			DCR <= x"0000";
+			--SATB <= x"0800";
+			SATB <= x"0000";
 
--- -- Values taken from BALL.PCE
--- CR <= x"00C8";
--- MWR <= x"0010";
--- HPR <= x"0302";
--- HDR <= x"031F";
--- VSR <= x"1702";
--- VDR <= x"00DF";
--- VDE <= x"000C";
--- BXR <= x"0000";
--- BYR <= x"0000";
--- DCR <= x"0010";
--- SATB <= x"7F00";
+			-- -- Values taken from BALL.PCE
+			-- CR <= x"00C8";
+			-- MWR <= x"0010";
+			-- HPR <= x"0302";
+			-- HDR <= x"031F";
+			-- VSR <= x"1702";
+			-- VDR <= x"00DF";
+			-- VDE <= x"000C";
+			-- BXR <= x"0000";
+			-- BYR <= x"0000";
+			-- DCR <= x"0010";
+			-- SATB <= x"7F00";
 			
 			RD_BUF <= (others => '1');
 			WR_BUF <= (others => '0');
@@ -1918,8 +1921,8 @@ SATB <= x"0000";
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(7 downto 0) <= DI;
-						when "01010" =>
-							HPR(7 downto 0) <= DI;
+						--when "01010" =>
+							--HPR(7 downto 0) <= DI;
 						when "01011" =>
 							HDR(7 downto 0) <= DI;
 						when "01100" =>
@@ -1975,8 +1978,8 @@ SATB <= x"0000";
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(15 downto 8) <= DI;
-						when "01010" =>
-							HPR(15 downto 8) <= DI;
+						--when "01010" =>
+							--HPR(15 downto 8) <= DI;
 						when "01011" =>
 							HDR(15 downto 8) <= DI;
 						when "01100" =>

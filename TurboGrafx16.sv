@@ -2,7 +2,7 @@
 //  TurboGrafx16 / PC Engine
 //
 //  Port to MiSTer
-//  Copyright (C) 2017 Sorgelig
+//  Copyright (C) 2017,2018 Sorgelig
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
@@ -112,7 +112,8 @@ wire [1:0] scale = status[9:8];
 parameter CONF_STR1 = {
 	"TGFX16;;",
 	"-;",
-	"FS,PCEBIN;",
+	"FS,PCEBIN,Load TurboGrafx;",
+	"FS,SGX,Load SuperGrafx;",
 	"-;"
 };
 
@@ -135,9 +136,8 @@ parameter CONF_STR5 = {
 	"O1,Aspect ratio,4:3,16:9;",
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"-;",
-	"O5,SuperGrafx,Enable,Disable;",
 	"O6,ROM Storage,DDR3,SDRAM;",
-	"O2,Turbo Tap,Disable,Enable;",
+	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -244,6 +244,7 @@ pce_top pce_top
 	.ROM_A(rom_rdaddr),
 	.ROM_DO(use_sdr ? rom_sdata : rom_ddata),
 	.ROM_SZ(romwr_a[23:16]),
+	.ROM_POP(populous[romwr_a[9]]),
 	.ROM_CLKEN(ce_rom),
 
 	.BRM_A(bram_addr),
@@ -254,7 +255,7 @@ pce_top pce_top
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
-	.SGX(~status[5]),
+	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
@@ -263,16 +264,18 @@ pce_top pce_top
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
+	.VIDEO_BW(bw),
 	.VIDEO_CE(ce_vid),
-	.VIDEO_VS(VSync),
-	.VIDEO_HS(HSync),
-	.VIDEO_HBL(HBlank),
-	.VIDEO_VBL(VBlank)
+	.VIDEO_VS(vs),
+	.VIDEO_HS(hs),
+	.VIDEO_HBL(hbl),
+	.VIDEO_VBL(vbl)
 );
 
 wire [2:0] r,g,b;
-wire HSync,VSync;
-wire HBlank,VBlank;
+wire hs,vs;
+wire hbl,vbl;
+wire bw;
 
 wire ce_vid;
 assign CLK_VIDEO = clk_ram;
@@ -285,7 +288,34 @@ always @(posedge clk_ram) begin
 	ce_pix <= ~old_ce & ce_vid;
 end
 
-video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
+color_mix color_mix
+(
+	.clk_vid(clk_ram),
+	.ce_pix(ce_pix),
+	.mix(bw ? 3'd5 : 0),
+
+	.R_in({r,r,r[2:1]}),
+	.G_in({g,g,g[2:1]}),
+	.B_in({b,b,b[2:1]}),
+	.HSync_in(hs),
+	.VSync_in(vs),
+	.HBlank_in(hbl),
+	.VBlank_in(vbl),
+
+	.R_out(R),
+	.G_out(G),
+	.B_out(B),
+	.HSync_out(HSync),
+	.VSync_out(VSync),
+	.HBlank_out(HBlank),
+	.VBlank_out(VBlank)
+);
+
+wire [7:0] R,G,B;
+wire HSync,VSync;
+wire HBlank,VBlank;
+
+video_mixer #(.LINE_LENGTH(560)) video_mixer
 (
 	.*,
 
@@ -296,11 +326,7 @@ video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
 	.scanlines({scale == 3, scale == 2}),
 	.scandoubler(scale || forced_scandoubler),
 	.hq2x(scale==1),
-	.mono(0),
-
-	.R({r,r[2]}),
-	.G({g,g[2]}),
-	.B({b,b[2]})
+	.mono(0)
 );
 
 wire [21:0] rom_rdaddr;
@@ -352,6 +378,8 @@ wire [15:0] romwr_d = status[3] ?
 reg  rom_wr = 0;
 wire sd_wrack, dd_wrack;
 
+reg [1:0] populous;
+reg sgx;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 
@@ -361,11 +389,21 @@ always @(posedge clk_sys) begin
 	if(~old_reset && reset) ioctl_wait <= 0;
 	if(~old_download && ioctl_download) begin
 		romwr_a <= 0;
+		populous <= 2'b11;
+		sgx <= (ioctl_index[4:0] == 2);
 	end
 	else begin
 		if(ioctl_wr) begin
 			ioctl_wait <= 1;
 			rom_wr <= ~rom_wr;
+			if((romwr_a[23:4] == 'h212) || (romwr_a[23:4] == 'h1f2)) begin
+				case(romwr_a[3:0])
+					 6: if(romwr_d != 'h4F50) populous[romwr_a[13]] <= 0;
+					 8: if(romwr_d != 'h5550) populous[romwr_a[13]] <= 0;
+					10: if(romwr_d != 'h4F4C) populous[romwr_a[13]] <= 0;
+					12: if(romwr_d != 'h5355) populous[romwr_a[13]] <= 0;
+				endcase
+			end
 		end else if(ioctl_wait && (rom_wr == dd_wrack) && (rom_wr == sd_wrack)) begin
 			ioctl_wait <= 0;
 			romwr_a <= romwr_a + 2'd2;

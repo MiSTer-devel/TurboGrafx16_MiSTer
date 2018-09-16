@@ -17,6 +17,7 @@ entity pce_top is
 		ROM_A 		: out std_logic_vector(21 downto 0);
 		ROM_DO 		: in  std_logic_vector(7 downto 0);
 		ROM_SZ 		: in  std_logic_vector(7 downto 0);
+		ROM_POP		: in  std_logic;
 		ROM_CLKEN	: out std_logic;
 
 		BRM_A 		: out std_logic_vector(10 downto 0);
@@ -36,6 +37,7 @@ entity pce_top is
 		VIDEO_R		: out std_logic_vector(2 downto 0);
 		VIDEO_G		: out std_logic_vector(2 downto 0);
 		VIDEO_B		: out std_logic_vector(2 downto 0);
+		VIDEO_BW		: out std_logic;
 		VIDEO_CE		: out std_logic;
 		VIDEO_VS		: out std_logic;
 		VIDEO_HS		: out std_logic;
@@ -45,6 +47,10 @@ entity pce_top is
 end pce_top;
 
 architecture rtl of pce_top is
+
+constant LEFT_BL_CLOCKS	: integer := 408;  --should be divisible by 24! (LCM of 4, 6 and 8)
+constant DISP_CLOCKS	   : integer := 2160; --should be divisible by 24! (LCM of 4, 6 and 8)
+
 
 signal RESET_N			: std_logic := '0';
 
@@ -69,6 +75,9 @@ signal CPU_VPC_SEL_N	: std_logic;
 -- RAM signals
 signal RAM_DO			: std_logic_vector(7 downto 0);
 signal RAM_A			: std_logic_vector(14 downto 0);
+
+signal PRAM_DO			: std_logic_vector(7 downto 0);
+signal CPU_PRAM_SEL_N: std_logic;
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
@@ -142,6 +151,11 @@ VIDEO_VS <= not VS_N;
 VIDEO_HS <= not HS_N;
 
 VCE : entity work.huc6260
+generic map
+(
+	LEFT_BL_CLOCKS,
+	DISP_CLOCKS
+)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
@@ -163,6 +177,7 @@ port map(
 	R			=> VIDEO_R,
 	G			=> VIDEO_G,
 	B			=> VIDEO_B,
+	BW			=> VIDEO_BW,
 	VS_N		=> VS_N,
 	HS_N		=> HS_N,
 	HBL		=> VIDEO_HBL,
@@ -170,6 +185,11 @@ port map(
 );
 
 VDC0 : entity work.huc6270
+generic map
+(
+	LEFT_BL_CLOCKS,
+	DISP_CLOCKS
+)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
@@ -193,6 +213,11 @@ port map(
 );
 
 VDC1 : entity work.huc6270
+generic map
+(
+	LEFT_BL_CLOCKS,
+	DISP_CLOCKS
+)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
@@ -243,7 +268,8 @@ CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' e
 
 -- CPU data bus
 CPU_DI <= RAM_DO  when CPU_RD_N = '0' and CPU_RAM_SEL_N  = '0' 
-	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N  = '0' 
+	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N  = '0'
+	  else PRAM_DO when CPU_RD_N = '0' and CPU_PRAM_SEL_N = '0'
 	  else ROM_DO  when CPU_RD_N = '0' and CPU_A(20)      = '0'
 	  else VCE_DO  when CPU_RD_N = '0' and CPU_VCE_SEL_N  = '0'
 	  else VDC0_DO when CPU_RD_N = '0' and CPU_VDC0_SEL_N = '0'
@@ -297,7 +323,7 @@ ROM_A <=   "00000"&CPU_A(16 downto 0)                                       when
           &(CPU_A(19) and not rombank(0))&CPU_A(18 downto 0)                when rom_sz = X"28" -- SF2
       else "00"&CPU_A(19 downto 0);                                                             -- 1MB and others
 
-ROM_RD    <= CPU_CLKEN and not CPU_A(20) and not CPU_RD_N and not RESET;
+ROM_RD    <= CPU_CLKEN and not CPU_A(20) and not CPU_RD_N and not RESET and CPU_PRAM_SEL_N;
 ROM_CLKEN <= CLKEN7;
 
 process( CLK ) begin
@@ -318,6 +344,17 @@ process( CLK ) begin
 		end if;
 	end if;
 end process;
+
+PRAM : entity work.dpram generic map (15,8)
+port map (
+	clock		=> CLK,
+	address_a=> CPU_A(14 downto 0),
+	data_a	=> CPU_DO,
+	wren_a	=> CPU_CLKEN and not CPU_PRAM_SEL_N and not CPU_WR_N,
+	q_a		=> PRAM_DO
+);
+
+CPU_PRAM_SEL_N <= CPU_A(20) or not CPU_A(19) or not ROM_POP;
 
 
 RAM : entity work.dpram generic map (15,8)
