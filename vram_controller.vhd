@@ -78,10 +78,11 @@ begin
 	vdcbg_ack   <= vdcbg_ackReg;
 	vdcdmas_ack <= vdcdmas_ackReg;
 
-	ram : entity work.dpram generic map (16,16)
+	ram : entity work.dpram generic map (15,16)
 		port map (
 			clock     => clk,
-			address_a => ram_a,
+			address_a => ram_a(14 downto 0),
+			cs_a      => not ram_a(15),
 			q_a       => ram_q,
 			wren_a    => ram_we,
 			data_a    => ram_d
