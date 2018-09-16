@@ -59,10 +59,10 @@ signal RAM_DO	: std_logic_vector(8 downto 0);
 -- Color RAM Output
 signal COLOR	: std_logic_vector(8 downto 0);
 
--- Video Counting
-constant LINE_CLOCKS	   : integer := 2736; -- should be divisible by 24 (LCM of 4, 6 and 8)
+-- Video Counting. All horizontal constants should be divisible by 24! (LCM of 4, 6 and 8)
+constant LINE_CLOCKS	   : integer := 2736;
 constant HS_CLOCKS		: integer := 192;
-constant LEFT_BL_CLOCKS	: integer := 416;
+constant LEFT_BL_CLOCKS	: integer := 408;
 constant DISP_CLOCKS	   : integer := 2088;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
@@ -73,8 +73,12 @@ constant DISP_LINES		: integer := 242;	 -- pcetech.txt
 signal H_CNT	: std_logic_vector(11 downto 0);
 signal V_CNT	: std_logic_vector(9 downto 0);
 
+signal HBL_FF, HBL_FF2	: std_logic;
+signal VBL_FF, VBL_FF2	: std_logic;
+
 -- Clock generation
 signal CLKEN_CNT	: std_logic_vector(2 downto 0);
+signal CLKEN_FF	: std_logic;
 
 begin
 
@@ -89,8 +93,6 @@ port map(
 	q_a			=> RAM_DO,
 	
 	address_b	=> COLNO,
-	data_b		=> "000000000",
-	wren_b		=> '0',
 	q_b			=> COLOR
 );
 
@@ -174,101 +176,68 @@ end process;
 process( CLK )
 begin
 	if rising_edge( CLK ) then
-		if RESET_N = '0' then
-			H_CNT <= (others => '0');
-			V_CNT <= (others => '0');
-			
-			BW <= '0';
-			-- DOTCLOCK <= "11";
-			DOTCLOCK <= "00";
-			
-			CLKEN <= '0';
+		H_CNT <= H_CNT + 1;
+		
+		CLKEN_FF <= '0';
+		CLKEN_CNT <= CLKEN_CNT + 1;
+		if DOTCLOCK = "00" and CLKEN_CNT = "111" then
 			CLKEN_CNT <= (others => '0');
-		else
-			H_CNT <= H_CNT + 1;
-			
-			CLKEN <= '0';
-			CLKEN_CNT <= CLKEN_CNT + 1;
-			if DOTCLOCK = "00" and CLKEN_CNT = "111" then
-				CLKEN_CNT <= (others => '0');
-				CLKEN <= '1';
-			elsif DOTCLOCK = "01" and CLKEN_CNT = "101" then
-				CLKEN_CNT <= (others => '0');
-				CLKEN <= '1';				
-			elsif (DOTCLOCK = "10" or DOTCLOCK = "11") and CLKEN_CNT = "011" then
-				CLKEN_CNT <= (others => '0');
-				CLKEN <= '1';				
-			end if;
-			
-			if H_CNT = LINE_CLOCKS-1 then
-				H_CNT <= (others => '0');
-				V_CNT <= V_CNT + 1;
-				if V_CNT = TOTAL_LINES-1 then
-					V_CNT <= (others => '0');
-					-- Reload registers
-					BW <= CR(7);
-					DOTCLOCK <= CR(1 downto 0);
-				end if;
+			CLKEN_FF <= '1';
+		elsif DOTCLOCK = "01" and CLKEN_CNT = "101" then
+			CLKEN_CNT <= (others => '0');
+			CLKEN_FF <= '1';				
+		elsif (DOTCLOCK = "10" or DOTCLOCK = "11") and CLKEN_CNT = "011" then
+			CLKEN_CNT <= (others => '0');
+			CLKEN_FF <= '1';				
+		end if;
+		
+		if H_CNT = LINE_CLOCKS-1 then
+			H_CNT <= (others => '0');
+			V_CNT <= V_CNT + 1;
+			if V_CNT = TOTAL_LINES-1 then
+				V_CNT <= (others => '0');
+				-- Reload registers
+				BW <= CR(7);
+				DOTCLOCK <= CR(1 downto 0);
 			end if;
 		end if;
 	end if;
 end process;
 
--- Horizontal Sync
+-- Sync
 process( CLK )
 begin
 	if rising_edge( CLK ) then
-		if RESET_N = '0' then
-			HS_N <= '0';
-		else
-			if H_CNT = 0 then
-				HS_N <= '0';
-			end if;
-			if H_CNT = HS_CLOCKS-1 then
-				HS_N <= '1';
-			end if;
-		end if;
+		if H_CNT = 0           then HS_N <= '0'; end if;
+		if H_CNT = HS_CLOCKS-1 then HS_N <= '1'; end if;
+		if V_CNT = 0           then VS_N <= '0'; end if;
+		if V_CNT = VS_LINES-1  then VS_N <= '1'; end if;
 	end if;
 end process;
 
--- Vertical Sync
+-- Blank
 process( CLK )
 begin
 	if rising_edge( CLK ) then
-		if RESET_N = '0' then
-			VS_N <= '0';
-		else
-			if V_CNT = 0 then
-				VS_N <= '0';
-			end if;
-			if V_CNT = VS_LINES-1 then
-				VS_N <= '1';
-			end if;
-		end if;
+		if H_CNT = LEFT_BL_CLOCKS               then HBL_FF <= '0'; end if;
+		if H_CNT = LEFT_BL_CLOCKS + DISP_CLOCKS then HBL_FF <= '1'; end if;
+		if V_CNT = TOP_BL_LINES                 then VBL_FF <= '0'; end if;
+		if V_CNT = TOP_BL_LINES + DISP_LINES    then VBL_FF <= '1'; end if;
 	end if;
 end process;
 
--- Blanking
--- It is performed "at the source" by clearing the input of the scanline RAMs
--- Based on VGA blanking periods
+-- Final output
 process( CLK )
 begin
 	if rising_edge( CLK ) then
-		if RESET_N = '0' then
-			HBL <= '0';
-			VBL <= '0';
-		else
-			if H_CNT >= LEFT_BL_CLOCKS and H_CNT < LEFT_BL_CLOCKS + DISP_CLOCKS then
-				HBL <= '0';
-			else
-				HBL <= '1';
-			end if;
+		if CLKEN_FF = '1' then
 
-			if V_CNT >= TOP_BL_LINES and V_CNT < TOP_BL_LINES + DISP_LINES	then
-				VBL <= '0';
-			else
-				VBL <= '1';
-			end if;
+			-- compensate HUC6202 delay
+			VBL_FF2 <= VBL_FF;
+			HBL_FF2 <= HBL_FF;
+
+			VBL <= VBL_FF2;
+			HBL <= HBL_FF2;
 
 			G <= COLOR(8 downto 6);
 			R <= COLOR(5 downto 3);
@@ -278,5 +247,6 @@ begin
 end process;
 
 DOTCLOCK_O <= DOTCLOCK;
+CLKEN <= CLKEN_FF;
 
 end rtl;
