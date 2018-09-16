@@ -37,6 +37,7 @@ entity pce_top is
 		VIDEO_R		: out std_logic_vector(2 downto 0);
 		VIDEO_G		: out std_logic_vector(2 downto 0);
 		VIDEO_B		: out std_logic_vector(2 downto 0);
+		VIDEO_BW		: out std_logic;
 		VIDEO_CE		: out std_logic;
 		VIDEO_VS		: out std_logic;
 		VIDEO_HS		: out std_logic;
@@ -167,6 +168,7 @@ port map(
 	R			=> VIDEO_R,
 	G			=> VIDEO_G,
 	B			=> VIDEO_B,
+	BW			=> VIDEO_BW,
 	VS_N		=> VS_N,
 	HS_N		=> HS_N,
 	HBL		=> VIDEO_HBL,

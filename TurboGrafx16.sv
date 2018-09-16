@@ -264,16 +264,18 @@ pce_top pce_top
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
+	.VIDEO_BW(bw),
 	.VIDEO_CE(ce_vid),
-	.VIDEO_VS(VSync),
-	.VIDEO_HS(HSync),
-	.VIDEO_HBL(HBlank),
-	.VIDEO_VBL(VBlank)
+	.VIDEO_VS(vs),
+	.VIDEO_HS(hs),
+	.VIDEO_HBL(hbl),
+	.VIDEO_VBL(vbl)
 );
 
 wire [2:0] r,g,b;
-wire HSync,VSync;
-wire HBlank,VBlank;
+wire hs,vs;
+wire hbl,vbl;
+wire bw;
 
 wire ce_vid;
 assign CLK_VIDEO = clk_ram;
@@ -286,7 +288,34 @@ always @(posedge clk_ram) begin
 	ce_pix <= ~old_ce & ce_vid;
 end
 
-video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
+color_mix color_mix
+(
+	.clk_vid(clk_ram),
+	.ce_pix(ce_pix),
+	.mix(bw ? 3'd5 : 0),
+
+	.R_in({r,r,r[2:1]}),
+	.G_in({g,g,g[2:1]}),
+	.B_in({b,b,b[2:1]}),
+	.HSync_in(hs),
+	.VSync_in(vs),
+	.HBlank_in(hbl),
+	.VBlank_in(vbl),
+
+	.R_out(R),
+	.G_out(G),
+	.B_out(B),
+	.HSync_out(HSync),
+	.VSync_out(VSync),
+	.HBlank_out(HBlank),
+	.VBlank_out(VBlank)
+);
+
+wire [7:0] R,G,B;
+wire HSync,VSync;
+wire HBlank,VBlank;
+
+video_mixer #(.LINE_LENGTH(560)) video_mixer
 (
 	.*,
 
@@ -297,11 +326,7 @@ video_mixer #(.LINE_LENGTH(560), .HALF_DEPTH(1)) video_mixer
 	.scanlines({scale == 3, scale == 2}),
 	.scandoubler(scale || forced_scandoubler),
 	.hq2x(scale==1),
-	.mono(0),
-
-	.R({r,r[2]}),
-	.G({g,g[2]}),
-	.B({b,b[2]})
+	.mono(0)
 );
 
 wire [21:0] rom_rdaddr;
