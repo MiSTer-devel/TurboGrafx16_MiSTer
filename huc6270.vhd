@@ -118,7 +118,6 @@ signal SP2_ACTIVE	: std_logic;
 signal REN_ACTIVE	: std_logic;
 signal DMA_ACTIVE	: std_logic;
 signal DMAS_ACTIVE	: std_logic;
-signal DMAS_DY		: std_logic_vector(3 downto 0);
 signal RCNT			: std_logic_vector(8 downto 0);
 signal DBG_VBL		: std_logic;
 
@@ -507,7 +506,6 @@ begin
 			Y_SP_START <= (others => '1');
 			Y_SP_END <= (others => '1');
 
-			DMAS_DY <= (others => '0');
 			RCNT <= (others => '1');
 			VBLANK_DONE <= '1';
 			
@@ -603,6 +601,18 @@ begin
 					-- SP1_ACTIVE <= '0';
 				end if;
 				
+				if X = X_REN_START then
+					DMAS_ACTIVE <= '0';
+					if (Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0')) then
+						-- VBlank Interrupt
+						VBLANK_DONE <= '1';
+						if CR(3) = '1' then
+							IRQ_VBL_SET <= '1';
+						end if;
+						DMAS_ACTIVE <= '1';
+					end if;
+				end if;
+
 				if Y_UPDATE = '1' then
 					BG_ACTIVE <= '0';
 					REN_ACTIVE <= '0';
@@ -688,21 +698,6 @@ begin
 						-- Frame counter reset
 						Y <= (others => '0');
 					end if;
-					
-					if Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0') then
-						--DMAS_DY <= x"4";
-					end if;
-					
-					-- VRAM-SAT DMA
-					if DMAS_DY /= x"0" then
-						DMAS_DY <= DMAS_DY - 1;
-					end if;
-					--if DMAS_DY >= 1 and DMAS_DY < 3 then
-					if DMAS_DY = 4 then
-						DMAS_ACTIVE <= '1';
-					else
-						DMAS_ACTIVE <= '0';
-					end if;
 
 					-- Raster counter
 					RCNT <= RCNT + 1;
@@ -725,17 +720,6 @@ begin
 						DMA_ACTIVE <= '0';
 				end if;
 					
-				end if;
-				if X = X_REN_START and (Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0')) then
-					-- VBlank Interrupt
-					VBLANK_DONE <= '1';
-					if CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
-					end if;
-					--DBG_VBL <= '1';
-					DMAS_DY <= x"4";
-				else
-					--DBG_VBL <= '0';
 				end if;
 			end if; -- CLKEN
 		end if;
