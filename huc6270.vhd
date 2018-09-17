@@ -116,9 +116,11 @@ signal BG_ACTIVE	: std_logic;
 signal SP1_ACTIVE	: std_logic;
 signal SP2_ACTIVE	: std_logic;
 signal REN_ACTIVE	: std_logic;
+signal DMA_ACTIVE	: std_logic;
+signal DMAS_ACTIVE	: std_logic;
+signal DMAS_DY		: std_logic_vector(3 downto 0);
 signal RCNT			: std_logic_vector(8 downto 0);
 signal DBG_VBL		: std_logic;
-signal DCR_DMAS_REQ		: std_logic;
 
 signal SP_ON		: std_logic;
 signal BG_ON		: std_logic;
@@ -404,7 +406,6 @@ signal DMAS_SAT_WE		: std_logic := '0';
 type dmas_t is (	DMAS_IDLE,
 					DMAS_READ, DMAS_READ1, DMAS_READ2,
 					DMAS_WRITE,
-					DMAS_WAIT1, DMAS_WAIT2,
 					DMAS_END );
 signal DMAS	: dmas_t;
 
@@ -487,7 +488,8 @@ begin
 			SP1_ACTIVE <= '0';
 			SP2_ACTIVE <= '0';
 			REN_ACTIVE <= '0';
-			DCR_DMAS_REQ <= '0';
+			DMA_ACTIVE <= '0';
+			DMAS_ACTIVE <= '0';
 			
 			X_BG_START <= (others => '1');
 			X_REN_START <= (others => '1');
@@ -505,6 +507,7 @@ begin
 			Y_SP_START <= (others => '1');
 			Y_SP_END <= (others => '1');
 
+			DMAS_DY <= (others => '0');
 			RCNT <= (others => '1');
 			VBLANK_DONE <= '1';
 			
@@ -519,7 +522,6 @@ begin
 				X <= X + 1;
 				
 				Y_UPDATE <= '0';
-				DCR_DMAS_REQ <= '0';
 				
 				if HS_N_PREV = '1' and HS_N = '0' then
 					X <= (others => '0');
@@ -679,9 +681,6 @@ begin
 							BURST <= '1';
 						else
 							BURST <= '0';
-							if DCR(4) = '1' then -- Auto SATB DMA
-								DCR_DMAS_REQ <= '1';
-							end if;
 						end if;
 					end if;
 					
@@ -690,8 +689,19 @@ begin
 						Y <= (others => '0');
 					end if;
 					
-					if Y = Y_BGREN_END or (Y = 262 and BURST = '0') then
-						BURST <= '1';
+					if Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0') then
+						--DMAS_DY <= x"4";
+					end if;
+					
+					-- VRAM-SAT DMA
+					if DMAS_DY /= x"0" then
+						DMAS_DY <= DMAS_DY - 1;
+					end if;
+					--if DMAS_DY >= 1 and DMAS_DY < 3 then
+					if DMAS_DY = 4 then
+						DMAS_ACTIVE <= '1';
+					else
+						DMAS_ACTIVE <= '0';
 					end if;
 
 					-- Raster counter
@@ -709,13 +719,23 @@ begin
 						SP2_ACTIVE <= '1';
 					end if;
 					
+					if Y >= Y_BGREN_END or Y < Y_SP_START or BURST = '1' then
+						DMA_ACTIVE <= '1';
+					else
+						DMA_ACTIVE <= '0';
 				end if;
-				if X = X_REN_START and ((Y = Y_BGREN_END + 1) or (Y = 262 and VBLANK_DONE = '0')) then
+					
+				end if;
+				if X = X_REN_START and (Y = Y_BGREN_END or (Y = 262 and VBLANK_DONE = '0')) then
 					-- VBlank Interrupt
 					VBLANK_DONE <= '1';
 					if CR(3) = '1' then
 						IRQ_VBL_SET <= '1';
 					end if;
+					--DBG_VBL <= '1';
+					DMAS_DY <= x"4";
+				else
+					--DBG_VBL <= '0';
 				end if;
 			end if; -- CLKEN
 		end if;
@@ -1664,8 +1684,7 @@ begin
 		else
 			case DMA is
 			when DMA_IDLE =>
-				-- Can VRAM DMA happen at the same time as DMAS, or is paused during DMAS?
-				if BURST = '1' and DMA_REQ = '1' and DMAS_REQ = '0' and DMAS_BUSY='0' then
+				if DMA_ACTIVE = '1' and DMA_REQ = '1' then
 					DMA_BUSY <= '1';
 					DMA <= DMA_READ;
 				else
@@ -1749,16 +1768,12 @@ begin
 		else
 			case DMAS is
 			when DMAS_IDLE =>
-				if BURST = '1' and DMAS_REQ = '1' then
+				if DMAS_ACTIVE = '1'
+				and (DMAS_REQ = '1' or DCR(4) = '1') -- Auto SATB DMA
+				then
 					DMAS_BUSY <= '1';
 					DMAS_SAT_A <= x"00";
 					DMAS_RAM_A_FF <= SATB;
-					DMAS <= DMAS_WAIT1;
-				end if;
-			
-			-- Wait state is to make the DMAS take 1024 dot clocks
-			when DMAS_WAIT1 =>
-				if CLKEN = '1' then
 					DMAS <= DMAS_READ;
 				end if;
 			
@@ -1768,12 +1783,6 @@ begin
 				
 			when DMAS_READ1 =>
 				if CLKEN = '1' and DMAS_RAM_REQ_FF = DMAS_RAM_ACK then
-					DMAS <= DMAS_WAIT2;
-				end if;
-			
-			-- Wait state is to make the DMAS take 1024 dot clocks
-			when DMAS_WAIT2 =>
-				if CLKEN = '1' then
 					DMAS <= DMAS_READ2;
 				end if;
 			
@@ -1791,18 +1800,17 @@ begin
 						DMAS <= DMAS_END;
 						DMAS_DMAS_CLR <= '1';
 						DMAS_BUSY <= '0';
-					elsif BURST = '0' then --incomplete
-						DMAS <= DMAS_IDLE;
-						DMAS_BUSY <= '0';
 					else
-						DMAS <= DMAS_WAIT1;
+						DMAS <= DMAS_READ;
 					end if;
 				end if;
 			
 			when DMAS_END =>
-				DMAS <= DMAS_IDLE;
-				if DCR(0) = '1' then
+				if DMAS_ACTIVE = '0' then
+					DMAS <= DMAS_IDLE;
+					if DCR(0) = '1' then
 						IRQ_DMAS_SET <= '1';
+					end if;
 				end if;
 			
 			when others => null;
@@ -2209,7 +2217,7 @@ begin
 	if rising_edge( CLK ) then
 		if RESET_N = '0' then
 			DMAS_REQ <= '0';
-		elsif CPU_DMAS_REQ = '1' or DCR_DMAS_REQ = '1' then
+		elsif CPU_DMAS_REQ = '1' then
 			DMAS_REQ <= '1';
 		elsif DMAS_DMAS_CLR = '1' then
 			DMAS_REQ <= '0';
