@@ -562,6 +562,12 @@ begin
 						REN_ACTIVE <= '0';
 						-- SP1_ACTIVE <= '0';
 					end if;
+					
+					-- Raster compare interrupt
+					if ("0" & RCNT) = RCR(9 downto 0) and CR(2) = '1' then
+						IRQ_RCR_SET <= '1';
+					end if;
+					
 				end if;
 				
 				if X = X_BG_START and Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
@@ -618,24 +624,24 @@ begin
 						
 						--V_VCR := VDE(7 downto 0);
 
-						V_VDS := V_VDS + V_VSW - 2;
+						V_VDS := V_VDS + V_VSW;
 						V_VDE := V_VDS + V_VDW;
 						
-						-- Make sure display ends (V_VDE+2) before vsync
+						-- Make sure display ends (V_VDE+1) before vsync
 						-- possible Y values 0..262 (limited by ext VS_N)
-						if (V_VDE > 260) then
-							V_VDE := std_logic_vector(to_unsigned(260,9));
-						end if; 
-						
+						if (V_VDE > 261) then
+							V_VDE := std_logic_vector(to_unsigned(261,9));
+						end if;
+
 						Y_DISP_START  <= V_VDS;
-						Y_BGREN_START <= V_VDS + 2;
-						Y_BGREN_END   <= V_VDE + 2;
-						Y_SP_START    <= V_VDS + 1; -- SP1 state machine starts on line before BG REN
-						Y_SP_END      <= V_VDE + 1;
+						Y_BGREN_START <= V_VDS + 1;
+						Y_BGREN_END   <= V_VDE + 1;
+						Y_SP_START    <= V_VDS; -- SP1 state machine starts on line before BG REN
+						Y_SP_END      <= V_VDE;
 					end if;
 
 					-- Burst Mode
-					if Y = Y_DISP_START then
+					if Y = Y_DISP_START - 1 then
 						if CR(7 downto 6) = "00" then
 							BURST <= '1';
 						else
@@ -652,13 +658,8 @@ begin
 
 					-- Raster counter
 					RCNT <= RCNT + 1;
-					if Y = Y_DISP_START - 1 then
-					--if Y = Y_BGREN_START - 1 then
+					if Y = Y_DISP_START then
 						RCNT <= "0" & x"40";
-					end if;
-					-- Raster compare interrupt
-					if ("0" & RCNT) = RCR(9 downto 0) and CR(2) = '1' then
-						IRQ_RCR_SET <= '1';
 					end if;
 					
 					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
@@ -666,12 +667,15 @@ begin
 					end if;
 					
 				end if;
-				if X = X_REN_START and Y = Y_BGREN_END then
-					-- VBlank Interrupt
-					if CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
+				if X = X_REN_START then
+					if Y = Y_BGREN_END then
+						-- VBlank Interrupt
+						if CR(3) = '1' then
+							IRQ_VBL_SET <= '1';
+						end if;
 					end if;
 				end if;
+
 			end if; -- CLKEN
 		end if;
 	end if;
@@ -989,7 +993,7 @@ begin
 			when SP1_INI =>
 				if SP1_ACTIVE = '1' then
 					SP_NB <= "00000";					
-					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64 + 1;
+					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64;
 					SP_SAT_A <= "000000" & "11";
 					
 					SP1_CNT <= "00";
