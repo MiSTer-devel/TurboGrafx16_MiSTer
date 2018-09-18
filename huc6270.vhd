@@ -57,7 +57,7 @@ signal BXR		: std_logic_vector(15 downto 0);
 signal BYR		: std_logic_vector(15 downto 0);
 signal MWR		: std_logic_vector(15 downto 0);
 
-signal HPR		: std_logic_vector(15 downto 0);
+--signal HPR		: std_logic_vector(15 downto 0);
 signal HDR		: std_logic_vector(15 downto 0);
 signal VSR		: std_logic_vector(15 downto 0);
 signal VDR		: std_logic_vector(15 downto 0);
@@ -665,11 +665,11 @@ begin
 							- 2;
 
 						-- Is it needed ?
-						if CR(7 downto 6) = "00" then
-							BURST <= '1';
-						else
-							BURST <= '0';
-						end if;
+						--if CR(7 downto 6) = "00" then
+						--	BURST <= '1';
+						--else
+						--	BURST <= '0';
+						--end if;
 			
 					end if;
 
@@ -1926,8 +1926,8 @@ begin
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(7 downto 0) <= DI;
-						when "01010" =>
-							HPR(7 downto 0) <= DI;
+						--when "01010" =>
+						--	HPR(7 downto 0) <= DI;
 						when "01011" =>
 							HDR(7 downto 0) <= DI;
 						when "01100" =>
@@ -1949,6 +1949,7 @@ begin
 							CPU_LENR_SET_REQ <= '1';
 						when "10011" =>
 							SATB(7 downto 0) <= DI;							
+							CPU_DMAS_REQ <= '1';
 						when others => null;
 						end case;
 					
@@ -1983,8 +1984,8 @@ begin
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(15 downto 8) <= DI;
-						when "01010" =>
-							HPR(15 downto 8) <= DI;
+						--when "01010" =>
+						--	HPR(15 downto 8) <= DI;
 						when "01011" =>
 							HDR(15 downto 8) <= DI;
 						when "01100" =>
