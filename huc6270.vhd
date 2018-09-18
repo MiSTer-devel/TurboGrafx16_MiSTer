@@ -664,13 +664,6 @@ begin
 							+ ( "000000011" )
 							- 2;
 
-						-- Is it needed ?
-						if CR(7 downto 6) = "00" then
-							BURST <= '1';
-						else
-							BURST <= '0';
-						end if;
-			
 					end if;
 
 					-- Burst Mode
