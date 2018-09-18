@@ -104,8 +104,6 @@ signal X_REN_END	: std_logic_vector(9 downto 0);
 signal Y_BGREN_START	: std_logic_vector(8 downto 0);
 signal Y_BGREN_END	: std_logic_vector(8 downto 0);
 signal Y_DISP_START	: std_logic_vector(8 downto 0);
-signal Y_DISP_END	: std_logic_vector(8 downto 0);
-signal VBLANK_DONE : std_logic;
 
 -- signal X_SP_START	: std_logic_vector(9 downto 0);
 -- signal X_SP_END		: std_logic_vector(9 downto 0);
@@ -454,7 +452,8 @@ variable V_HSW : std_logic_vector(9 downto 0);
 variable V_HDE : std_logic_vector(6 downto 0);
 variable V_HDW : std_logic_vector(9 downto 0);
 
-variable V_VDS : std_logic_vector(7 downto 0);
+variable V_VDS : std_logic_vector(8 downto 0);
+variable V_VDE : std_logic_vector(8 downto 0);
 variable V_VSW : std_logic_vector(4 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
@@ -495,7 +494,6 @@ begin
 			Y_BGREN_START <= (others => '1');
 			Y_BGREN_END <= (others => '1');
 			
-			Y_DISP_END <= (others => '1');
 			Y_DISP_START <= (others => '1');
 			
 			-- X_SP_START <= (others => '1');
@@ -504,7 +502,6 @@ begin
 			Y_SP_END <= (others => '1');
 
 			RCNT <= (others => '1');
-			VBLANK_DONE <= '1';
 			
 			SP_ON <= '0';
 			BG_ON <= '0';
@@ -613,64 +610,28 @@ begin
 					BG_ON <= CR(7);
 					
 					if VS_N_PREV = '0' and VS_N = '1' then
-						Y <= "000000001"; --(others => '0');
-						VBLANK_DONE <= '0';
+						Y <= (others => '0');
 						
-						V_VDS := VSR(15 downto 8);
+						V_VDS := '0'&VSR(15 downto 8);
 						V_VSW := VSR(4 downto 0);
 						V_VDW := VDR(8 downto 0); 
-						--Prevent addition overflow; >263 doesn't matter
-						if (V_VDW >= 264) then
-							V_VDW := "100000111";
-						end if;
-						V_VCR := VDE(7 downto 0);
 						
-						--VDS <= V_VDS;
-						--VSW <= V_VSW;
-						--VDW <= V_VDW;
-						--VCR <= V_VCR;
+						--V_VCR := VDE(7 downto 0);
 
-						Y_DISP_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							- 2;
+						V_VDS := V_VDS + V_VSW - 2;
+						V_VDE := V_VDS + V_VDW;
 						
-						Y_BGREN_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ ( "000000010" )
-							- 2;
+						-- Make sure display ends (V_VDE+2) before vsync
+						-- possible Y values 0..262 (limited by ext VS_N)
+						if (V_VDE > 260) then
+							V_VDE := std_logic_vector(to_unsigned(260,9));
+						end if; 
 						
-						Y_BGREN_END <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ V_VDW
-							+ ( "000000011" )
-							- 2;							
-							
-						-- SP1 state machine starts on line before BG REN
-						Y_SP_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ ( "000000001" )
-							- 2;
-						
-						Y_SP_END <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ V_VDW
-							+ ( "000000010" )
-							- 2;
-			
-						Y_DISP_END <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ V_VDW
-							+ ("0" & V_VCR)
-							+ ( "000000011" )
-							- 2;
-
-						-- Is it needed ?
-						--if CR(7 downto 6) = "00" then
-						--	BURST <= '1';
-						--else
-						--	BURST <= '0';
-						--end if;
-			
+						Y_DISP_START  <= V_VDS;
+						Y_BGREN_START <= V_VDS + 2;
+						Y_BGREN_END   <= V_VDE + 2;
+						Y_SP_START    <= V_VDS + 1; -- SP1 state machine starts on line before BG REN
+						Y_SP_END      <= V_VDE + 1;
 					end if;
 
 					-- Burst Mode
@@ -682,12 +643,7 @@ begin
 						end if;
 					end if;
 					
-					if Y = Y_DISP_END then
-						-- Frame counter reset
-						Y <= (others => '0');
-					end if;
-					
-					if Y = Y_BGREN_END - 1 or (Y = 262 and BURST = '0') then
+					if Y = Y_BGREN_END - 1 then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
@@ -710,9 +666,8 @@ begin
 					end if;
 					
 				end if;
-				if X = X_REN_START and ((Y = Y_BGREN_END) or (Y = 263 and VBLANK_DONE = '0')) then
+				if X = X_REN_START and Y = Y_BGREN_END then
 					-- VBlank Interrupt
-					VBLANK_DONE <= '1';
 					if CR(3) = '1' then
 						IRQ_VBL_SET <= '1';
 					end if;
@@ -1856,7 +1811,7 @@ begin
 			HDR <= x"031F";
 			VSR <= x"0F02";
 			VDR <= x"00EF";
-			VDE <= x"0003";
+			--VDE <= x"0003";
 			BXR <= x"0000";
 			BYR <= x"0000";			
 			-- DCR <= x"0010";
@@ -1934,8 +1889,8 @@ begin
 							VSR(7 downto 0) <= DI;
 						when "01101" =>
 							VDR(7 downto 0) <= DI;
-						when "01110" =>
-							VDE(7 downto 0) <= DI;
+						--when "01110" =>
+							--VDE(7 downto 0) <= DI;
 						when "01111" =>
 							DCR(7 downto 0) <= DI;
 						when "10000" =>
@@ -1992,8 +1947,8 @@ begin
 							VSR(15 downto 8) <= DI;
 						when "01101" =>
 							VDR(15 downto 8) <= DI;
-						when "01110" =>
-							VDE(15 downto 8) <= DI;
+						--when "01110" =>
+							--VDE(15 downto 8) <= DI;
 						when "01111" =>
 							DCR(15 downto 8) <= DI;
 						when "10000" =>
