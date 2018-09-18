@@ -635,13 +635,6 @@ begin
 					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
 						SP2_ACTIVE <= '1';
 					end if;
-					
-					if Y >= Y_BGREN_END or Y < Y_SP_START or BURST = '1' then
-						DMA_ACTIVE <= '1';
-					else
-						DMA_ACTIVE <= '0';
-					end if;
-
 				end if;
 
 				if X = X_REN_START then
@@ -651,6 +644,10 @@ begin
 							IRQ_VBL_SET <= '1';
 						end if;
 						DMAS_ACTIVE <= '1';
+					end if;
+
+					if Y >= Y_BGREN_END or Y < Y_SP_START or BURST = '1' then
+						DMA_ACTIVE <= '1';
 					end if;
 
 					-- Raster compare interrupt
