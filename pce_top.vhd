@@ -48,7 +48,7 @@ end pce_top;
 
 architecture rtl of pce_top is
 
-constant LEFT_BL_CLOCKS	: integer := 408;  --should be divisible by 24! (LCM of 4, 6 and 8)
+constant LEFT_BL_CLOCKS	: integer := 432;  --should be divisible by 24! (LCM of 4, 6 and 8)
 constant DISP_CLOCKS	   : integer := 2160; --should be divisible by 24! (LCM of 4, 6 and 8)
 
 

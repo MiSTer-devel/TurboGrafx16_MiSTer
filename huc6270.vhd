@@ -75,27 +75,17 @@ signal SATB		: std_logic_vector(15 downto 0);
 -- Video counting and internal synchronization
 --------------------------------------------------------------------------------
 -- Registers
-signal HDS : std_logic_vector(6 downto 0);
-signal HSW : std_logic_vector(7 downto 0);
-signal HDE : std_logic_vector(6 downto 0);
 signal HDW : std_logic_vector(6 downto 0);
-
-signal VDS : std_logic_vector(7 downto 0);
-signal VSW : std_logic_vector(4 downto 0);
-signal VDW : std_logic_vector(8 downto 0);
-signal VCR : std_logic_vector(7 downto 0);
 
 -- Interrupts
 signal IRQ_RCR_SET	: std_logic;
 signal IRQ_VBL_SET	: std_logic;
-
 
 -- Intermediate signals
 signal X		: std_logic_vector(9 downto 0);
 signal Y		: std_logic_vector(8 downto 0);
 signal HS_N_PREV	: std_logic;
 signal VS_N_PREV	: std_logic;
-signal Y_UPDATE		: std_logic;
 
 signal X_BG_START	: std_logic_vector(9 downto 0);
 signal X_REN_START	: std_logic_vector(9 downto 0);
@@ -478,7 +468,6 @@ begin
 			
 			HS_N_PREV <= '1';
 			VS_N_PREV <= '0';
-			Y_UPDATE <= '0';
 
 			BG_ACTIVE <= '0';
 			SP1_ACTIVE <= '0';
@@ -502,72 +491,53 @@ begin
 			Y_SP_END <= (others => '1');
 
 			RCNT <= (others => '1');
-			
+
 			SP_ON <= '0';
 			BG_ON <= '0';
 			BURST <= '1';
-			
+
 			YOFS <= (others => '0');
 		else
 			if CLKEN = '1' then
 				HS_N_PREV <= HS_N;
 				X <= X + 1;
-				
-				Y_UPDATE <= '0';
+
 				DCR_DMAS_REQ <= '0';
-				
+
 				if HS_N_PREV = '1' and HS_N = '0' then
 					X <= (others => '0');
-					
+
 					--V_HDS := HPR(14 downto 8)&"000";
 					V_HDW := (HDR(6 downto 0)+"1")&"000";
-					
+
 					-- For external sync, HSW is whatever the HUC6260 generates (3 * 8 cycles).
 					-- Does it change with clock frequency? i.e. 2, 3.5, 5 (3,4.5,6)-1
 					case DOTCLOCK is
 					when "00" =>
-						if V_HDW >= HSIZE0 then V_HSW := (others => '0'); else V_HSW := HSIZE0 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART0;
+						if V_HDW >= HSIZE0 then V_HSW := (others => '0'); V_HDW := HSIZE0; else V_HSW := HSIZE0 - V_HDW; end if;
+						V_HSW := '0'&V_HSW(9 downto 1) + HSTART0 - 1;
 					when "01" =>
-						if V_HDW >= HSIZE1 then V_HSW := (others => '0'); else V_HSW := HSIZE1 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART1;
+						if V_HDW >= HSIZE1 then V_HSW := (others => '0'); V_HDW := HSIZE1; else V_HSW := HSIZE1 - V_HDW; end if;
+						V_HSW := '0'&V_HSW(9 downto 1) + HSTART1 - 1;
 					when others =>
-						if V_HDW >= HSIZE2 then V_HSW := (others => '0'); else V_HSW := HSIZE2 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART2;
+						if V_HDW >= HSIZE2 then V_HSW := (others => '0'); V_HDW := HSIZE2; else V_HSW := HSIZE2 - V_HDW; end if;
+						V_HSW := '0'&V_HSW(9 downto 1) + HSTART2 - 1;
 					end case;
+
 					--V_HSW := HPR(4 downto 0);
 					--V_HDE := HDR(14 downto 8);
-		
-					--HDS <= V_HDS;
-					--HSW <= V_HSW;
-					--HDE <= V_HDE;
+
 					HDW <= HDR(6 downto 0);
-		
+
 					X_REN_START <= V_HSW;
 					X_REN_END   <= V_HSW + V_HDW - "1";
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
 					X_BG_START  <= V_HSW - "10101";
 
-					-- X_BG_END <= ("00" & V_HSW) 
-						-- + ( V_HDS & "000" ) 
-						-- + ( V_HDW & "000" )
-						-- + ( "0000010" & "000" ); -- (HSW+1+HDS+1+HDW+1 -1+1 - 1)<<3
-						
-					-- if X < X_BG_END then 
-					if X < X_REN_END then 
-						-- Force Y update even if Hxx register settings
-						-- prevent to reach the end of the active display
-						-- BG_ACTIVE <= '0';
-						Y_UPDATE <= '1';
-						REN_ACTIVE <= '0';
-						-- SP1_ACTIVE <= '0';
-					end if;
-					
 					-- Raster compare interrupt
 					if ("0" & RCNT) = RCR(9 downto 0) and CR(2) = '1' then
 						IRQ_RCR_SET <= '1';
 					end if;
-					
 				end if;
 				
 				if X = X_BG_START and Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
@@ -582,28 +552,27 @@ begin
 					end if;
 					XOFS <= BXR(9 downto 0);
 				end if;
-				if X = X_REN_START - 1 and Y >= Y_BGREN_START and Y < Y_BGREN_END then
-					REN_ACTIVE <= '1';
+
+				if X = X_REN_START-1 then
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
+						REN_ACTIVE <= '1';
+					end if;
+
+					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
+						SP1_ACTIVE <= '1';
+					end if;
+
+					-- VBlank Interrupt
+					if Y = Y_BGREN_END and CR(3) = '1' then
+						IRQ_VBL_SET <= '1';
+					end if;
 				end if;
-				if X = X_REN_START and Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
-					SP1_ACTIVE <= '1';
-				end if;
-				
+
 				if X = X_BG_START then
 					SP2_ACTIVE <= '0';
 				end if;
-				-- if X = X_BG_END then
-					-- BG_ACTIVE <= '0';
-					-- Y_UPDATE <= '1';
-				-- end if;
+
 				if X = X_REN_END then
-					-- BG_ACTIVE <= '0';
-					Y_UPDATE <= '1';
-					REN_ACTIVE <= '0';
-					-- SP1_ACTIVE <= '0';
-				end if;
-				
-				if Y_UPDATE = '1' then
 					BG_ACTIVE <= '0';
 					REN_ACTIVE <= '0';
 					SP1_ACTIVE <= '0';
@@ -627,17 +596,17 @@ begin
 						V_VDS := V_VDS + V_VSW;
 						V_VDE := V_VDS + V_VDW;
 						
-						-- Make sure display ends (V_VDE+1) before vsync
+						-- Make sure display ends (V_VDE+2) before vsync
 						-- possible Y values 0..262 (limited by ext VS_N)
-						if (V_VDE > 261) then
+						if (V_VDE > 260) then
 							V_VDE := std_logic_vector(to_unsigned(261,9));
 						end if;
 
 						Y_DISP_START  <= V_VDS;
 						Y_BGREN_START <= V_VDS + 1;
-						Y_BGREN_END   <= V_VDE + 1;
-						Y_SP_START    <= V_VDS; -- SP1 state machine starts on line before BG REN
-						Y_SP_END      <= V_VDE;
+						Y_BGREN_END   <= V_VDE + 2;
+						Y_SP_START    <= V_VDS;     -- SP1 state machine starts on line before BG REN
+						Y_SP_END      <= V_VDE + 1;
 					end if;
 
 					-- Burst Mode
@@ -664,15 +633,6 @@ begin
 					
 					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
 						SP2_ACTIVE <= '1';
-					end if;
-					
-				end if;
-				if X = X_REN_START then
-					if Y = Y_BGREN_END then
-						-- VBlank Interrupt
-						if CR(3) = '1' then
-							IRQ_VBL_SET <= '1';
-						end if;
 					end if;
 				end if;
 
