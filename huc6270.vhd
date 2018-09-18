@@ -331,8 +331,6 @@ signal IRQ_DMAS		: std_logic;
 signal IRQ_DMA		: std_logic;
 signal IRQ_VBL		: std_logic;
 
-signal BUSY			: std_logic;
-
 -- RAM access signals
 signal CPU_RAM_REQ_FF		: std_logic := '0';
 signal CPU_RAM_A_FF		: std_logic_vector(15 downto 0);
@@ -550,7 +548,8 @@ begin
 		
 					X_REN_START <= V_HSW;
 					X_REN_END   <= V_HSW + V_HDW - "1";
-					X_BG_START  <= V_HSW - "10101"; -- why this offset?
+					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
+					X_BG_START  <= V_HSW - "10101";
 
 					-- X_BG_END <= ("00" & V_HSW) 
 						-- + ( V_HDS & "000" ) 
@@ -646,6 +645,7 @@ begin
 							+ ( "000000011" )
 							- 2;							
 							
+						-- SP1 state machine starts on line before BG REN
 						Y_SP_START <= ("0000" & V_VSW)
 							+ ("0" & V_VDS)
 							+ ( "000000001" )
@@ -679,9 +679,6 @@ begin
 							BURST <= '1';
 						else
 							BURST <= '0';
-							if DCR(4) = '1' then -- Auto SATB DMA
-								DCR_DMAS_REQ <= '1';
-							end if;
 						end if;
 					end if;
 					
@@ -690,8 +687,11 @@ begin
 						Y <= (others => '0');
 					end if;
 					
-					if Y = Y_BGREN_END or (Y = 262 and BURST = '0') then
+					if Y = Y_BGREN_END - 1 or (Y = 262 and BURST = '0') then
 						BURST <= '1';
+						if DCR(4) = '1' then -- Auto SATB DMA
+							DCR_DMAS_REQ <= '1';
+						end if;
 					end if;
 
 					-- Raster counter
@@ -710,7 +710,7 @@ begin
 					end if;
 					
 				end if;
-				if X = X_REN_START and ((Y = Y_BGREN_END + 1) or (Y = 262 and VBLANK_DONE = '0')) then
+				if X = X_REN_START and ((Y = Y_BGREN_END) or (Y = 263 and VBLANK_DONE = '0')) then
 					-- VBlank Interrupt
 					VBLANK_DONE <= '1';
 					if CR(3) = '1' then
@@ -1672,11 +1672,14 @@ begin
 					DMA_BUSY <= '0';
 				end if;
 			
+			-- Wait state is to make the DMA take 4 dot clocks per transfer
 			when DMA_READ =>
-				DMA_RAM_REQ_FF <= not DMA_RAM_REQ_FF;
-				DMA_RAM_A_FF <= SOUR;
-				DMA_RAM_WE_FF <= '0';
-				DMA <= DMA_READ1;
+				if CLKEN = '1' then
+					DMA_RAM_REQ_FF <= not DMA_RAM_REQ_FF;
+					DMA_RAM_A_FF <= SOUR;
+					DMA_RAM_WE_FF <= '0';
+					DMA <= DMA_READ1;
+				end if;
 				
 			when DMA_READ1 =>
 				if CLKEN = '1' and DMA_RAM_REQ_FF = DMA_RAM_ACK then
@@ -1705,13 +1708,16 @@ begin
 			when DMA_WRITE2 =>
 				DMA <= DMA_LOOP;
 				
+			-- Wait state is to make the DMA take 4 dot clocks per transfer
 			when DMA_LOOP =>
-				DMA <= DMA_LOOP2;
-				if LENR = x"FFFF" then
-					DMA_DMA_CLR	<= '1';
-					DMA_BUSY <= '0';
-					if DCR(1) = '1' then 
-						IRQ_DMA_SET	<= '1';
+				if CLKEN = '1' then
+					DMA <= DMA_LOOP2;
+					if LENR = x"FFFF" then
+						DMA_DMA_CLR	<= '1';
+						DMA_BUSY <= '0';
+						if DCR(1) = '1' then 
+							IRQ_DMA_SET	<= '1';
+						end if;
 					end if;
 				end if;
 				
@@ -1816,7 +1822,6 @@ end process;
 -- CPU Interface
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-BUSY <= DMA_BUSY or DMAS_BUSY;
 IRQ_N_FF <= not ( IRQ_COL or IRQ_OVF or IRQ_RCR or IRQ_DMAS or IRQ_DMA or IRQ_VBL);
 
 process( CLK )
@@ -1921,8 +1926,8 @@ begin
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(7 downto 0) <= DI;
-						--when "01010" =>
-							--HPR(7 downto 0) <= DI;
+						when "01010" =>
+							HPR(7 downto 0) <= DI;
 						when "01011" =>
 							HDR(7 downto 0) <= DI;
 						when "01100" =>
@@ -1978,8 +1983,8 @@ begin
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(15 downto 8) <= DI;
-						--when "01010" =>
-							--HPR(15 downto 8) <= DI;
+						when "01010" =>
+							HPR(15 downto 8) <= DI;
 						when "01011" =>
 							HDR(15 downto 8) <= DI;
 						when "01100" =>
@@ -2016,7 +2021,7 @@ begin
 					case A is
 					when "00" =>
 						DO_FF <= "0" 
-							& BUSY 
+							& not BUSY_N_FF -- (0)=CPU will always be stalled when this would be 1
 							& IRQ_VBL
 							& IRQ_DMA
 							& IRQ_DMAS
