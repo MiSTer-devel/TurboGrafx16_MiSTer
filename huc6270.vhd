@@ -540,7 +540,7 @@ begin
 					end if;
 				end if;
 				
-				if X = X_BG_START and Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
+				if X = X_BG_START-1 and Y >= Y_BGREN_START and Y <= Y_BGREN_END and BG_ON = '1' then
 					BG_ACTIVE <= '1';
 					YOFS_REL_ACK <= '1';
 					if Y = Y_BGREN_START then
@@ -554,7 +554,7 @@ begin
 				end if;
 
 				if X = X_REN_START-1 then
-					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
+					if Y >= Y_BGREN_START and Y <= Y_BGREN_END then
 						REN_ACTIVE <= '1';
 					end if;
 
@@ -568,7 +568,7 @@ begin
 					end if;
 				end if;
 
-				if X = X_BG_START then
+				if X = X_BG_START-1 then
 					SP2_ACTIVE <= '0';
 				end if;
 
@@ -596,17 +596,17 @@ begin
 						V_VDS := V_VDS + V_VSW;
 						V_VDE := V_VDS + V_VDW;
 						
-						-- Make sure display ends (V_VDE+2) before vsync
+						-- Make sure display ends (V_VDE+1) before vsync
 						-- possible Y values 0..262 (limited by ext VS_N)
-						if (V_VDE > 260) then
+						if (V_VDE > 261) then
 							V_VDE := std_logic_vector(to_unsigned(261,9));
 						end if;
 
 						Y_DISP_START  <= V_VDS;
 						Y_BGREN_START <= V_VDS + 1;
-						Y_BGREN_END   <= V_VDE + 2;
+						Y_BGREN_END   <= V_VDE + 1;
 						Y_SP_START    <= V_VDS;     -- SP1 state machine starts on line before BG REN
-						Y_SP_END      <= V_VDE + 1;
+						Y_SP_END      <= V_VDE;
 					end if;
 
 					-- Burst Mode
