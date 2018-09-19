@@ -199,10 +199,10 @@ begin
 			V_CNT <= V_CNT + 1;
 			if V_CNT = TOTAL_LINES-1 then
 				V_CNT <= (others => '0');
-				-- Reload registers
-				BW <= CR(7);
-				DOTCLOCK <= CR(1 downto 0);
 			end if;
+			-- Reload registers
+			BW <= CR(7);
+			DOTCLOCK <= CR(1 downto 0);
 		end if;
 	end if;
 end process;
