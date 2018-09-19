@@ -286,6 +286,7 @@ begin
 						when "10" =>
 							DATA_BUF <= DATA_BUF(7 downto 3) & INT_MASK;
 							INT_DO <= DATA_BUF(7 downto 3) & INT_MASK;
+							TMR_IRQ_ACK <= '1';
 						when "11" =>
 							DATA_BUF <= DATA_BUF(7 downto 3) & TMR_IRQ & not( IRQ1_N ) & not( IRQ2_N );
 							INT_DO <= DATA_BUF(7 downto 3) & TMR_IRQ & not( IRQ1_N ) & not( IRQ2_N );
