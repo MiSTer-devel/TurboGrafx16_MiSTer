@@ -514,25 +514,25 @@ begin
 					-- Does it change with clock frequency? i.e. 2, 3.5, 5 (3,4.5,6)-1
 					case DOTCLOCK is
 					when "00" =>
-						if V_HDW >= HSIZE0 then V_HSW := (others => '0'); V_HDW := HSIZE0; else V_HSW := HSIZE0 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART0 - 1;
+						if V_HDW >= HSIZE0 then V_HDS := (others => '0'); V_HDW := HSIZE0; else V_HDS := HSIZE0 - V_HDW; end if;
+						V_HDS := '0'&V_HDS(9 downto 1) + HSTART0 - 1;
 					when "01" =>
-						if V_HDW >= HSIZE1 then V_HSW := (others => '0'); V_HDW := HSIZE1; else V_HSW := HSIZE1 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART1 - 1;
+						if V_HDW >= HSIZE1 then V_HDS := (others => '0'); V_HDW := HSIZE1; else V_HDS := HSIZE1 - V_HDW; end if;
+						V_HDS := '0'&V_HDS(9 downto 1) + HSTART1 - 1;
 					when others =>
-						if V_HDW >= HSIZE2 then V_HSW := (others => '0'); V_HDW := HSIZE2; else V_HSW := HSIZE2 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART2 - 1;
+						if V_HDW >= HSIZE2 then V_HDS := (others => '0'); V_HDW := HSIZE2; else V_HDS := HSIZE2 - V_HDW; end if;
+						V_HDS := '0'&V_HDS(9 downto 1) + HSTART2 - 1;
 					end case;
 
-					--V_HSW := HPR(4 downto 0);
+					--V_HDS := HPR(4 downto 0);
 					--V_HDE := HDR(14 downto 8);
 
 					HDW <= HDR(6 downto 0);
 
-					X_REN_START <= V_HSW;
-					X_REN_END   <= V_HSW + V_HDW - "1";
+					X_REN_START <= V_HDS;
+					X_REN_END   <= V_HDS + V_HDW - "1";
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
-					X_BG_START  <= V_HSW - "10101";
+					X_BG_START  <= V_HDS - "10101";
 
 					-- Raster compare interrupt
 					if ("0" & RCNT) = RCR(9 downto 0) and CR(2) = '1' then
@@ -587,18 +587,22 @@ begin
 					if VS_N_PREV = '0' and VS_N = '1' then
 						Y <= (others => '0');
 						
-						V_VDS := '0'&VSR(15 downto 8);
-						V_VSW := VSR(4 downto 0);
-						V_VDW := VDR(8 downto 0); 
-						
+						V_VDS := ('0'&VSR(15 downto 8))+2;
+						V_VDW := VDR(8 downto 0);
+						if V_VDW > 261 then
+							-- some games use 1FF value for VDW which overflows calculations below
+							-- thus limit it to max possible value.
+							V_VDW := std_logic_vector(to_unsigned(261,9));
+						end if;
+
+						--V_VSW := VSR(4 downto 0);
 						--V_VCR := VDE(7 downto 0);
 
-						V_VDS := V_VDS + V_VSW;
-						V_VDE := V_VDS + V_VDW;
-						
+						V_VDE := V_VDS + (V_VDW + 1);
+
 						-- Make sure display ends (V_VDE+1) before vsync
 						-- possible Y values 0..262 (limited by ext VS_N)
-						if (V_VDE > 261) then
+						if V_VDE > 261 then
 							V_VDE := std_logic_vector(to_unsigned(261,9));
 						end if;
 
