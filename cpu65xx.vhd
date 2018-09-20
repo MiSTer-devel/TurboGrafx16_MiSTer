@@ -2329,6 +2329,9 @@ calcNextAddr: process(theCpuCycle, opcInfo, indexOut, U, reset, T) --GE added T
 				-- Replace with nextAddrIncr if emulating 65C02 or later cpu.
 				--GE nextAddr <= nextAddrIncrL; 
 				nextAddr <= nextAddrIncr; --GE
+				if opcInfo(opcRti) = '1' then
+					nextAddr <= nextAddrStack; --GE
+				end if;
 			--GE HuC6280 - no penalty for page crossing
 			--GE elsif indexOut(8) = '1' then 
 			--GE	nextAddr <= nextAddrIncrH;
