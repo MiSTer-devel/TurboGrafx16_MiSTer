@@ -99,7 +99,6 @@ signal BG_ACTIVE	: std_logic;
 signal SP1_ACTIVE	: std_logic;
 signal SP2_ACTIVE	: std_logic;
 signal REN_ACTIVE	: std_logic;
-signal RCNT			: std_logic_vector(8 downto 0);
 signal DBG_VBL		: std_logic;
 signal DCR_DMAS_REQ		: std_logic;
 
@@ -439,9 +438,11 @@ variable V_HDW : std_logic_vector(9 downto 0);
 
 variable V_VDS : std_logic_vector(8 downto 0);
 variable V_VDE : std_logic_vector(8 downto 0);
-variable V_VSW : std_logic_vector(4 downto 0);
+variable V_VSW : std_logic_vector(5 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
+
+variable RCNT	: std_logic_vector(8 downto 0);
 
 begin
 	if rising_edge(CLK) then
@@ -475,7 +476,7 @@ begin
 			Y_SP_START <= (others => '1');
 			Y_SP_END <= (others => '1');
 
-			RCNT <= (others => '1');
+			RCNT := (others => '1');
 
 			SP_ON <= '0';
 			BG_ON <= '0';
@@ -507,24 +508,30 @@ begin
 					X_REN_END   <= V_HDS + V_HDW - "1";
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
 					X_BG_START  <= V_HDS - "10101";
-
-					-- Raster compare interrupt
-					if ("0" & RCNT) = RCR(9 downto 0) and CR(2) = '1' then
-						IRQ_RCR_SET <= '1';
-					end if;
 				end if;
 				
-				if X = X_BG_START-1 and Y >= Y_BGREN_START and Y <= Y_BGREN_END and BG_ON = '1' then
-					BG_ACTIVE <= '1';
-					YOFS_REL_ACK <= '1';
-					if Y = Y_BGREN_START then
-						YOFS <= BYR(8 downto 0);
-					elsif YOFS_RELOAD = '1' then
-						YOFS <= BYR(8 downto 0) + 1;
-					else
-						YOFS <= YOFS + 1;
+				if X = X_BG_START-1 then
+					if Y >= Y_BGREN_START and Y <= Y_BGREN_END and BG_ON = '1' then
+						BG_ACTIVE <= '1';
+						YOFS_REL_ACK <= '1';
+						if Y = Y_BGREN_START then
+							YOFS <= BYR(8 downto 0);
+						elsif YOFS_RELOAD = '1' then
+							YOFS <= BYR(8 downto 0) + 1;
+						else
+							YOFS <= YOFS + 1;
+						end if;
+						XOFS <= BXR(9 downto 0);
 					end if;
-					XOFS <= BXR(9 downto 0);
+
+					-- Raster counter
+					RCNT := RCNT + 1;
+					if Y = Y_BGREN_START then
+						RCNT := "0" & x"40";
+					end if;
+					if RCNT = RCR(9 downto 0) then
+						IRQ_RCR_SET <= CR(2);
+					end if;
 				end if;
 
 				if X = X_REN_START-1 then
@@ -562,7 +569,7 @@ begin
 						Y <= (others => '0');
 
 						V_VDS := ('0'&VSR(15 downto 8))+2;
-						V_VSW := VSR(4 downto 0)+1;
+						V_VSW := ('0'&VSR( 4 downto 0))+1;
 						V_VDW := VDR(8 downto 0);
 						if V_VDW > 262 then
 							-- some games use 1FF value for VDW which overflows calculations below
@@ -601,12 +608,6 @@ begin
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
 						end if;
-					end if;
-
-					-- Raster counter
-					RCNT <= RCNT + 1;
-					if Y = Y_BGREN_START - 1 then
-						RCNT <= "0" & x"40";
 					end if;
 
 					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
