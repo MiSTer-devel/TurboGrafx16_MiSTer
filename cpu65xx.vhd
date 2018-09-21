@@ -182,6 +182,7 @@ architecture fast of cpu65xx is
 	signal irq1Reg : std_logic; --GE HuC6280
 	signal irq2Reg : std_logic; -- Delay IRQ input with one clock cycle.
 	signal tiqReg : std_logic;  --GE HuC6280
+	signal irqAdd : unsigned(3 downto 0);
 	signal soReg : std_logic; -- SO pin edge detection
 
 -- Opcode decoding
@@ -1182,6 +1183,7 @@ processAlu: process(clk, opcInfo, aluInput, aluCmpInput, A, U, irqActive, N, V, 
 	end process;
 
 calcInterrupt: process(clk)
+		variable processIrqV : std_logic;
 	begin
 		if rising_edge(clk) then
 			if enable = '1' then
@@ -1206,7 +1208,20 @@ calcInterrupt: process(clk)
 				--GE HuC6280 - Here, the highest priority IRQ will be handled, masking the others until it has been processed,
 				--GE provided that the corresponding inputs are still held low when it happens.
 				--GE Not sure *at all* about this behaviour...
-				processIrq <= not ((nmiReg and ((irq1Reg and irq2Reg and tiqReg) or I)) or opcInfo(opcIRQ)); --GE HuC6280
+				processIrqV := not ((nmiReg and ((irq1Reg and irq2Reg and tiqReg) or I)) or opcInfo(opcIRQ)); --GE HuC6280
+				processIrq <= processIrqV;
+				if (processIrqV = '1') then
+					irqAdd <= X"6"; -- irq2/opcIRQ
+					if irq1Reg = '0' then
+						irqAdd <= X"8";
+					end if;
+					if tiqReg = '0' then
+						irqAdd <= X"A";
+					end if;
+					if nmiReg = '0' then
+						irqAdd <= X"C";
+					end if;
+				end if;
 			end if;
 		end if;
 	end process;
@@ -2473,17 +2488,18 @@ calcAddr: process(clk)
 				when nextAddrDecrH => myAddr(15 downto 8) <= myAddrDecrH;
 				when nextAddrPc => myAddr <= PC;
 				when nextAddrIrq =>
+					myAddr <= X"FFF" & irqAdd; --GE HuC6280
 					--GE myAddr <= X"FFFE";
-					myAddr <= X"FFF6"; --GE HuC6280
-					if irq1Reg = '0' then
-						myAddr <= X"FFF8";
-					end if;
-					if tiqReg = '0' then
-						myAddr <= X"FFFA";
-					end if;					
-					if nmiReg = '0' then
-						myAddr <= X"FFFC";
-					end if;
+					--myAddr <= X"FFF6"; --GE HuC6280
+					--if irq1Reg = '0' then
+					--	myAddr <= X"FFF8";
+					--end if;
+					--if tiqReg = '0' then
+					--	myAddr <= X"FFFA";
+					--end if;					
+					--if nmiReg = '0' then
+					--	myAddr <= X"FFFC";
+					--end if;
 				--GE when nextAddrReset => myAddr <= X"FFFC";
 				when nextAddrReset => myAddr <= X"FFFE"; --GE HuC6280
 				when nextAddrAbs => myAddr <= di & U;
