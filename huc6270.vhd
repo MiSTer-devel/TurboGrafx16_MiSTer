@@ -89,7 +89,6 @@ signal X_BG_END		: std_logic_vector(9 downto 0);
 signal X_REN_END	: std_logic_vector(9 downto 0);
 signal Y_BGREN_START	: std_logic_vector(8 downto 0);
 signal Y_BGREN_END	: std_logic_vector(8 downto 0);
-signal Y_DISP_START	: std_logic_vector(8 downto 0);
 
 -- signal X_SP_START	: std_logic_vector(9 downto 0);
 -- signal X_SP_END		: std_logic_vector(9 downto 0);
@@ -471,8 +470,6 @@ begin
 			Y_BGREN_START <= (others => '1');
 			Y_BGREN_END <= (others => '1');
 			
-			Y_DISP_START <= (others => '1');
-			
 			-- X_SP_START <= (others => '1');
 			-- X_SP_END <= (others => '1');
 			Y_SP_START <= (others => '1');
@@ -567,32 +564,31 @@ begin
 						V_VDS := ('0'&VSR(15 downto 8))+2;
 						V_VSW := VSR(4 downto 0)+1;
 						V_VDW := VDR(8 downto 0);
-						if V_VDW > 261 then
+						if V_VDW > 262 then
 							-- some games use 1FF value for VDW which overflows calculations below
 							-- thus limit it to max possible value.
-							V_VDW := std_logic_vector(to_unsigned(261,9));
+							V_VDW := std_logic_vector(to_unsigned(262,9));
 						end if;
 
 						--V_VCR := VDE(7 downto 0);
 
 						V_VDS := V_VDS + V_VSW;
-						V_VDE := V_VDS + (V_VDW + 1);
+						V_VDE := V_VDS + V_VDW;
 
-						-- Make sure display ends (V_VDE+1) before vsync
+						-- Make sure display ends before vsync
 						-- possible Y values 0..262 (limited by ext VS_N)
 						if V_VDE > 262 then
-							V_VDE := std_logic_vector(to_unsigned(261,9));
+							V_VDE := std_logic_vector(to_unsigned(262,9));
 						end if;
 
-						Y_DISP_START  <= V_VDS;
-						Y_BGREN_START <= V_VDS + 1;
+						Y_BGREN_START <= V_VDS;
 						Y_BGREN_END   <= V_VDE;
-						Y_SP_START    <= V_VDS;     -- SP1 state machine starts on line before BG REN
+						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
 					end if;
 
 					-- Burst Mode
-					if Y = Y_DISP_START - 1 then
+					if Y = Y_BGREN_START - 1 then
 						if CR(7 downto 6) = "00" then
 							BURST <= '1';
 						else
@@ -609,7 +605,7 @@ begin
 
 					-- Raster counter
 					RCNT <= RCNT + 1;
-					if Y = Y_DISP_START then
+					if Y = Y_BGREN_START - 1 then
 						RCNT <= "0" & x"40";
 					end if;
 
