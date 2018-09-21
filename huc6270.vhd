@@ -12,15 +12,11 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity huc6270 is
-	generic
-	(
-		LEFT_BL_CLOCKS	: integer; --should be divisible by 24! (LCM of 4, 6 and 8)
-		DISP_CLOCKS	   : integer  --should be divisible by 24! (LCM of 4, 6 and 8)
-	);
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
-		DOTCLOCK	: in std_logic_vector(1 downto 0);
+		HSIZE		: in std_logic_vector(9 downto 0);
+		HSTART	: in std_logic_vector(9 downto 0);
 
 		-- CPU Interface
 		A			: in std_logic_vector(1 downto 0);
@@ -437,8 +433,8 @@ port map(
 --------------------------------------------------------------------------------
 process( CLK )
 
-variable V_HDS : std_logic_vector(9 downto 0);
 variable V_HSW : std_logic_vector(9 downto 0);
+variable V_HDS : std_logic_vector(9 downto 0);
 variable V_HDE : std_logic_vector(6 downto 0);
 variable V_HDW : std_logic_vector(9 downto 0);
 
@@ -447,14 +443,6 @@ variable V_VDE : std_logic_vector(8 downto 0);
 variable V_VSW : std_logic_vector(4 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
-
-constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
-constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
-constant HSIZE2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/4,10));
-
-constant HSTART0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/8,10));
-constant HSTART1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/6,10));
-constant HSTART2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/4,10));
 
 begin
 	if rising_edge(CLK) then
@@ -510,19 +498,8 @@ begin
 					--V_HDS := HPR(14 downto 8)&"000";
 					V_HDW := (HDR(6 downto 0)+"1")&"000";
 
-					-- For external sync, HSW is whatever the HUC6260 generates (3 * 8 cycles).
-					-- Does it change with clock frequency? i.e. 2, 3.5, 5 (3,4.5,6)-1
-					case DOTCLOCK is
-					when "00" =>
-						if V_HDW >= HSIZE0 then V_HDS := (others => '0'); V_HDW := HSIZE0; else V_HDS := HSIZE0 - V_HDW; end if;
-						V_HDS := '0'&V_HDS(9 downto 1) + HSTART0 - 1;
-					when "01" =>
-						if V_HDW >= HSIZE1 then V_HDS := (others => '0'); V_HDW := HSIZE1; else V_HDS := HSIZE1 - V_HDW; end if;
-						V_HDS := '0'&V_HDS(9 downto 1) + HSTART1 - 1;
-					when others =>
-						if V_HDW >= HSIZE2 then V_HDS := (others => '0'); V_HDW := HSIZE2; else V_HDS := HSIZE2 - V_HDW; end if;
-						V_HDS := '0'&V_HDS(9 downto 1) + HSTART2 - 1;
-					end case;
+					if V_HDW >= HSIZE then V_HDS := (others => '0'); else V_HDS := HSIZE - V_HDW; end if;
+					V_HDS := '0'&V_HDS(9 downto 1) + HSTART - 1;
 
 					--V_HDS := HPR(4 downto 0);
 					--V_HDE := HDR(14 downto 8);
@@ -573,20 +550,20 @@ begin
 				end if;
 
 				if X = X_REN_END then
-					BG_ACTIVE <= '0';
+					BG_ACTIVE  <= '0';
 					REN_ACTIVE <= '0';
 					SP1_ACTIVE <= '0';
 
 					VS_N_PREV <= VS_N;
-					
+
 					Y <= Y + 1;
-					
+
 					SP_ON <= CR(6);
 					BG_ON <= CR(7);
-					
+
 					if VS_N_PREV = '0' and VS_N = '1' then
 						Y <= (others => '0');
-						
+
 						V_VDS := ('0'&VSR(15 downto 8))+2;
 						V_VDW := VDR(8 downto 0);
 						if V_VDW > 261 then
@@ -611,7 +588,7 @@ begin
 						Y_BGREN_END   <= V_VDE + 1;
 						Y_SP_START    <= V_VDS;     -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
-					end if;
+				end if;
 
 					-- Burst Mode
 					if Y = Y_DISP_START - 1 then
@@ -620,8 +597,8 @@ begin
 						else
 							BURST <= '0';
 						end if;
-					end if;
-					
+				end if;
+
 					if Y = Y_BGREN_END - 1 then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
@@ -634,7 +611,7 @@ begin
 					if Y = Y_DISP_START then
 						RCNT <= "0" & x"40";
 					end if;
-					
+
 					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
 						SP2_ACTIVE <= '1';
 					end if;

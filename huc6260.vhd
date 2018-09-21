@@ -7,16 +7,11 @@ library STD;
 use STD.TEXTIO.ALL;
 
 entity huc6260 is
-	generic
-	(
-		LEFT_BL_CLOCKS	: integer; --should be divisible by 24! (LCM of 4, 6 and 8)
-		DISP_CLOCKS	   : integer  --should be divisible by 24! (LCM of 4, 6 and 8)
-	);
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
-		--For convenience
-		DOTCLOCK_O : out std_logic_vector(1 downto 0);
+		HSIZE		: out std_logic_vector(9 downto 0);
+		HSTART	: out std_logic_vector(9 downto 0);
 
 		-- CPU Interface
 		A			: in std_logic_vector(2 downto 0);
@@ -65,6 +60,8 @@ signal RAM_DO	: std_logic_vector(8 downto 0);
 signal COLOR	: std_logic_vector(8 downto 0);
 
 -- Video Counting. All horizontal constants should be divisible by 24! (LCM of 4, 6 and 8)
+constant LEFT_BL_CLOCKS	: integer := 432;
+constant DISP_CLOCKS	   : integer := 2160;
 constant LINE_CLOCKS	   : integer := 2736;
 constant HS_CLOCKS		: integer := 192;
 
@@ -72,6 +69,14 @@ constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
 constant TOP_BL_LINES	: integer := 17;	 -- pcetech.txt
 constant DISP_LINES		: integer := 242;	 -- pcetech.txt
+
+constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
+constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
+constant HSIZE2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/4,10));
+
+constant HSTART0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/8,10));
+constant HSTART1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/6,10));
+constant HSTART2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/4,10));
 
 signal H_CNT	: std_logic_vector(11 downto 0);
 signal V_CNT	: std_logic_vector(9 downto 0);
@@ -195,6 +200,8 @@ begin
 		end if;
 		
 		if H_CNT = LINE_CLOCKS-1 then
+			CLKEN_CNT <= (others => '0');
+			CLKEN_FF <= '1';				
 			H_CNT <= (others => '0');
 			V_CNT <= V_CNT + 1;
 			if V_CNT = TOTAL_LINES-1 then
@@ -249,7 +256,8 @@ begin
 	end if;
 end process;
 
-DOTCLOCK_O <= DOTCLOCK;
-CLKEN <= CLKEN_FF;
+CLKEN  <= CLKEN_FF;
+HSIZE  <= HSIZE0  when DOTCLOCK = "00" else HSIZE1  when DOTCLOCK = "01" else HSIZE2;
+HSTART <= HSTART0 when DOTCLOCK = "00" else HSTART1 when DOTCLOCK = "01" else HSTART2;
 
 end rtl;

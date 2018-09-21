@@ -48,10 +48,6 @@ end pce_top;
 
 architecture rtl of pce_top is
 
-constant LEFT_BL_CLOCKS	: integer := 432;  --should be divisible by 24! (LCM of 4, 6 and 8)
-constant DISP_CLOCKS	   : integer := 2160; --should be divisible by 24! (LCM of 4, 6 and 8)
-
-
 signal RESET_N			: std_logic := '0';
 
 -- CPU signals
@@ -81,7 +77,8 @@ signal CPU_PRAM_SEL_N: std_logic;
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
-signal DOTCLOCK		: std_logic_vector(1 downto 0);
+signal HSIZE			: std_logic_vector(9 downto 0);
+signal HSTART			: std_logic_vector(9 downto 0);
 
 -- VDC signals
 signal VDC0_DO			: std_logic_vector(7 downto 0);
@@ -151,15 +148,11 @@ VIDEO_VS <= not VS_N;
 VIDEO_HS <= not HS_N;
 
 VCE : entity work.huc6260
-generic map
-(
-	LEFT_BL_CLOCKS,
-	DISP_CLOCKS
-)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	DOTCLOCK_O => DOTCLOCK,
+	HSIZE		=> HSIZE,
+	HSTART	=> HSTART,
 
 	-- CPU Interface
 	A			=> CPU_A(2 downto 0),
@@ -185,15 +178,11 @@ port map(
 );
 
 VDC0 : entity work.huc6270
-generic map
-(
-	LEFT_BL_CLOCKS,
-	DISP_CLOCKS
-)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	DOTCLOCK => DOTCLOCK,
+	HSIZE		=> HSIZE,
+	HSTART	=> HSTART,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
@@ -213,15 +202,11 @@ port map(
 );
 
 VDC1 : entity work.huc6270
-generic map
-(
-	LEFT_BL_CLOCKS,
-	DISP_CLOCKS
-)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	DOTCLOCK => DOTCLOCK,
+	HSIZE		=> HSIZE,
+	HSTART	=> HSTART,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
