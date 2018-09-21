@@ -67,8 +67,8 @@ constant HS_CLOCKS		: integer := 192;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
-constant TOP_BL_LINES	: integer := 17;	 -- pcetech.txt
-constant DISP_LINES		: integer := 242;	 -- pcetech.txt
+constant TOP_BL_LINES	: integer := VS_LINES + 17 + 3; -- pcetech.txt 17+3 (must include VS_LINES in current implementation)
+constant DISP_LINES		: integer := 232;	 -- same as in mednafen
 
 constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
 constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
