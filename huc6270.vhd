@@ -580,13 +580,13 @@ begin
 
 						-- Make sure display ends (V_VDE+1) before vsync
 						-- possible Y values 0..262 (limited by ext VS_N)
-						if V_VDE > 261 then
+						if V_VDE > 262 then
 							V_VDE := std_logic_vector(to_unsigned(261,9));
 						end if;
 
 						Y_DISP_START  <= V_VDS;
 						Y_BGREN_START <= V_VDS + 1;
-						Y_BGREN_END   <= V_VDE + 1;
+						Y_BGREN_END   <= V_VDE;
 						Y_SP_START    <= V_VDS;     -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
 					end if;
