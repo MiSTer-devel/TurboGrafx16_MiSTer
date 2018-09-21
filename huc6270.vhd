@@ -511,7 +511,7 @@ begin
 				end if;
 				
 				if X = X_BG_START-1 then
-					if Y >= Y_BGREN_START and Y <= Y_BGREN_END and BG_ON = '1' then
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
 						BG_ACTIVE <= '1';
 						YOFS_REL_ACK <= '1';
 						if Y = Y_BGREN_START then
@@ -535,7 +535,7 @@ begin
 				end if;
 
 				if X = X_REN_START-1 then
-					if Y >= Y_BGREN_START and Y <= Y_BGREN_END then
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
 						REN_ACTIVE <= '1';
 					end if;
 
@@ -580,9 +580,9 @@ begin
 						--V_VCR := VDE(7 downto 0);
 
 						V_VDS := V_VDS + V_VSW;
-						V_VDE := V_VDS + V_VDW;
+						V_VDE := V_VDS + V_VDW + 1;
 
-						-- Make sure display ends before vsync
+						-- Make sure display ends before vsync and there is at least 1 blank line at the end
 						-- possible Y values 0..262 (limited by ext VS_N)
 						if V_VDE > 262 then
 							V_VDE := std_logic_vector(to_unsigned(262,9));
