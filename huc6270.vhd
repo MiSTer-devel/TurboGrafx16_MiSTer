@@ -561,10 +561,11 @@ begin
 					SP_ON <= CR(6);
 					BG_ON <= CR(7);
 
-					if VS_N_PREV = '0' and VS_N = '1' then
+					if VS_N_PREV = '1' and VS_N = '0' then
 						Y <= (others => '0');
 
 						V_VDS := ('0'&VSR(15 downto 8))+2;
+						V_VSW := VSR(4 downto 0)+1;
 						V_VDW := VDR(8 downto 0);
 						if V_VDW > 261 then
 							-- some games use 1FF value for VDW which overflows calculations below
@@ -572,9 +573,9 @@ begin
 							V_VDW := std_logic_vector(to_unsigned(261,9));
 						end if;
 
-						--V_VSW := VSR(4 downto 0);
 						--V_VCR := VDE(7 downto 0);
 
+						V_VDS := V_VDS + V_VSW;
 						V_VDE := V_VDS + (V_VDW + 1);
 
 						-- Make sure display ends (V_VDE+1) before vsync
@@ -588,7 +589,7 @@ begin
 						Y_BGREN_END   <= V_VDE + 1;
 						Y_SP_START    <= V_VDS;     -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
-				end if;
+					end if;
 
 					-- Burst Mode
 					if Y = Y_DISP_START - 1 then
@@ -597,7 +598,7 @@ begin
 						else
 							BURST <= '0';
 						end if;
-				end if;
+					end if;
 
 					if Y = Y_BGREN_END - 1 then
 						BURST <= '1';
