@@ -34,6 +34,7 @@ entity pce_top is
 		JOY1 		   : in  std_logic_vector(15 downto 0);
 		JOY2 		   : in  std_logic_vector(15 downto 0);
 
+		ReducedVBL	: in  std_logic;
 		VIDEO_R		: out std_logic_vector(2 downto 0);
 		VIDEO_G		: out std_logic_vector(2 downto 0);
 		VIDEO_B		: out std_logic_vector(2 downto 0);
@@ -165,6 +166,7 @@ port map(
 	-- VDC Interface
 	COLNO		=> VDC_COLNO,
 	CLKEN		=> VDC_CLKEN,
+	RVBL		=> ReducedVBL,
 		
 	-- NTSC/RGB Video Output
 	R			=> VIDEO_R,

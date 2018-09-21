@@ -17,14 +17,15 @@ entity huc6260 is
 		A			: in std_logic_vector(2 downto 0);
 		CE_N		: in std_logic;
 		WR_N		: in std_logic;
-		RD_N		: in std_logic;		
+		RD_N		: in std_logic;
 		DI			: in std_logic_vector(7 downto 0);
 		DO 		: out std_logic_vector(7 downto 0);
-		
+
 		-- VDC Interface
 		COLNO		: in std_logic_vector(8 downto 0);
 		CLKEN		: out std_logic;
-		
+		RVBL		: in std_logic;
+
 		-- NTSC/RGB Video Output
 		R			: out std_logic_vector(2 downto 0);
 		G			: out std_logic_vector(2 downto 0);
@@ -67,8 +68,10 @@ constant HS_CLOCKS		: integer := 192;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
-constant TOP_BL_LINES	: integer := VS_LINES + 17 + 3; -- pcetech.txt 17+3 (must include VS_LINES in current implementation)
-constant DISP_LINES		: integer := 232;	 -- same as in mednafen
+constant TOP_BL_LINES_E	: integer := VS_LINES + 17; -- pcetech.txt 17+3 (must include VS_LINES in current implementation)
+constant DISP_LINES_E	: integer := 242;	 -- same as in mednafen
+signal TOP_BL_LINES		: integer;
+signal DISP_LINES			: integer;
 
 constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
 constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
@@ -89,6 +92,9 @@ signal CLKEN_CNT	: std_logic_vector(2 downto 0);
 signal CLKEN_FF	: std_logic;
 
 begin
+
+TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+3;
+DISP_LINES   <= DISP_LINES_E   when RVBL = '1' else DISP_LINES_E-10;
 
 -- Color RAM
 ram : entity work.dpram generic map (9,9)

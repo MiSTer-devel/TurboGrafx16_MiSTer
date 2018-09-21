@@ -135,6 +135,7 @@ parameter CONF_STR5 = {
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"OA,Vertical blank,Normal,Reduced;",
 	"-;",
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
@@ -261,6 +262,7 @@ pce_top pce_top
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
 	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
 
+	.ReducedVBL(status[10]),
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
