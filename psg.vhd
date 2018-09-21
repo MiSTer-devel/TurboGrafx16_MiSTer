@@ -70,6 +70,7 @@ signal CH		: chanarray_t;
 signal LFO_FREQ	: std_logic_vector(7 downto 0);
 signal LFCTL	: std_logic_vector(1 downto 0);
 signal LFTRG	: std_logic;
+signal LFO_ADD : std_logic_vector(11 downto 0);
 
 signal LFO_CNT	: std_logic_vector(7 downto 0);
 
@@ -454,20 +455,17 @@ begin
 			end if;
 		
 			if CH(0).CHON = '0' then
-				-- TODO - LFO Modulation
-				CH(0).WF_CNT <= (CH(0).FREQ - 1) & "1";
+				CH(0).WF_CNT <= (CH(0).FREQ - 1 + LFO_ADD) & "1";
 			elsif CH(0).DDA = '0' then
 				CH(0).WF_OUT <= CH(0).WF_DATA(conv_integer(CH(0).WF_ADDR));
 			
 				if CLKEN = '1' then
 					CH(0).WF_CNT <= CH(0).WF_CNT - 1;
 					if CH(0).WF_CNT = "0000000000000" then
-						-- TODO - LFO Modulation
-						CH(0).WF_CNT <= (CH(0).FREQ - 1) & "1";
+						CH(0).WF_CNT <= (CH(0).FREQ - 1 + LFO_ADD) & "1";
 						CH(0).WF_ADDR <= CH(0).WF_ADDR + 1;
 					end if;
 				end if;
-				
 			end if;
 			
 			if CH(0).CHON = '0' then
@@ -479,6 +477,21 @@ begin
 			end if;
 			
 		end if;
+	end if;
+end process;
+
+process( CLK )
+	variable DATA: std_logic_vector(4 downto 0);
+begin
+	if rising_edge( CLK ) then
+		DATA := CH(1).WF_DATA(conv_integer(CH(1).WF_ADDR)) xor "1000";
+		LFO_ADD(11 downto 8) <= DATA(4) & DATA(4) & DATA(4) & DATA(4);
+		case LFCTL is
+		when "01" =>   LFO_ADD(7 downto 0) <= DATA(4) & DATA(4) & DATA(4) & DATA;
+		when "10" =>   LFO_ADD(7 downto 0) <= DATA(4) & DATA & "00";
+		when "11" =>   LFO_ADD(7 downto 0) <= DATA(3 downto 0) & "0000";
+		when others => LFO_ADD <= (others => '0');
+		end case;
 	end if;
 end process;
 
@@ -547,81 +560,6 @@ begin
 		end if;
 	end if;
 end process;
-
--- Channels 3-6 - Waveform + Noise (on channels 5-6)
--- process( CLK )
--- begin
-	-- if rising_edge( CLK ) then
-		-- for i in 2 to 5 loop
-			-- if RESET_N = '0' then
-				-- CH(i).GL_OUT <= (others => '0');
-				
-				-- CH(i).WF_CNT <= (others => '0');
-				
-				-- CH(i).LFSR <= (others => '0');
-				-- CH(i).NG_CNT <= (others => '0');
-			-- else
-				-- if CH(i).WF_RES = '1' then
-					-- CH(i).WF_ADDR <= (others => '0');
-				-- end if;
-				-- if CH(i).WF_INC = '1' then
-					-- CH(i).WF_ADDR <= CH(i).WF_ADDR + 1;
-				-- end if;
-			
-				-- if CH(i).CHON = '0' then
-					-- CH(i).WF_CNT <= (CH(i).FREQ - 1) & "1";
-				-- elsif CH(i).DDA = '0' then
-					-- CH(i).WF_OUT <= CH(i).WF_DATA(conv_integer(CH(i).WF_ADDR));
-				
-					-- if CLKEN = '1' then
-						-- CH(i).WF_CNT <= CH(i).WF_CNT - 1;
-						-- if CH(i).WF_CNT = "0000000000000" then
-							-- CH(i).WF_CNT <= (CH(i).FREQ - 1) & "1";
-							-- CH(i).WF_ADDR <= CH(i).WF_ADDR + 1;
-						-- end if;
-					-- end if;
-					
-				-- end if;
-				
-				-- if CH(i).NE = '0' then
-					-- CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "00000001";
-				-- else
-					-- if CH(i).LFSR(0) = '0' then
-						-- CH(i).NG_OUT <= "00000";
-					-- else
-						-- CH(i).NG_OUT <= "11111";
-					-- end if;
-					
-					-- if CLKEN = '1' then
-						-- CH(i).NG_CNT <= CH(i).NG_CNT - 1;
-						-- if CH(i).NG_CNT = "0000000000000" then
-							-- CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "00000001";
-							-- CH(i).LFSR <= ( CH(i).LFSR(0) 
-									-- xor CH(i).LFSR(1) 
-									-- xor CH(i).LFSR(11) 
-									-- xor CH(i).LFSR(12) 
-									-- xor CH(i).LFSR(17) ) 
-									-- & CH(i).LFSR(17 downto 1); 
-						-- end if;
-					-- end if;
-					
-				-- end if;
-				
-				-- if CH(i).CHON = '0' then
-					-- CH(i).GL_OUT <= (others => '0');
-				-- elsif CH(i).DDA = '1' then
-					-- CH(i).GL_OUT <= CH(i).DA_OUT;
-				-- elsif CH(i).NE = '1' then
-					-- CH(i).GL_OUT <= CH(i).NG_OUT;
-				-- else
-					-- CH(i).GL_OUT <= CH(i).WF_OUT;
-				-- end if;
-				
-			-- end if;
-		-- end loop;
-	-- end if;
--- end process;
-
 
 -- Channel 3 - Waveform
 process( CLK )
