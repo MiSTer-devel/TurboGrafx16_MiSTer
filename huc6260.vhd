@@ -24,6 +24,7 @@ entity huc6260 is
 		-- VDC Interface
 		COLNO		: in std_logic_vector(8 downto 0);
 		CLKEN		: out std_logic;
+		CLKEN_FS	: out std_logic;
 		RVBL		: in std_logic;
 
 		-- NTSC/RGB Video Output
@@ -50,6 +51,7 @@ signal CR		: std_logic_vector(7 downto 0);
 
 -- VCE Registers
 signal DOTCLOCK	: std_logic_vector(1 downto 0);
+signal DOTCLOCK_FS: std_logic_vector(1 downto 0);
 
 -- CPU Color RAM Interface
 signal RAM_A	: std_logic_vector(8 downto 0);
@@ -89,6 +91,7 @@ signal VBL_FF, VBL_FF2	: std_logic;
 
 -- Clock generation
 signal CLKEN_CNT	: std_logic_vector(2 downto 0);
+signal CLKEN_FS_CNT: std_logic_vector(2 downto 0);
 signal CLKEN_FF	: std_logic;
 
 begin
@@ -191,7 +194,7 @@ process( CLK )
 begin
 	if rising_edge( CLK ) then
 		H_CNT <= H_CNT + 1;
-		
+
 		CLKEN_FF <= '0';
 		CLKEN_CNT <= CLKEN_CNT + 1;
 		if DOTCLOCK = "00" and CLKEN_CNT = "111" then
@@ -200,11 +203,11 @@ begin
 		elsif DOTCLOCK = "01" and CLKEN_CNT = "101" then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
-		elsif (DOTCLOCK = "10" or DOTCLOCK = "11") and CLKEN_CNT = "011" then
+		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "011" then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
 		end if;
-		
+
 		if H_CNT = LINE_CLOCKS-1 then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
@@ -216,6 +219,30 @@ begin
 			-- Reload registers
 			BW <= CR(7);
 			DOTCLOCK <= CR(1 downto 0);
+		end if;
+	end if;
+end process;
+
+process( CLK )
+begin
+	if rising_edge( CLK ) then
+		CLKEN_FS <= '0';
+		CLKEN_FS_CNT <= CLKEN_FS_CNT + 1;
+		if DOTCLOCK_FS = "00" and CLKEN_FS_CNT = "111" then
+			CLKEN_FS_CNT <= (others => '0');
+			CLKEN_FS <= '1';
+		elsif DOTCLOCK_FS = "01" and CLKEN_FS_CNT = "101" then
+			CLKEN_FS_CNT <= (others => '0');
+			CLKEN_FS <= '1';				
+		elsif DOTCLOCK_FS(1) = '1' and CLKEN_FS_CNT = "011" then
+			CLKEN_FS_CNT <= (others => '0');
+			CLKEN_FS <= '1';				
+		end if;
+
+		if H_CNT = LEFT_BL_CLOCKS and V_CNT = TOP_BL_LINES then
+			CLKEN_FS_CNT <= (others => '0');
+			CLKEN_FS <= '1';				
+			DOTCLOCK_FS <= CR(1 downto 0);
 		end if;
 	end if;
 end process;
