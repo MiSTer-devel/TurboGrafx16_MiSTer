@@ -496,7 +496,12 @@ begin
 					--V_HDS := HPR(14 downto 8)&"000";
 					V_HDW := (HDR(6 downto 0)+"1")&"000";
 
-					if V_HDW >= HSIZE then V_HDS := (others => '0'); else V_HDS := HSIZE - V_HDW; end if;
+					if V_HDW >= HSIZE then 
+						V_HDS := (others => '0');
+						V_HDW := HSIZE;
+					else
+						V_HDS := HSIZE - V_HDW;
+					end if;
 					V_HDS := '0'&V_HDS(9 downto 1) + HSTART - 1;
 
 					--V_HDS := HPR(4 downto 0);
