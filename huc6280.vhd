@@ -108,6 +108,10 @@ signal O_FF			: std_logic_vector(7 downto 0);
 
 signal CLKEN_FF	: std_logic;
 signal CLKEN7_FF	: std_logic;
+signal CLKEN7_FF2	: std_logic;
+
+signal VRDY			: std_logic;
+signal VSEL_N		: std_logic;
 
 begin
 
@@ -155,6 +159,7 @@ CEI_N <= IOP_SEL_N;
 
 O <= O_FF;
 CLKEN <= CLKEN_FF;
+CLKEN7 <= CLKEN7_FF2;
 
 -- Input wires
 CPU_NMI_N <= NMI_N;
@@ -170,7 +175,7 @@ begin
 
 		CLKDIV_HI <= CLKDIV_HI + 1;
 		if CLKDIV_HI = "101" then
-			CPU_EN    <= RDY;
+			CPU_EN    <= RDY and VRDY;
 			CLKEN7_FF <= '1';
 			TMR_CLKEN <= '1';
 			PSG_CLKEN <= '1';
@@ -183,12 +188,24 @@ end process;
 -- Here it will be used to drive the WE signal of the synchronous BRAM
 process( CLK )
 begin
-    if rising_edge( CLK ) then
-        CLKEN_FF <= CPU_EN;
-		  CLKEN7 <= CLKEN7_FF;
-    end if;
+	if rising_edge( CLK ) then
+		CLKEN_FF <= CPU_EN;
+		CLKEN7_FF2 <= CLKEN7_FF;
+	end if;
 end process;
 
+-- according to pcetech.txt access to VDC/VCE produces an extra cycle.
+-- So, do this here, to pace down the CPU.
+VSEL_N <= (VDC_SEL_N and VCE_SEL_N) or not (CPU_WE or CPU_OE);
+process( CLK ) begin
+	if rising_edge( CLK ) then
+		if CLKEN_FF = '1' and VSEL_N = '0' then
+			VRDY <= '0';
+		elsif CLKEN7_FF2 = '1' then
+			VRDY <= '1';
+		end if;
+	end if;
+end process;
 
 -- Address decoding
 ROM_SEL_N <= CPU_A(20);                                        -- ROM : Page $00 - $7F
