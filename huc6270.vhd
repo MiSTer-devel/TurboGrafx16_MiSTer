@@ -516,7 +516,7 @@ begin
 
 					-- Raster counter
 					RCNT := RCNT + 1;
-					if Y = Y_BGREN_START then
+					if Y = Y_BGREN_START-1 then
 						RCNT := "0" & x"40";
 					end if;
 
@@ -524,51 +524,10 @@ begin
 					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
 						IRQ_RCR_SET <= '1';
 					end if;
-				end if;
-
-				if X = X_BG_START-1 then
-					SP2_ACTIVE <= '0';
-					if Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
-						BG_ACTIVE <= '1';
-						YOFS_REL_ACK <= '1';
-						if Y = Y_BGREN_START then
-							YOFS <= BYR(8 downto 0);
-						elsif YOFS_RELOAD = '1' then
-							YOFS <= BYR(8 downto 0) + 1;
-						else
-							YOFS <= YOFS + 1;
-						end if;
-						XOFS <= BXR(9 downto 0);
-					end if;
-				end if;
-
-				if X = X_REN_START-1 then
-					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
-						REN_ACTIVE <= '1';
-					end if;
-
-					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
-						SP1_ACTIVE <= '1';
-					end if;
-
-					-- VBlank Interrupt
-					if Y = Y_BGREN_END and CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
-					end if;
-				end if;
-
-				if X = X_REN_END then
-					BG_ACTIVE <= '0';
-					REN_ACTIVE <= '0';
-					SP1_ACTIVE <= '0';
-
-					VS_N_PREV <= VS_N;
 					
 					Y <= Y + 1;
-					
-					SP_ON <= CR(6);
-					BG_ON <= CR(7);
-					
+
+					VS_N_PREV <= VS_N;
 					if VS_N_PREV = '1' and VS_N = '0' then
 						Y <= (others => '0');
 						
@@ -597,17 +556,57 @@ begin
 						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
 					end if;
+				end if;
+
+				if X = X_BG_START-1 then
+					SP2_ACTIVE <= '0';
+					BG_ON <= CR(7);
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
+						BG_ACTIVE <= '1';
+						YOFS_REL_ACK <= '1';
+						if Y = Y_BGREN_START then
+							YOFS <= BYR(8 downto 0);
+						elsif YOFS_RELOAD = '1' then
+							YOFS <= BYR(8 downto 0) + 1;
+						else
+							YOFS <= YOFS + 1;
+						end if;
+						XOFS <= BXR(9 downto 0);
+					end if;
+				end if;
+
+				if X = X_REN_START-1 then
+					SP_ON <= CR(6);
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
+						REN_ACTIVE <= '1';
+					end if;
+
+					if Y >= Y_SP_START and Y < Y_SP_END and CR(6) = '1' then
+						SP1_ACTIVE <= '1';
+					end if;
+
+					-- VBlank Interrupt
+					if Y = Y_BGREN_END and CR(3) = '1' then
+						IRQ_VBL_SET <= '1';
+					end if;
 
 					-- Burst Mode
-					if Y = Y_BGREN_START - 1 then
+					-- Shouldn't CR(7 downto 6)be checked every visible line according to doc?
+					if Y = Y_BGREN_START then
 						if CR(7 downto 6) = "00" then
 							BURST <= '1';
 						else
 							BURST <= '0';
 						end if;
 					end if;
-					
-					if Y = Y_BGREN_END - 1 then
+				end if;
+
+				if X = X_REN_END then
+					BG_ACTIVE <= '0';
+					REN_ACTIVE <= '0';
+					SP1_ACTIVE <= '0';
+
+					if Y = Y_BGREN_END then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
