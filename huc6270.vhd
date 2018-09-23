@@ -1448,7 +1448,7 @@ begin
 			when REN_BGR =>
 				REN_SP_COL <= x"00";
 				REN_SP_PRI <= '0';
-				for I in 0 to 63 loop
+				for I in 63 downto 0 loop
 					if REN_SP_OPQ(I) = '1' then
 						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
 						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
