@@ -521,45 +521,13 @@ begin
 
 					-- Raster counter
 					RCNT := RCNT + 1;
-					if Y = Y_BGREN_START-1 then
+					if Y = Y_BGREN_START then
 						RCNT := "0" & x"40";
 					end if;
 
 					-- Raster compare interrupt
 					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
 						IRQ_RCR_SET <= '1';
-					end if;
-					
-					Y <= Y + 1;
-
-					VS_N_PREV <= VS_N;
-					if VS_N_PREV = '1' and VS_N = '0' then
-						Y <= (others => '0');
-						
-						V_VDS := ('0'&VSR(15 downto 8))+2;
-						V_VSW := ('0'&VSR( 4 downto 0))+1;
-						V_VDW := VDR(8 downto 0);
-						if V_VDW > 262 then
-							-- some games use 1FF value for VDW which overflows calculations below
-							-- thus limit it to max possible value.
-							V_VDW := std_logic_vector(to_unsigned(262,9));
-						end if;
-
-						--V_VCR := VDE(7 downto 0);
-
-						V_VDS := V_VDS + V_VSW;
-						V_VDE := V_VDS + V_VDW + 1;
-
-						-- Make sure display ends before vsync and there is at least 1 blank line at the end
-						-- possible Y values 0..262 (limited by ext VS_N)
-						if V_VDE > 262 then
-							V_VDE := std_logic_vector(to_unsigned(262,9));
-						end if;
-
-						Y_BGREN_START <= V_VDS;
-						Y_BGREN_END   <= V_VDE;
-						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
-						Y_SP_END      <= V_VDE;
 					end if;
 				end if;
 
@@ -611,14 +579,46 @@ begin
 					REN_ACTIVE <= '0';
 					SP1_ACTIVE <= '0';
 
-					if Y = Y_BGREN_END then
+					Y <= Y + 1;
+
+					VS_N_PREV <= VS_N;
+					if VS_N_PREV = '1' and VS_N = '0' then
+						Y <= (others => '0');
+
+						V_VDS := ('0'&VSR(15 downto 8))+2;
+						V_VSW := ('0'&VSR( 4 downto 0))+1;
+						V_VDW := VDR(8 downto 0);
+						if V_VDW > 262 then
+							-- some games use 1FF value for VDW which overflows calculations below
+							-- thus limit it to max possible value.
+							V_VDW := std_logic_vector(to_unsigned(262,9));
+						end if;
+
+						--V_VCR := VDE(7 downto 0);
+
+						V_VDS := V_VDS + V_VSW;
+						V_VDE := V_VDS + V_VDW + 1;
+
+						-- Make sure display ends before vsync and there is at least 1 blank line at the end
+						-- possible Y values 0..262 (limited by ext VS_N)
+						if V_VDE > 262 then
+							V_VDE := std_logic_vector(to_unsigned(262,9));
+						end if;
+
+						Y_BGREN_START <= V_VDS;
+						Y_BGREN_END   <= V_VDE;
+						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
+						Y_SP_END      <= V_VDE;
+					end if;
+
+					if Y = Y_BGREN_END-1 then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
 						end if;
 					end if;
-					
-					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
+
+					if Y >= Y_SP_START-1 and Y < Y_SP_END-1 and SP_ON = '1' then
 						SP2_ACTIVE <= '1';
 					end if;
 				end if;
