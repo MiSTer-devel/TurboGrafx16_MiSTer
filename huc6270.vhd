@@ -513,9 +513,21 @@ begin
 					X_REN_END   <= V_HDS + V_HDW - "1";
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
 					X_BG_START  <= V_HDS - "10101";
+
+					-- Raster counter
+					RCNT := RCNT + 1;
+					if Y = Y_BGREN_START then
+						RCNT := "0" & x"40";
+					end if;
+
+					-- Raster compare interrupt
+					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
+						IRQ_RCR_SET <= '1';
+					end if;
 				end if;
-				
+
 				if X = X_BG_START-1 then
+					SP2_ACTIVE <= '0';
 					if Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
 						BG_ACTIVE <= '1';
 						YOFS_REL_ACK <= '1';
@@ -527,15 +539,6 @@ begin
 							YOFS <= YOFS + 1;
 						end if;
 						XOFS <= BXR(9 downto 0);
-					end if;
-
-					-- Raster counter
-					RCNT := RCNT + 1;
-					if Y = Y_BGREN_START then
-						RCNT := "0" & x"40";
-					end if;
-					if RCNT = RCR(9 downto 0) then
-						IRQ_RCR_SET <= CR(2);
 					end if;
 				end if;
 
@@ -554,25 +557,21 @@ begin
 					end if;
 				end if;
 
-				if X = X_BG_START-1 then
-					SP2_ACTIVE <= '0';
-				end if;
-
 				if X = X_REN_END then
-					BG_ACTIVE  <= '0';
+					BG_ACTIVE <= '0';
 					REN_ACTIVE <= '0';
 					SP1_ACTIVE <= '0';
 
 					VS_N_PREV <= VS_N;
-
+					
 					Y <= Y + 1;
-
+					
 					SP_ON <= CR(6);
 					BG_ON <= CR(7);
-
+					
 					if VS_N_PREV = '1' and VS_N = '0' then
 						Y <= (others => '0');
-
+						
 						V_VDS := ('0'&VSR(15 downto 8))+2;
 						V_VSW := ('0'&VSR( 4 downto 0))+1;
 						V_VDW := VDR(8 downto 0);
@@ -607,14 +606,14 @@ begin
 							BURST <= '0';
 						end if;
 					end if;
-
+					
 					if Y = Y_BGREN_END - 1 then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
 						end if;
 					end if;
-
+					
 					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
 						SP2_ACTIVE <= '1';
 					end if;
