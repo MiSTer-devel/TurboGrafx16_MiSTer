@@ -58,7 +58,6 @@ architecture rtl of vram_controller is
 
 	signal vdccpur_q : std_logic_vector(15 downto 0);
 	signal vdcbgr_q : std_logic_vector(15 downto 0);
-	signal vdcspr_q : std_logic_vector(15 downto 0);
 	signal vdcdmar_q : std_logic_vector(15 downto 0);
 	signal vdcdmasr_q : std_logic_vector(15 downto 0);
 		
@@ -91,12 +90,17 @@ begin
 			cs_a      => not ram_a(15),
 			q_a       => ram_q,
 			wren_a    => ram_we,
-			data_a    => ram_d
+			data_a    => ram_d,
+
+			address_b => vdcsp_a(15 downto 1),
+			cs_b      => not vdcsp_a(16),
+			q_b       => vdcsp_q
 		);
 	
 	process(clk) begin
 		if rising_edge(clk) then
 			ram_we <= '0';
+			vdcsp_ackReg <= vdcsp_req;
 
 			if ramstage = '0' then
 				ramport <= PORT_NONE;
@@ -104,49 +108,33 @@ begin
 				case ramport is
 				when PORT_VDCCPU =>
 					vdccpur_q <= ram_q;
---					vdccpu_ackReg <= vdccpu_req;
 				when PORT_VDCBG =>
 					vdcbgr_q <= ram_q;
---					vdcbg_ackReg <= vdcbg_req;
-				when PORT_VDCSP =>
-					vdcspr_q <= ram_q;
---					vdcsp_ackReg <= vdcsp_req;
 				when PORT_VDCDMA =>
 					vdcdmar_q <= ram_q;
---					vdcdma_ackReg <= vdcdma_req;
 				when PORT_VDCDMAS =>
 					vdcdmasr_q <= ram_q;
---					vdcdmas_ackReg <= vdcdmas_req;
 				when others =>
 					if vdcbg_req /= vdcbg_ackReg then
 						ram_a <= vdcbg_a;
 						ramport <= PORT_VDCBG;
 						ramstage <= '1';
---						vdcbg_ackReg <= vdcbg_req;
-					elsif vdcsp_req /= vdcsp_ackReg then
-						ram_a <= vdcsp_a;
-						ramport <= PORT_VDCSP;
-						ramstage <= '1';
---						vdcsp_ackReg <= vdcsp_req;
 					elsif vdcdmas_req /= vdcdmas_ackReg then
 						ram_a <= vdcdmas_a;
 						ramport <= PORT_VDCDMAS;
 						ramstage <= '1';
---						vdcdmas_ackReg <= vdcdmas_req;
 					elsif vdcdma_req /= vdcdma_ackReg then
 						ram_a <= vdcdma_a;
 						ram_d <= vdcdma_d;
 						ram_we <= vdcdma_we;
 						ramport <= PORT_VDCDMA;
 						ramstage <= '1';
---						vdcdma_ackReg <= vdcdma_req;
 					elsif vdccpu_req /= vdccpu_ackReg then
 						ram_a <= vdccpu_a;
 						ram_d <= vdccpu_d;
 						ram_we <= vdccpu_we;
 						ramport <= PORT_VDCCPU;
 						ramstage <= '1';
---						vdccpu_ackReg <= vdccpu_req;
 					end if;
 				end case;
 			else
@@ -156,8 +144,6 @@ begin
 					vdccpu_ackReg <= vdccpu_req;
 				when PORT_VDCBG =>
 					vdcbg_ackReg <= vdcbg_req;
-				when PORT_VDCSP =>
-					vdcsp_ackReg <= vdcsp_req;
 				when PORT_VDCDMA =>
 					vdcdma_ackReg <= vdcdma_req;
 				when PORT_VDCDMAS =>
@@ -170,7 +156,6 @@ begin
 
 vdccpu_q <= ram_q when ramport = PORT_VDCCPU else vdccpur_q;
 vdcbg_q <= ram_q when ramport = PORT_VDCBG else vdcbgr_q;
-vdcsp_q <= ram_q when ramport = PORT_VDCSP else vdcspr_q;
 vdcdma_q <= ram_q when ramport = PORT_VDCDMA else vdcdmar_q;
 vdcdmas_q <= ram_q when ramport = PORT_VDCDMAS else vdcdmasr_q;
 

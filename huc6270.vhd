@@ -17,6 +17,7 @@ entity huc6270 is
 		RESET_N	: in std_logic;
 		HSIZE		: in std_logic_vector(9 downto 0);
 		HSTART	: in std_logic_vector(9 downto 0);
+		SP64		: in std_logic;
 
 		-- CPU Interface
 		A			: in std_logic_vector(1 downto 0);
@@ -181,7 +182,7 @@ signal IRQ_COL_TRIG	: std_logic;
 signal IRQ_OVF_SET	: std_logic;
 
 -- Intermediate signals - Part 1
-signal SP_NB	: std_logic_vector(4 downto 0);
+signal SP_NB	: std_logic_vector(6 downto 0);
 signal SP_CUR_Y	: std_logic_vector(9 downto 0);
 signal SP_Y		: std_logic_vector(9 downto 0);
 signal SP_X		: std_logic_vector(9 downto 0);
@@ -207,7 +208,7 @@ type sp_prebuf_entry_t is
 		CG		: std_logic;
 		ADDR	: std_logic_vector(15 downto 0);
 	end record;
-type sp_prebuf_t is array(0 to 15) of sp_prebuf_entry_t;
+type sp_prebuf_t is array(0 to 63) of sp_prebuf_entry_t;
 signal SP_PREBUF	: sp_prebuf_t;
 
 -- Sprite engine - SAT access signals
@@ -225,7 +226,7 @@ signal SP1_CNT	: std_logic_vector(1 downto 0);
 
 
 -- Intermediate signals - Part 2
-signal SP_CUR	: std_logic_vector(3 downto 0);
+signal SP_CUR	: std_logic_vector(5 downto 0);
 
 -- Sprite buffers
 type sp_buf_entry_t is
@@ -241,7 +242,7 @@ type sp_buf_entry_t is
 		P2		: std_logic_vector(15 downto 0);
 		P3		: std_logic_vector(15 downto 0);
 	end record;
-type sp_buf_t is array(0 to 15) of sp_buf_entry_t;
+type sp_buf_t is array(0 to 63) of sp_buf_entry_t;
 signal SP_BUF	: sp_buf_t;
 
 -- Sprite engine - RAM access signals
@@ -270,8 +271,8 @@ signal REN_MEM_WE	: std_logic;
 signal REN_MEM_DO	: std_logic_vector(7 downto 0);
 
 signal REN_BG_COL	: std_logic_vector(7 downto 0);
-signal REN_SP_OPQ	: std_logic_vector(15 downto 0); -- Sprite pixel on/off
-type ren_sp_col_t is array(15 downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
+signal REN_SP_OPQ	: std_logic_vector(63 downto 0); -- Sprite pixel on/off
+type ren_sp_col_t is array(63 downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
 signal REN_SP_COLTAB	: ren_sp_col_t;
 signal REN_SP_COL	: std_logic_vector(7 downto 0);
 signal REN_SP_PRI	: std_logic;
@@ -929,12 +930,12 @@ begin
 		
 		if RESET_N = '0' then
 			SP1 <= SP1_INI;			
-			SP_NB <= "00000";
+			SP_NB <= "0000000";
 		else
 			case SP1 is
 			when SP1_INI =>
 				if SP1_ACTIVE = '1' then
-					SP_NB <= "00000";					
+					SP_NB <= "0000000";					
 					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64;
 					SP_SAT_A <= "000000" & "11";
 					
@@ -976,8 +977,8 @@ begin
 				end case;
 
 				if ( SP_CUR_Y >= SP_Y) and ( SP_CUR_Y < SP_Y + V_SP_H) then
-					if SP_NB = "10000" then 
-						SP_NB <= "11111"; -- Overflow
+					if (SP_NB = "0010000" and SP64 = '0') or SP_NB = "1000000" then 
+						SP_NB <= "1111111"; -- Overflow
 						if CR(1) = '1' then
 							IRQ_OVF_SET <= '1';
 						end if;
@@ -1042,21 +1043,21 @@ begin
 					V_SP_NAME(0) := SP_NAME(0);
 				end if;
 
-				if SP_NB = "00000" then
-					SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ZERO <= '1';
+				if SP_NB = "0000000" then
+					SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ZERO <= '1';
 				else
-					SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ZERO <= '0';
+					SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ZERO <= '0';
 				end if;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PRI <= SP_PRI;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PAL <= SP_PAL;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).X <= SP_X + X_REN_START - 32;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).HF <= SP_HF;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).CG <= SP_CG;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PRI <= SP_PRI;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PAL <= SP_PAL;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).X <= SP_X + X_REN_START - 32;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).HF <= SP_HF;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).CG <= SP_CG;
 
 				if SP_CGX = '1' then
-					if SP_NB = "01111" then
-						SP_NB <= "11111"; -- Overflow
+					if (SP_NB = "0001111" and SP64='0') or SP_NB = "0111111" then
+						SP_NB <= "1111111"; -- Overflow
 						if CR(1) = '1' then
 							IRQ_OVF_SET <= '1';
 						end if;						
@@ -1098,13 +1099,13 @@ begin
 				end case;
 				V_SP_NAME(0) := not SP_HF;
 
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ZERO <= '0';
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PRI <= SP_PRI;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PAL <= SP_PAL;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).X <= SP_X + X_REN_START - 32 + 16;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).HF <= SP_HF;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).CG <= SP_CG;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ZERO <= '0';
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PRI <= SP_PRI;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PAL <= SP_PAL;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).X <= SP_X + X_REN_START - 32 + 16;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).HF <= SP_HF;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).CG <= SP_CG;
 
 				SP_NB <= SP_NB + 1;
 				SP1 <= SP1_LOOP;
@@ -1145,7 +1146,7 @@ begin
 			when SP2_INI =>
 				SP_BUSY <= '0';
 				if SP2_ACTIVE = '1' or SP_ON = '0' then
-					for I in 0 to 15 loop
+					for I in 0 to 63 loop
 						SP_BUF(I).X <= "1111111100"; -- Set off-screen
 					end loop;
 				end if;
@@ -1153,14 +1154,14 @@ begin
 					SP_BUSY <= '1';
 					SP_CYC <= "00";
 					
-					SP_CUR <= "0000";
+					SP_CUR <= "000000";
 			
 					SP2 <= SP2_INI_W;
 				end if;
 
 			when SP2_INI_W =>
 				if CLKEN = '1' then
-					if SP_NB /= "00000" then
+					if SP_NB /= "0000000" then
 						SP2 <= SP2_RD0;
 					else
 						SP2 <= SP2_END;
@@ -1196,7 +1197,7 @@ begin
 				end if;
 			
 			when SP2_RD0_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1242,7 +1243,7 @@ begin
 				end if;
 				
 			when SP2_RD1_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1274,7 +1275,7 @@ begin
 				end if;
 				
 			when SP2_RD2_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1310,7 +1311,7 @@ begin
 				end if;
 				
 			when SP2_RD3_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1319,7 +1320,7 @@ begin
 						when "00" =>
 							SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 							SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-							if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+							if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 								SP2 <= SP2_END;
 							else
 								SP_CUR <= SP_CUR + 1;
@@ -1330,7 +1331,7 @@ begin
 							if SP_CYC = "01" then
 								SP_BUF(conv_integer(SP_CUR)).P1 <= SP_RAM_DO;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-								if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+								if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 									SP2 <= SP2_END;
 								else
 									SP_CUR <= SP_CUR + 1;
@@ -1342,7 +1343,7 @@ begin
 							if SP_CYC = "01" then
 								SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-								if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+								if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 									SP2 <= SP2_END;
 								else
 									SP_CUR <= SP_CUR + 1;
@@ -1357,7 +1358,7 @@ begin
 									SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 								end if;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-								if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+								if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 									SP2 <= SP2_END;
 								else
 									SP_CUR <= SP_CUR + 1;
@@ -1415,7 +1416,7 @@ begin
 				end if;
 
 			when REN_BGW =>
-				for I in 0 to 15 loop
+				for I in 0 to 63 loop
 					if (X >= SP_BUF(I).X) and (X < SP_BUF(I).X + 16) and SP_ON = '1' then
 						if SP_BUF(I).HF = '0' then
 							V_X := "0000001111" - (X - SP_BUF(I).X);
@@ -1447,7 +1448,7 @@ begin
 			when REN_BGR =>
 				REN_SP_COL <= x"00";
 				REN_SP_PRI <= '0';
-				for I in 0 to 15 loop
+				for I in 0 to 63 loop
 					if REN_SP_OPQ(I) = '1' then
 						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
 						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
@@ -1456,7 +1457,7 @@ begin
 				
 				-- Collision
 				if REN_SP_OPQ(0) = '1' 
-				and REN_SP_OPQ(14 downto 0) /= "000000000000000" 
+				and REN_SP_OPQ /= x"0000000000000000"
 				and SP_BUF(0).ZERO = '1'
 				and IRQ_COL_TRIG = '0'
 				then

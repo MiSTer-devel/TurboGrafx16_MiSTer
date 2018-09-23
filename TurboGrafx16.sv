@@ -136,6 +136,7 @@ parameter CONF_STR5 = {
 	"O1,Aspect ratio,4:3,16:9;",
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OA,Vertical blank,Normal,Reduced;",
+	"OB,Sprites per line,Std(16),All(64);",
 	"-;",
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
@@ -256,6 +257,7 @@ pce_top pce_top
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
+	.SP64(status[11]),
 	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),

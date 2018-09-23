@@ -28,6 +28,7 @@ entity pce_top is
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
 		AUD_RDATA	: out std_logic_vector(23 downto 0);
 
+		SP64			: in  std_logic;
 		SGX			: in  std_logic;
 		TURBOTAP    : in  std_logic;
 		SIXBUTTON   : in  std_logic;
@@ -187,6 +188,7 @@ port map(
 	RESET_N	=> RESET_N,
 	HSIZE		=> HSIZE,
 	HSTART	=> HSTART,
+	SP64     => SP64,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
@@ -197,7 +199,7 @@ port map(
 	DO 		=> VDC0_DO,
 	BUSY_N	=> VDC0_BUSY_N,
 	IRQ_N		=> VDC0_IRQ_N,
-	
+
 	-- VCE Interface
 	COLNO		=> VDC0_COLNO,
 	CLKEN		=> VDC_CLKEN,
@@ -211,6 +213,7 @@ port map(
 	RESET_N	=> RESET_N,
 	HSIZE		=> HSIZE,
 	HSTART	=> HSTART,
+	SP64     => SP64,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
