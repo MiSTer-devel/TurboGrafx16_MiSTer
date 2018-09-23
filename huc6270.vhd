@@ -12,6 +12,9 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity huc6270 is
+	generic (
+		MAX_SPPL : integer := 15
+	);
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
@@ -208,7 +211,7 @@ type sp_prebuf_entry_t is
 		CG		: std_logic;
 		ADDR	: std_logic_vector(15 downto 0);
 	end record;
-type sp_prebuf_t is array(0 to 63) of sp_prebuf_entry_t;
+type sp_prebuf_t is array(0 to MAX_SPPL) of sp_prebuf_entry_t;
 signal SP_PREBUF	: sp_prebuf_t;
 
 -- Sprite engine - SAT access signals
@@ -242,7 +245,7 @@ type sp_buf_entry_t is
 		P2		: std_logic_vector(15 downto 0);
 		P3		: std_logic_vector(15 downto 0);
 	end record;
-type sp_buf_t is array(0 to 63) of sp_buf_entry_t;
+type sp_buf_t is array(0 to MAX_SPPL) of sp_buf_entry_t;
 signal SP_BUF	: sp_buf_t;
 
 -- Sprite engine - RAM access signals
@@ -271,8 +274,9 @@ signal REN_MEM_WE	: std_logic;
 signal REN_MEM_DO	: std_logic_vector(7 downto 0);
 
 signal REN_BG_COL	: std_logic_vector(7 downto 0);
-signal REN_SP_OPQ	: std_logic_vector(63 downto 0); -- Sprite pixel on/off
-type ren_sp_col_t is array(63 downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
+signal REN_SP_OPQ	: std_logic_vector(MAX_SPPL downto 0); -- Sprite pixel on/off
+constant SP_OPQ_Z : std_logic_vector(MAX_SPPL downto 0) := (others => '0');
+type ren_sp_col_t is array(MAX_SPPL downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
 signal REN_SP_COLTAB	: ren_sp_col_t;
 signal REN_SP_COL	: std_logic_vector(7 downto 0);
 signal REN_SP_PRI	: std_logic;
@@ -1146,7 +1150,7 @@ begin
 			when SP2_INI =>
 				SP_BUSY <= '0';
 				if SP2_ACTIVE = '1' or SP_ON = '0' then
-					for I in 0 to 63 loop
+					for I in 0 to MAX_SPPL loop
 						SP_BUF(I).X <= "1111111100"; -- Set off-screen
 					end loop;
 				end if;
@@ -1416,7 +1420,7 @@ begin
 				end if;
 
 			when REN_BGW =>
-				for I in 0 to 63 loop
+				for I in 0 to MAX_SPPL loop
 					if (X >= SP_BUF(I).X) and (X < SP_BUF(I).X + 16) and SP_ON = '1' then
 						if SP_BUF(I).HF = '0' then
 							V_X := "0000001111" - (X - SP_BUF(I).X);
@@ -1448,7 +1452,7 @@ begin
 			when REN_BGR =>
 				REN_SP_COL <= x"00";
 				REN_SP_PRI <= '0';
-				for I in 63 downto 0 loop
+				for I in MAX_SPPL downto 0 loop
 					if REN_SP_OPQ(I) = '1' then
 						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
 						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
@@ -1457,7 +1461,7 @@ begin
 				
 				-- Collision
 				if REN_SP_OPQ(0) = '1' 
-				and REN_SP_OPQ /= x"0000000000000000"
+				and REN_SP_OPQ /= SP_OPQ_Z
 				and SP_BUF(0).ZERO = '1'
 				and IRQ_COL_TRIG = '0'
 				then

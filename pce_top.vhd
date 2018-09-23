@@ -8,6 +8,9 @@ use IEEE.STD_LOGIC_TEXTIO.all;
 use IEEE.NUMERIC_STD.ALL;
 
 entity pce_top is
+	generic (
+		MAX_SPPL : integer := 15
+	);
 	port(
 		RESET			: in  std_logic;
 		CLK 			: in  std_logic;
@@ -183,6 +186,7 @@ port map(
 );
 
 VDC0 : entity work.huc6270
+generic map (MAX_SPPL)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
@@ -208,6 +212,7 @@ port map(
 );
 
 VDC1 : entity work.huc6270
+generic map (MAX_SPPL)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,

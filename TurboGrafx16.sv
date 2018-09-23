@@ -97,6 +97,18 @@ module emu
 	output        SDRAM_nWE
 );
 
+`ifndef LITE
+`define USE_SP64
+`endif
+
+`ifdef USE_SP64
+localparam MAX_SPPL = 63;
+localparam SP64     = 1'b1;
+`else
+localparam MAX_SPPL = 15;
+localparam SP64     = 1'b0;
+`endif
+
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_USER  = ioctl_download | bk_state;
@@ -136,14 +148,16 @@ parameter CONF_STR5 = {
 	"O1,Aspect ratio,4:3,16:9;",
 	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OA,Vertical blank,Normal,Reduced;",
+`ifdef USE_SP64
 	"OB,Sprites per line,Std(16),All(64);",
+`endif
 	"-;",
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
-	"V,v1.20.",`BUILD_DATE
+	"V,v1.23.",`BUILD_DATE
 };
 
 ////////////////////   CLOCKS   ///////////////////
@@ -235,7 +249,7 @@ wire ce_rom;
 reg use_sdr = 0;
 always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 
-pce_top pce_top
+pce_top #(MAX_SPPL) pce_top
 (
 	.RESET(reset|ioctl_download),
 
@@ -257,7 +271,7 @@ pce_top pce_top
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
-	.SP64(status[11]),
+	.SP64(status[11] & SP64),
 	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
