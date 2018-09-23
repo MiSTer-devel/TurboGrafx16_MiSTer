@@ -510,7 +510,7 @@ begin
 					HDW <= HDR(6 downto 0);
 
 					X_REN_START <= V_HDS;
-					X_REN_END   <= V_HDS + V_HDW - "1";
+					X_REN_END   <= V_HDS + V_HDW;
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
 					X_BG_START  <= V_HDS - "10101";
 
@@ -601,7 +601,7 @@ begin
 					end if;
 				end if;
 
-				if X = X_REN_END then
+				if X = X_REN_END-1 then
 					BG_ACTIVE <= '0';
 					REN_ACTIVE <= '0';
 					SP1_ACTIVE <= '0';
@@ -884,7 +884,7 @@ begin
 					& BG2_P2(conv_integer(TPX)) 
 					& BG2_P1(conv_integer(TPX)) 
 					& BG2_P0(conv_integer(TPX));
-				if (BG2_MEM_A >= X_REN_START) and (BG2_MEM_A <= X_REN_END) then
+				if (BG2_MEM_A >= X_REN_START) and (BG2_MEM_A < X_REN_END) then
 					BG2_MEM_WE <= '1';
 				end if;
 				BG2 <= BG2_LOOP;
