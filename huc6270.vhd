@@ -1445,58 +1445,14 @@ begin
 				REN <= REN_BGR;
 			
 			when REN_BGR =>
-				if REN_SP_OPQ(0) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(0)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(0)(8);
-				elsif REN_SP_OPQ(1) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(1)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(1)(8);
-				elsif REN_SP_OPQ(2) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(2)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(2)(8);
-				elsif REN_SP_OPQ(3) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(3)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(3)(8);
-				elsif REN_SP_OPQ(4) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(4)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(4)(8);
-				elsif REN_SP_OPQ(5) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(5)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(5)(8);
-				elsif REN_SP_OPQ(6) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(6)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(6)(8);
-				elsif REN_SP_OPQ(7) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(7)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(7)(8);
-				elsif REN_SP_OPQ(8) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(8)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(8)(8);
-				elsif REN_SP_OPQ(9) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(9)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(9)(8);
-				elsif REN_SP_OPQ(10) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(10)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(10)(8);
-				elsif REN_SP_OPQ(11) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(11)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(11)(8);
-				elsif REN_SP_OPQ(12) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(12)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(12)(8);
-				elsif REN_SP_OPQ(13) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(13)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(13)(8);
-				elsif REN_SP_OPQ(14) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(14)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(14)(8);
-				elsif REN_SP_OPQ(15) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(15)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(15)(8);				
-				else
-					REN_SP_COL <= x"00";
-					REN_SP_PRI <= '0';
-				end if;
+				REN_SP_COL <= x"00";
+				REN_SP_PRI <= '0';
+				for I in 0 to 15 loop
+					if REN_SP_OPQ(I) = '1' then
+						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
+						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
+					end if;
+				end loop;
 				
 				-- Collision
 				if REN_SP_OPQ(0) = '1' 
