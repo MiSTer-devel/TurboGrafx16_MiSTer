@@ -85,9 +85,6 @@ signal TMR_DO		: std_logic_vector(7 downto 0);
 signal IOP_DO		: std_logic_vector(7 downto 0);
 signal INT_DO		: std_logic_vector(7 downto 0);
 
-signal PSG_WE		: std_logic;
-signal pulse_48K	: std_logic;
-
 -- Internal data buffer
 signal DATA_BUF	: std_logic_vector(7 downto 0);
 
@@ -220,7 +217,6 @@ TMR_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "011
 IOP_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "100" else '1'; -- IOP : $1000 - $13FF
 INT_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "101" else '1'; -- INT : $1400 - $17FF
 
-
 -- On-chip hardware CPU interface
 process( CLK )
 begin
@@ -228,8 +224,6 @@ begin
 		
 		TMR_RELOAD <= '0';
 		TMR_IRQ_ACK <= '0';
-		
-		PSG_WE <= '0';
 		
 		if RESET_N = '0' then
 			DATA_BUF <= (others => '0');
@@ -245,7 +239,6 @@ begin
 				-- CPU Write
 				if PSG_SEL_N = '0' then
 					DATA_BUF <= CPU_DO;
-					PSG_WE <= '1';
 				elsif TMR_SEL_N = '0' then
 					DATA_BUF <= CPU_DO;
 					if CPU_A(0) = '0' then
@@ -372,29 +365,11 @@ PSG : entity work.psg port map (
 	
 	DI			=> CPU_DO(7 downto 0),
 	A			=> CPU_A(3 downto 0),
-	WE			=> PSG_WE,
+	WE			=> CPU_WE and CLKEN_FF and not PSG_SEL_N,
 	
-	DAC_LATCH=> pulse_48K,
+	DAC_LATCH=> '1',
 	LDATA		=> AUD_LDATA,
 	RDATA		=> AUD_RDATA
 );
-
-process (CLK)
-	variable cnt : integer range 0 to 150;
-begin
-	if rising_edge(CLK) then
-		pulse_48K <= '0';
-		if RESET_N='0' then
-			cnt := 0;
-		elsif PSG_CLKEN = '1' then
-			cnt := cnt + 1;
-			pulse_48K <= '0';
-			if cnt = 149 then
-				pulse_48K <= '1';
-				cnt := 0;
-			end if;
-		end if;
-	end if;
-end process;
 
 end rtl;
