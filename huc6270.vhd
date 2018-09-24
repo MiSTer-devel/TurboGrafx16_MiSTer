@@ -53,9 +53,8 @@ signal VWR		: std_logic_vector(15 downto 0); -- VRAM Write Latch
 
 signal CR		: std_logic_vector(15 downto 0);
 signal RCR		: std_logic_vector(15 downto 0);
-signal BXR		: std_logic_vector( 9 downto 0);
-signal BYR		: std_logic_vector( 8 downto 0);
-signal BYR_NEW	: std_logic_vector( 8 downto 0);
+signal BXR		: std_logic_vector(15 downto 0);
+signal BYR		: std_logic_vector(15 downto 0);
 signal MWR		: std_logic_vector(15 downto 0);
 
 --signal HPR		: std_logic_vector(15 downto 0);
@@ -131,6 +130,9 @@ signal BG_P01		: std_logic_vector(15 downto 0);
 signal BG_P23		: std_logic_vector(15 downto 0);
 
 signal YOFS			: std_logic_vector(8 downto 0);
+signal YOFS_RELOAD	: std_logic;
+signal YOFS_REL_REQ	: std_logic;
+signal YOFS_REL_ACK	: std_logic;
 signal XOFS			: std_logic_vector(9 downto 0);
 
 -- State machine - Part 1
@@ -451,6 +453,7 @@ begin
 	if rising_edge(CLK) then
 		IRQ_RCR_SET <= '0';
 		IRQ_VBL_SET <= '0';
+		YOFS_REL_ACK <= '0';
 	
 		if RESET_N = '0' then
 			X <= (others => '0');
@@ -533,16 +536,15 @@ begin
 					BG_ON <= CR(7);
 					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
 						BG_ACTIVE <= '1';
+						YOFS_REL_ACK <= '1';
 						if Y = Y_BGREN_START then
-							BYR <= BYR_NEW;
-							YOFS <= BYR_NEW;
-						elsif BYR /= BYR_NEW then
-							BYR <= BYR_NEW;
-							YOFS <= BYR_NEW + 1;
+							YOFS <= BYR(8 downto 0);
+						elsif YOFS_RELOAD = '1' then
+							YOFS <= BYR(8 downto 0) + 1;
 						else
 							YOFS <= YOFS + 1;
 						end if;
-						XOFS <= BXR;
+						XOFS <= BXR(9 downto 0);
 					end if;
 				end if;
 
@@ -1695,6 +1697,7 @@ begin
 		CPU_LENR_SET_REQ <= '0';
 		CPU_DMAS_REQ <= '0';
 		CPU_DMA_REQ <= '0';
+		YOFS_REL_REQ <= '0';
 	
 		if RESET_N = '0' then
 			
@@ -1716,8 +1719,8 @@ begin
 			VSR <= x"0F02";
 			VDR <= x"00EF";
 			--VDE <= x"0003";
-			BXR <= (others => '0');
-			BYR_NEW <= (others => '0');
+			BXR <= x"0000";
+			BYR <= x"0000";			
 			-- DCR <= x"0010";
 			DCR <= x"0000";
 			--SATB <= x"0800";
@@ -1781,7 +1784,8 @@ begin
 						when "00111" =>
 							BXR(7 downto 0) <= DI;
 						when "01000" =>
-							BYR_NEW(7 downto 0) <= DI;
+							BYR(7 downto 0) <= DI;
+							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(7 downto 0) <= DI;
 						--when "01010" =>
@@ -1836,9 +1840,10 @@ begin
 						when "00110" =>
 							RCR(15 downto 8) <= DI;
 						when "00111" =>
-							BXR(9 downto 8) <= DI(1 downto 0);
+							BXR(15 downto 8) <= DI;
 						when "01000" =>
-							BYR_NEW(8) <= DI(0);
+							BYR(15 downto 8) <= DI;
+							YOFS_REL_REQ <= '1';
 						when "01001" =>
 							MWR(15 downto 8) <= DI;
 						--when "01010" =>
@@ -2127,6 +2132,21 @@ begin
 		end if;
 	end if;
 end process;
+
+-- YOFS Reload
+process( CLK )
+begin
+	if rising_edge( CLK ) then
+		if RESET_N = '0' then
+			YOFS_RELOAD <= '0';
+		elsif YOFS_REL_REQ = '1' then
+			YOFS_RELOAD <= '1';
+		elsif YOFS_REL_ACK = '1' then
+			YOFS_RELOAD <= '0';
+		end if;
+	end if;
+end process;
+
 
 -- Output buffers
 BUSY_N <= BUSY_N_FF;
