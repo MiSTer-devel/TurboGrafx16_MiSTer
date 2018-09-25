@@ -10,6 +10,7 @@
  * 6(8)-buttons joystick support
  * Turbotap(multiple joysticks)
  * Support for Street Fighter II and Populous mappers
+ * Option of 64 sprites per line (reduces the flickering in some games)
 
 ## Installation:
 Copy the *.rbf file at the root of the SD card. Copy roms (*PCE,*BIN) to **TGFX16** folder. You may rename ROM of your favorite game to **boot.rom** - it will be automatically loaded upon core loading.
@@ -26,6 +27,7 @@ Do not enable these features for games not supporting it, otherwise game will wo
 ### Notes:
 * Do not forget to assign joystick buttons on keyboard in order to play on keyboard.
 * Both headerless ROMs and ROMs with header (512b) are supported and automatically distinguished by file size.
+* 64 sprites per line may improve the game look by reducing the flickering, but may introduce glitches in some games.
 
 ## Download precompiled binaries
 Go to [releases](https://github.com/MiSTer-devel/TurboGrafx16_MiSTer/tree/master/releases) folder. 
