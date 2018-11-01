@@ -206,7 +206,13 @@ reg [31:0] cfg_custom_p2;
 
 reg  [4:0] vol_att = 0;
 
+`ifndef LITE
+reg  [6:0] coef_addr;
+reg  [8:0] coef_data;
+reg        coef_wr = 0;
 reg        vip_newcfg = 0;
+`endif
+
 always@(posedge clk_sys) begin
 	reg  [7:0] cmd;
 	reg        has_cmd;
@@ -214,6 +220,10 @@ always@(posedge clk_sys) begin
 	reg  [7:0] cnt = 0;
 
 	old_strobe <= io_strobe;
+
+`ifndef LITE
+	coef_wr <= 0;
+`endif
 
 	if(~io_uio) has_cmd <= 0;
 	else
@@ -232,16 +242,18 @@ always@(posedge clk_sys) begin
 				cfg_set <= 0;
 				cnt <= cnt + 1'd1;
 				if(cnt<8) begin
+`ifndef LITE
 					if(!cnt) vip_newcfg <= ~cfg_ready;
+`endif
 					case(cnt)
-						0: if(WIDTH  != io_din[11:0]) begin WIDTH  <= io_din[11:0]; vip_newcfg <= 1; end
-						1: if(HFP    != io_din[11:0]) begin HFP    <= io_din[11:0]; vip_newcfg <= 1; end
-						2: if(HS     != io_din[11:0]) begin HS     <= io_din[11:0]; vip_newcfg <= 1; end
-						3: if(HBP    != io_din[11:0]) begin HBP    <= io_din[11:0]; vip_newcfg <= 1; end
-						4: if(HEIGHT != io_din[11:0]) begin HEIGHT <= io_din[11:0]; vip_newcfg <= 1; end
-						5: if(VFP    != io_din[11:0]) begin VFP    <= io_din[11:0]; vip_newcfg <= 1; end
-						6: if(VS     != io_din[11:0]) begin VS     <= io_din[11:0]; vip_newcfg <= 1; end
-						7: if(VBP    != io_din[11:0]) begin VBP    <= io_din[11:0]; vip_newcfg <= 1; end
+						0: if(WIDTH  != io_din[11:0]) begin WIDTH  <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						1: if(HFP    != io_din[11:0]) begin HFP    <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						2: if(HS     != io_din[11:0]) begin HS     <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						3: if(HBP    != io_din[11:0]) begin HBP    <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						4: if(HEIGHT != io_din[11:0]) begin HEIGHT <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						5: if(VFP    != io_din[11:0]) begin VFP    <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						6: if(VS     != io_din[11:0]) begin VS     <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
+						7: if(VBP    != io_din[11:0]) begin VBP    <= io_din[11:0]; `ifndef LITE vip_newcfg <= 1; `endif end
 					endcase
 					if(cnt == 1) begin
 						cfg_custom_p1 <= 0;
@@ -261,7 +273,10 @@ always@(posedge clk_sys) begin
 			end
 			if(cmd == 'h25) {led_overtake, led_state} <= io_din;
 			if(cmd == 'h26) vol_att <= io_din[4:0];
+`ifndef LITE
 			if(cmd == 'h27) VSET    <= io_din[11:0];
+			if(cmd == 'h2A) {coef_wr,coef_addr,coef_data} <= {1'b1,io_din};
+`endif
 		end
 	end
 end
@@ -373,6 +388,7 @@ wire [31:0] ctl_writedata;
 wire        ctl_waitrequest;
 wire        ctl_reset;
 wire  [7:0] ARX, ARY;
+reg  [11:0] VSET = 0;
 
 vip_config vip_config
 (
@@ -392,6 +408,11 @@ vip_config vip_config
 	.VBP(VBP),
 	.VS(VS),
 	.VSET(VSET),
+
+	.coef_clk(clk_sys),
+	.coef_addr(coef_addr),
+	.coef_data(coef_data),
+	.coef_wr(coef_wr),
 
 	.address(ctl_address),
 	.write(ctl_write),
@@ -598,7 +619,6 @@ reg  [11:0] HEIGHT = 1080;
 reg  [11:0] VFP    = 4;
 reg  [11:0] VS     = 5;
 reg  [11:0] VBP    = 36;
-reg  [11:0] VSET   = 0;
 
 wire [63:0] reconfig_to_pll;
 wire [63:0] reconfig_from_pll;
@@ -664,7 +684,19 @@ hdmi_config hdmi_config
 );
 
 wire [23:0] hdmi_data;
+wire [23:0] hdmi_data_sl;
 wire        hdmi_de;
+
+scanlines #(1) HDMI_scanlines
+(
+	.clk(iHdmiClk),
+
+	.scanlines(scanlines),
+	.din(hdmi_data),
+	.dout(hdmi_data_sl),
+	.hs(HDMI_TX_HS),
+	.vs(HDMI_TX_VS)
+);
 
 osd hdmi_osd
 (
@@ -675,7 +707,7 @@ osd hdmi_osd
 	.io_din(io_din),
 
 	.clk_video(iHdmiClk),
-	.din(hdmi_data),
+	.din(hdmi_data_sl),
 	.dout(HDMI_TX_D),
 	.de_in(hdmi_de),
 	.de_out(HDMI_TX_DE)
@@ -700,7 +732,19 @@ i2s i2s
 
 /////////////////////////  VGA output  //////////////////////////////////
 
-wire [23:0] vga_q;
+wire [23:0] vga_data_sl;
+
+scanlines #(0) VGA_scanlines
+(
+	.clk(clk_vid),
+
+	.scanlines(scanlines),
+	.din(de ? {r_out, g_out, b_out} : 24'd0),
+	.dout(vga_data_sl),
+	.hs(hs1),
+	.vs(vs1)
+);
+
 osd vga_osd
 (
 	.clk_sys(clk_sys),
@@ -710,11 +754,12 @@ osd vga_osd
 	.io_din(io_din),
 
 	.clk_video(clk_vid),
-	.din(de ? {r_out, g_out, b_out} : 24'd0),
+	.din(vga_data_sl),
 	.dout(vga_q),
 	.de_in(de)
 );
 
+wire [23:0] vga_q;
 wire [23:0] vga_o;
 
 vga_out vga_out
@@ -833,6 +878,7 @@ wire        audio_s;
 wire  [1:0] audio_mix;
 wire  [7:0] r_out, g_out, b_out;
 wire        vs, hs, de;
+wire  [1:0] scanlines;
 wire        clk_sys, clk_vid, ce_pix;
 
 wire        ram_clk;
@@ -869,6 +915,7 @@ emu emu
 	.VGA_HS(hs_emu),
 	.VGA_VS(vs_emu),
 	.VGA_DE(de),
+	.VGA_SL(scanlines),
 
 	.LED_USER(led_user),
 	.LED_POWER(led_power),

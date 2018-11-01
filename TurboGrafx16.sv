@@ -48,6 +48,7 @@ module emu
 	output        VGA_HS,
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
+	output [1:0]  VGA_SL,
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -118,7 +119,8 @@ assign LED_POWER = 0;
 assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
 
-wire [1:0] scale = status[9:8];
+wire [2:0] scale = status[9:7];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
 
 `include "build_id.v" 
 parameter CONF_STR1 = {
@@ -146,7 +148,7 @@ parameter CONF_STR5 = {
 	"O3,ROM Data Swap,No,Yes;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
-	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"O789,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"OA,Vertical blank,Normal,Reduced;",
 `ifdef USE_SP64
 	"OB,Sprites per line,Std(16),All(64);",
@@ -298,6 +300,7 @@ wire bw;
 
 wire ce_vid;
 assign CLK_VIDEO = clk_ram;
+assign VGA_SL = sl[1:0];
 
 reg ce_pix;
 always @(posedge clk_ram) begin
@@ -342,7 +345,7 @@ video_mixer #(.LINE_LENGTH(560)) video_mixer
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
-	.scanlines({scale == 3, scale == 2}),
+	.scanlines(sl),
 	.scandoubler(scale || forced_scandoubler),
 	.hq2x(scale==1),
 	.mono(0)
