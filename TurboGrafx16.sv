@@ -134,11 +134,11 @@ parameter CONF_STR2 = {
 };
 
 parameter CONF_STR3 = {
-	"6,Load state;"
+	"G,Load Backup RAM;"
 };
 
 parameter CONF_STR4 = {
-	"7,Save state;"
+	"7,Save Backup RAM;"
 };
 
 parameter CONF_STR5 = {
@@ -152,7 +152,7 @@ parameter CONF_STR5 = {
 	"OB,Sprites per line,Std(16),All(64);",
 `endif
 	"-;",
-	"OF,ROM Storage,DDR3,SDRAM;",
+	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
@@ -247,7 +247,7 @@ wire reset = (RESET | status[0] | buttons[1] | bk_loading);
 wire ce_rom;
 
 reg use_sdr = 0;
-always @(posedge clk_ram) if(rom_rd) use_sdr <= status[15];
+always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 
 pce_top #(MAX_SPPL) pce_top
 (
@@ -486,7 +486,7 @@ always @(posedge clk_sys) begin
 	if(downloading && img_mounted && img_size && !img_readonly) bk_ena <= 1;
 end
 
-wire bk_load    = status[6];
+wire bk_load    = status[16];
 wire bk_save    = status[7];
 reg  bk_loading = 0;
 reg  bk_state   = 0;
