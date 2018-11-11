@@ -130,7 +130,7 @@ parameter CONF_STR1 = {
 };
 
 parameter CONF_STR2 = {
-	"AB,Save Slot,1,2,3,4;"
+	"DE,Save Slot,1,2,3,4;"
 };
 
 parameter CONF_STR3 = {
@@ -152,7 +152,7 @@ parameter CONF_STR5 = {
 	"OB,Sprites per line,Std(16),All(64);",
 `endif
 	"-;",
-	"O6,ROM Storage,DDR3,SDRAM;",
+	"OF,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
@@ -247,7 +247,7 @@ wire reset = (RESET | status[0] | buttons[1] | bk_loading);
 wire ce_rom;
 
 reg use_sdr = 0;
-always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
+always @(posedge clk_ram) if(rom_rd) use_sdr <= status[15];
 
 pce_top #(MAX_SPPL) pce_top
 (
@@ -505,7 +505,7 @@ always @(posedge clk_sys) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
-			sd_lba <= {status[11:10],4'd0};
+			sd_lba <= {status[14:13],4'd0};
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
 		end
