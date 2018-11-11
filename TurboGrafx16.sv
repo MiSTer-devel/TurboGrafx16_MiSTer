@@ -124,8 +124,8 @@ wire [1:0] scale = status[9:8];
 parameter CONF_STR1 = {
 	"TGFX16;;",
 	"-;",
-	"FS,PCEBIN,Load TurboGrafx;",
-	"FS,SGX,Load SuperGrafx;",
+	"FS13,PCEBIN,Load TurboGrafx;",
+	"FS13,SGX,Load SuperGrafx;",
 	"-;"
 };
 
