@@ -124,21 +124,21 @@ wire [1:0] scale = status[9:8];
 parameter CONF_STR1 = {
 	"TGFX16;;",
 	"-;",
-	"FS,PCEBIN,Load TurboGrafx;",
-	"FS,SGX,Load SuperGrafx;",
+	"FS13,PCEBIN,Load TurboGrafx;",
+	"FS13,SGX,Load SuperGrafx;",
 	"-;"
 };
 
 parameter CONF_STR2 = {
-	"AB,Save Slot,1,2,3,4;"
+	"DE,Save Slot,1,2,3,4;"
 };
 
 parameter CONF_STR3 = {
-	"6,Load state;"
+	"G,Load Backup RAM;"
 };
 
 parameter CONF_STR4 = {
-	"7,Save state;"
+	"7,Save Backup RAM;"
 };
 
 parameter CONF_STR5 = {
@@ -486,7 +486,7 @@ always @(posedge clk_sys) begin
 	if(downloading && img_mounted && img_size && !img_readonly) bk_ena <= 1;
 end
 
-wire bk_load    = status[6];
+wire bk_load    = status[16];
 wire bk_save    = status[7];
 reg  bk_loading = 0;
 reg  bk_state   = 0;
@@ -505,7 +505,7 @@ always @(posedge clk_sys) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
-			sd_lba <= {status[11:10],4'd0};
+			sd_lba <= {status[14:13],4'd0};
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
 		end
