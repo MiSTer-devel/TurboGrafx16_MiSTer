@@ -48,6 +48,8 @@ module emu
 	output        VGA_HS,
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
+	output        VGA_F1,
+	output [1:0]  VGA_SL,
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -94,7 +96,14 @@ module emu
 	output        SDRAM_nCS,
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
-	output        SDRAM_nWE
+	output        SDRAM_nWE,
+
+	input         UART_CTS,
+	output        UART_RTS,
+	input         UART_RXD,
+	output        UART_TXD,
+	output        UART_DTR,
+	input         UART_DSR
 );
 
 `ifndef LITE
@@ -109,6 +118,8 @@ localparam MAX_SPPL = 15;
 localparam SP64     = 1'b0;
 `endif
 
+assign VGA_F1 = 0;
+assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_USER  = ioctl_download | bk_state;
@@ -117,8 +128,6 @@ assign LED_POWER = 0;
 
 assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
-
-wire [1:0] scale = status[9:8];
 
 `include "build_id.v" 
 parameter CONF_STR1 = {
@@ -146,8 +155,8 @@ parameter CONF_STR5 = {
 	"O3,ROM Data Swap,No,Yes;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
-	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OA,Vertical blank,Normal,Reduced;",
+	"O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"OH,Vertical blank,Normal,Reduced;",
 `ifdef USE_SP64
 	"OB,Sprites per line,Std(16),All(64);",
 `endif
@@ -278,7 +287,7 @@ pce_top #(MAX_SPPL) pce_top
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
 	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
 
-	.ReducedVBL(status[10]),
+	.ReducedVBL(status[17]),
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
@@ -334,6 +343,11 @@ wire [7:0] R,G,B;
 wire HSync,VSync;
 wire HBlank,VBlank;
 
+wire [2:0] scale = status[10:8];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+
+assign VGA_SL = sl[1:0];
+
 video_mixer #(.LINE_LENGTH(560)) video_mixer
 (
 	.*,
@@ -342,7 +356,7 @@ video_mixer #(.LINE_LENGTH(560)) video_mixer
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
-	.scanlines({scale == 3, scale == 2}),
+	.scanlines(0),
 	.scandoubler(scale || forced_scandoubler),
 	.hq2x(scale==1),
 	.mono(0)
