@@ -18,7 +18,6 @@ module vip_config
 	input      [11:0] VS,
 	
 	input      [11:0] VSET,
-	
 	input             coef_set,
 	input             coef_clk,
 	input       [6:0] coef_addr,
@@ -70,20 +69,16 @@ wire [21:0] init[23] =
 
 reg  [6:0] coef_a;
 wire [8:0] coef_q;
-
-coeffbuf coeffbuf
+ coeffbuf coeffbuf
 (
 	.wrclock(coef_clk),
 	.wraddress({1'b1,coef_addr}),
 	.data(coef_data),
 	.wren(coef_wr),
-
 	.rdclock(clk),
 	.rdaddress({|scaler_flt,coef_a}),
 	.q(coef_q)
 );
-
-
 reg [11:0] w;
 reg [11:0] hfp;
 reg [11:0] hbp;
@@ -119,7 +114,6 @@ always @(posedge clk) begin
 	aryd  <= ARY;
 	vsetd <= VSET;
 	coef_setd <= coef_set;
-	
 	
 	cfg   <= CFG_SET;
 	cfgd  <= cfg;
@@ -167,25 +161,26 @@ always @(posedge clk) begin
 		endcase
 	end
 	else
-	if(~waitrequest)
+if(~waitrequest)
 	begin
+
 		write <= 0;
-		if(state) begin
+if(state) begin
 			state <= state + 1'd1;
-			if((state&3)==3) begin
-				if(init[state>>2] == 22'h3FFFFF) begin
-					state  <= 0;
-					newres <= 0;
+		if((state&3)==3) begin
+			if(init[state>>2] == 22'h3FFFFF) begin
+				state  <= 0;
+				newres <= 0;
 					coef_state <= 1;
 					coef_a <= 0;
-				end
-				else begin
-					writedata <= 0;
-					{write, address, writedata[11:0]} <= init[state>>2];
+			end
+			else begin
+				writedata <= 0;
+				{write, address, writedata[11:0]} <= init[state>>2];
 				end
 			end
 		end
-		else begin
+else begin
 			case(coef_state)
 				1,3: coef_state <= coef_state + 1'd1;
 				2: begin
@@ -236,25 +231,22 @@ always @(posedge clk) begin
 					end
 				18: coef_state <= 0;
 			endcase;
-		end
+		end		
 	end
 end
 
 endmodule
-
 module coeffbuf
 (
 	input	      wrclock,
 	input	[7:0] wraddress,
 	input	[8:0] data,
 	input	      wren,
-
 	input	      rdclock,
 	input	[7:0] rdaddress,
 	output[8:0] q
 );
-
-altsyncram	altsyncram_component (
+ altsyncram	altsyncram_component (
 			.address_a (wraddress),
 			.address_b (rdaddress),
 			.clock0 (wrclock),
@@ -298,7 +290,4 @@ defparam
 	altsyncram_component.width_a = 9,
 	altsyncram_component.width_b = 9,
 	altsyncram_component.width_byteena_a = 1;
-
-
-endmodule
-
+ endmodule

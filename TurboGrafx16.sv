@@ -166,7 +166,7 @@ parameter CONF_STR5 = {
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
-	"V,v1.23.",`BUILD_DATE
+	"V,v",`BUILD_DATE
 };
 
 ////////////////////   CLOCKS   ///////////////////
