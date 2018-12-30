@@ -106,9 +106,7 @@ module emu
 	input         UART_DSR
 );
 
-`ifndef LITE
 `define USE_SP64
-`endif
 
 `ifdef USE_SP64
 localparam MAX_SPPL = 63;
@@ -132,7 +130,6 @@ assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 `include "build_id.v" 
 parameter CONF_STR1 = {
 	"TGFX16;;",
-	"-;",
 	"FS13,PCEBIN,Load TurboGrafx;",
 	"FS13,SGX,Load SuperGrafx;",
 	"-;"
@@ -152,7 +149,6 @@ parameter CONF_STR4 = {
 
 parameter CONF_STR5 = {
 	"C,Format Save;",
-	"O3,ROM Data Swap,No,Yes;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -161,6 +157,7 @@ parameter CONF_STR5 = {
 	"OB,Sprites per line,Std(16),All(64);",
 `endif
 	"-;",
+	"O3,ROM Data Swap,No,Yes;",
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
