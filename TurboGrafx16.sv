@@ -186,7 +186,7 @@ pll pll
 wire [31:0] status;
 wire  [1:0] buttons;
 
-wire [15:0] joystick_0, joystick_1;
+wire [11:0] joystick_0, joystick_1, joystick_2, joystick_3, joystick_4;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
@@ -240,7 +240,10 @@ hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR
 	.img_size(img_size),
 
 	.joystick_0(joystick_0),
-	.joystick_1(joystick_1)
+	.joystick_1(joystick_1),
+	.joystick_2(joystick_2),
+	.joystick_3(joystick_3),
+	.joystick_4(joystick_4)
 );
 
 wire [23:0] audio_l, audio_r;
@@ -283,6 +286,9 @@ pce_top #(MAX_SPPL) pce_top
 	.SIXBUTTON(status[4]),
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
 	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
+	.JOY3(~{joystick_2[11:4], joystick_2[1], joystick_2[2], joystick_2[0], joystick_2[3]}),
+	.JOY4(~{joystick_3[11:4], joystick_3[1], joystick_3[2], joystick_3[0], joystick_3[3]}),
+	.JOY5(~{joystick_4[11:4], joystick_4[1], joystick_4[2], joystick_4[0], joystick_4[3]}),
 
 	.ReducedVBL(status[17]),
 	.VIDEO_R(r),

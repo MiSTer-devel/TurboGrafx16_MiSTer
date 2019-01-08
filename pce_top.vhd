@@ -35,8 +35,11 @@ entity pce_top is
 		SGX			: in  std_logic;
 		TURBOTAP    : in  std_logic;
 		SIXBUTTON   : in  std_logic;
-		JOY1 		   : in  std_logic_vector(15 downto 0);
-		JOY2 		   : in  std_logic_vector(15 downto 0);
+		JOY1 		   : in  std_logic_vector(11 downto 0);
+		JOY2 		   : in  std_logic_vector(11 downto 0);
+		JOY3 		   : in  std_logic_vector(11 downto 0);
+		JOY4 		   : in  std_logic_vector(11 downto 0);
+		JOY5 		   : in  std_logic_vector(11 downto 0);
 
 		ReducedVBL	: in  std_logic;
 		VIDEO_R		: out std_logic_vector(2 downto 0);
@@ -375,12 +378,21 @@ BRM_WE <= CPU_CLKEN and not CPU_BRM_SEL_N and not CPU_WR_N;
 CPU_IO_DI(7 downto 4) <= "1011"; -- No CD-Rom unit, TGFX-16
 CPU_IO_DI(3 downto 0) <= 
 	     "0000"            when CPU_IO_DO(1) = '1' or  (CPU_IO_DO(0) = '1'  and gamepad_nibble = '1')
-	else joy1( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = "000" and gamepad_nibble = '0'
-	else joy1( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = "000" and gamepad_nibble = '0'
-	else joy1(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = "000" and gamepad_nibble = '1'
-	else joy2( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = "001" and gamepad_nibble = '0'
-	else joy2( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = "001" and gamepad_nibble = '0'
-	else joy2(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = "001" and gamepad_nibble = '1'
+	else joy1( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 0 and gamepad_nibble = '0'
+	else joy1( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 0 and gamepad_nibble = '0'
+	else joy1(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 0 and gamepad_nibble = '1'
+	else joy2( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 1 and gamepad_nibble = '0'
+	else joy2( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 1 and gamepad_nibble = '0'
+	else joy2(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 1 and gamepad_nibble = '1'
+	else joy3( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 2 and gamepad_nibble = '0'
+	else joy3( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 2 and gamepad_nibble = '0'
+	else joy3(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 2 and gamepad_nibble = '1'
+	else joy4( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 3 and gamepad_nibble = '0'
+	else joy4( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 3 and gamepad_nibble = '0'
+	else joy4(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 3 and gamepad_nibble = '1'
+	else joy5( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 4 and gamepad_nibble = '0'
+	else joy5( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 4 and gamepad_nibble = '0'
+	else joy5(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 4 and gamepad_nibble = '1'
 	else "1111";
 
 process(clk)
