@@ -48,6 +48,8 @@ module emu
 	output        VGA_HS,
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
+	output        VGA_F1,
+	output [1:0]  VGA_SL,
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -94,9 +96,30 @@ module emu
 	output        SDRAM_nCS,
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
-	output        SDRAM_nWE
+	output        SDRAM_nWE,
+
+	input         UART_CTS,
+	output        UART_RTS,
+	input         UART_RXD,
+	output        UART_TXD,
+	output        UART_DTR,
+	input         UART_DSR,
+
+	input         OSD_STATUS
 );
 
+`define USE_SP64
+
+`ifdef USE_SP64
+localparam MAX_SPPL = 63;
+localparam SP64     = 1'b1;
+`else
+localparam MAX_SPPL = 15;
+localparam SP64     = 1'b0;
+`endif
+
+assign VGA_F1 = 0;
+assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_USER  = ioctl_download | bk_state;
@@ -106,42 +129,43 @@ assign LED_POWER = 0;
 assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
 
-wire [1:0] scale = status[9:8];
-
 `include "build_id.v" 
 parameter CONF_STR1 = {
 	"TGFX16;;",
-	"-;",
-	"FS,PCEBIN,Load TurboGrafx;",
-	"FS,SGX,Load SuperGrafx;",
+	"FS13,PCEBIN,Load TurboGrafx;",
+	"FS13,SGX,Load SuperGrafx;",
 	"-;"
 };
 
 parameter CONF_STR2 = {
-	"AB,Save Slot,1,2,3,4;"
+	"DE,Save Slot,1,2,3,4;"
 };
 
 parameter CONF_STR3 = {
-	"6,Load state;"
+	"G,Load Backup RAM;"
 };
 
 parameter CONF_STR4 = {
-	"7,Save state;"
+	"7,Save Backup RAM;"
 };
 
 parameter CONF_STR5 = {
 	"C,Format Save;",
-	"O3,ROM Data Swap,No,Yes;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
-	"O89,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"OH,Vertical blank,Normal,Reduced;",
+`ifdef USE_SP64
+	"OB,Sprites per line,Std(16),All(64);",
+`endif
 	"-;",
+	"O3,ROM Data Swap,No,Yes;",
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
-	"V,v1.20.",`BUILD_DATE
+	"V,v",`BUILD_DATE
 };
 
 ////////////////////   CLOCKS   ///////////////////
@@ -164,7 +188,7 @@ pll pll
 wire [31:0] status;
 wire  [1:0] buttons;
 
-wire [15:0] joystick_0, joystick_1;
+wire [11:0] joystick_0, joystick_1, joystick_2, joystick_3, joystick_4;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
@@ -218,7 +242,10 @@ hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR
 	.img_size(img_size),
 
 	.joystick_0(joystick_0),
-	.joystick_1(joystick_1)
+	.joystick_1(joystick_1),
+	.joystick_2(joystick_2),
+	.joystick_3(joystick_3),
+	.joystick_4(joystick_4)
 );
 
 wire [23:0] audio_l, audio_r;
@@ -233,7 +260,7 @@ wire ce_rom;
 reg use_sdr = 0;
 always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 
-pce_top pce_top
+pce_top #(MAX_SPPL) pce_top
 (
 	.RESET(reset|ioctl_download),
 
@@ -255,17 +282,23 @@ pce_top pce_top
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
+	.SP64(status[11] & SP64),
 	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
 	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
+	.JOY3(~{joystick_2[11:4], joystick_2[1], joystick_2[2], joystick_2[0], joystick_2[3]}),
+	.JOY4(~{joystick_3[11:4], joystick_3[1], joystick_3[2], joystick_3[0], joystick_3[3]}),
+	.JOY5(~{joystick_4[11:4], joystick_4[1], joystick_4[2], joystick_4[0], joystick_4[3]}),
 
+	.ReducedVBL(status[17]),
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
 	.VIDEO_BW(bw),
-	.VIDEO_CE(ce_vid),
+	//.VIDEO_CE(ce_vid),
+	.VIDEO_CE_FS(ce_vid),
 	.VIDEO_VS(vs),
 	.VIDEO_HS(hs),
 	.VIDEO_HBL(hbl),
@@ -315,6 +348,11 @@ wire [7:0] R,G,B;
 wire HSync,VSync;
 wire HBlank,VBlank;
 
+wire [2:0] scale = status[10:8];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+
+assign VGA_SL = sl[1:0];
+
 video_mixer #(.LINE_LENGTH(560)) video_mixer
 (
 	.*,
@@ -323,7 +361,7 @@ video_mixer #(.LINE_LENGTH(560)) video_mixer
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
-	.scanlines({scale == 3, scale == 2}),
+	.scanlines(0),
 	.scandoubler(scale || forced_scandoubler),
 	.hq2x(scale==1),
 	.mono(0)
@@ -467,7 +505,7 @@ always @(posedge clk_sys) begin
 	if(downloading && img_mounted && img_size && !img_readonly) bk_ena <= 1;
 end
 
-wire bk_load    = status[6];
+wire bk_load    = status[16];
 wire bk_save    = status[7];
 reg  bk_loading = 0;
 reg  bk_state   = 0;
@@ -486,7 +524,7 @@ always @(posedge clk_sys) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
-			sd_lba <= {status[11:10],4'd0};
+			sd_lba <= {status[14:13],4'd0};
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
 		end

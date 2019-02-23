@@ -77,8 +77,8 @@ BEGIN
 		clocken1 => enable_b,
 		data_a => data_a,
 		data_b => data_b,
-		wren_a => wren_a,
-		wren_b => wren_b,
+		wren_a => wren_a and cs_a,
+		wren_b => wren_b and cs_b,
 		q_a => q0,
 		q_b => q1
 	);

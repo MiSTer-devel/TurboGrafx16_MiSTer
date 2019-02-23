@@ -85,9 +85,6 @@ signal TMR_DO		: std_logic_vector(7 downto 0);
 signal IOP_DO		: std_logic_vector(7 downto 0);
 signal INT_DO		: std_logic_vector(7 downto 0);
 
-signal PSG_WE		: std_logic;
-signal pulse_48K	: std_logic;
-
 -- Internal data buffer
 signal DATA_BUF	: std_logic_vector(7 downto 0);
 
@@ -108,6 +105,10 @@ signal O_FF			: std_logic_vector(7 downto 0);
 
 signal CLKEN_FF	: std_logic;
 signal CLKEN7_FF	: std_logic;
+signal CLKEN7_FF2	: std_logic;
+
+signal VRDY			: std_logic;
+signal VSEL_N		: std_logic;
 
 begin
 
@@ -155,6 +156,7 @@ CEI_N <= IOP_SEL_N;
 
 O <= O_FF;
 CLKEN <= CLKEN_FF;
+CLKEN7 <= CLKEN7_FF2;
 
 -- Input wires
 CPU_NMI_N <= NMI_N;
@@ -170,7 +172,7 @@ begin
 
 		CLKDIV_HI <= CLKDIV_HI + 1;
 		if CLKDIV_HI = "101" then
-			CPU_EN    <= RDY;
+			CPU_EN    <= RDY and VRDY;
 			CLKEN7_FF <= '1';
 			TMR_CLKEN <= '1';
 			PSG_CLKEN <= '1';
@@ -183,12 +185,24 @@ end process;
 -- Here it will be used to drive the WE signal of the synchronous BRAM
 process( CLK )
 begin
-    if rising_edge( CLK ) then
-        CLKEN_FF <= CPU_EN;
-		  CLKEN7 <= CLKEN7_FF;
-    end if;
+	if rising_edge( CLK ) then
+		CLKEN_FF <= CPU_EN;
+		CLKEN7_FF2 <= CLKEN7_FF;
+	end if;
 end process;
 
+-- according to pcetech.txt access to VDC/VCE produces an extra cycle.
+-- So, do this here, to pace down the CPU.
+VSEL_N <= (VDC_SEL_N and VCE_SEL_N) or not (CPU_WE or CPU_OE);
+process( CLK ) begin
+	if rising_edge( CLK ) then
+		if CLKEN_FF = '1' and VSEL_N = '0' then
+			VRDY <= '0';
+		elsif CLKEN7_FF2 = '1' then
+			VRDY <= '1';
+		end if;
+	end if;
+end process;
 
 -- Address decoding
 ROM_SEL_N <= CPU_A(20);                                        -- ROM : Page $00 - $7F
@@ -203,7 +217,6 @@ TMR_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "011
 IOP_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "100" else '1'; -- IOP : $1000 - $13FF
 INT_SEL_N <= '0' when CPU_A(20 downto 13) = x"FF" and CPU_A(12 downto 10) = "101" else '1'; -- INT : $1400 - $17FF
 
-
 -- On-chip hardware CPU interface
 process( CLK )
 begin
@@ -211,8 +224,6 @@ begin
 		
 		TMR_RELOAD <= '0';
 		TMR_IRQ_ACK <= '0';
-		
-		PSG_WE <= '0';
 		
 		if RESET_N = '0' then
 			DATA_BUF <= (others => '0');
@@ -228,7 +239,6 @@ begin
 				-- CPU Write
 				if PSG_SEL_N = '0' then
 					DATA_BUF <= CPU_DO;
-					PSG_WE <= '1';
 				elsif TMR_SEL_N = '0' then
 					DATA_BUF <= CPU_DO;
 					if CPU_A(0) = '0' then
@@ -355,29 +365,11 @@ PSG : entity work.psg port map (
 	
 	DI			=> CPU_DO(7 downto 0),
 	A			=> CPU_A(3 downto 0),
-	WE			=> PSG_WE,
+	WE			=> CPU_WE and CLKEN_FF and not PSG_SEL_N,
 	
-	DAC_LATCH=> pulse_48K,
+	DAC_LATCH=> '1',
 	LDATA		=> AUD_LDATA,
 	RDATA		=> AUD_RDATA
 );
-
-process (CLK)
-	variable cnt : integer range 0 to 150;
-begin
-	if rising_edge(CLK) then
-		pulse_48K <= '0';
-		if RESET_N='0' then
-			cnt := 0;
-		elsif PSG_CLKEN = '1' then
-			cnt := cnt + 1;
-			pulse_48K <= '0';
-			if cnt = 149 then
-				pulse_48K <= '1';
-				cnt := 0;
-			end if;
-		end if;
-	end if;
-end process;
 
 end rtl;

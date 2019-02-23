@@ -12,15 +12,15 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity huc6270 is
-	generic
-	(
-		LEFT_BL_CLOCKS	: integer; --should be divisible by 24! (LCM of 4, 6 and 8)
-		DISP_CLOCKS	   : integer  --should be divisible by 24! (LCM of 4, 6 and 8)
+	generic (
+		MAX_SPPL : integer := 15
 	);
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
-		DOTCLOCK	: in std_logic_vector(1 downto 0);
+		HSIZE		: in std_logic_vector(9 downto 0);
+		HSTART	: in std_logic_vector(9 downto 0);
+		SP64		: in std_logic;
 
 		-- CPU Interface
 		A			: in std_logic_vector(1 downto 0);
@@ -75,27 +75,17 @@ signal SATB		: std_logic_vector(15 downto 0);
 -- Video counting and internal synchronization
 --------------------------------------------------------------------------------
 -- Registers
-signal HDS : std_logic_vector(6 downto 0);
-signal HSW : std_logic_vector(7 downto 0);
-signal HDE : std_logic_vector(6 downto 0);
 signal HDW : std_logic_vector(6 downto 0);
-
-signal VDS : std_logic_vector(7 downto 0);
-signal VSW : std_logic_vector(4 downto 0);
-signal VDW : std_logic_vector(8 downto 0);
-signal VCR : std_logic_vector(7 downto 0);
 
 -- Interrupts
 signal IRQ_RCR_SET	: std_logic;
 signal IRQ_VBL_SET	: std_logic;
-
 
 -- Intermediate signals
 signal X		: std_logic_vector(9 downto 0);
 signal Y		: std_logic_vector(8 downto 0);
 signal HS_N_PREV	: std_logic;
 signal VS_N_PREV	: std_logic;
-signal Y_UPDATE		: std_logic;
 
 signal X_BG_START	: std_logic_vector(9 downto 0);
 signal X_REN_START	: std_logic_vector(9 downto 0);
@@ -103,9 +93,6 @@ signal X_BG_END		: std_logic_vector(9 downto 0);
 signal X_REN_END	: std_logic_vector(9 downto 0);
 signal Y_BGREN_START	: std_logic_vector(8 downto 0);
 signal Y_BGREN_END	: std_logic_vector(8 downto 0);
-signal Y_DISP_START	: std_logic_vector(8 downto 0);
-signal Y_DISP_END	: std_logic_vector(8 downto 0);
-signal VBLANK_DONE : std_logic;
 
 -- signal X_SP_START	: std_logic_vector(9 downto 0);
 -- signal X_SP_END		: std_logic_vector(9 downto 0);
@@ -116,7 +103,6 @@ signal BG_ACTIVE	: std_logic;
 signal SP1_ACTIVE	: std_logic;
 signal SP2_ACTIVE	: std_logic;
 signal REN_ACTIVE	: std_logic;
-signal RCNT			: std_logic_vector(8 downto 0);
 signal DBG_VBL		: std_logic;
 signal DCR_DMAS_REQ		: std_logic;
 
@@ -199,7 +185,7 @@ signal IRQ_COL_TRIG	: std_logic;
 signal IRQ_OVF_SET	: std_logic;
 
 -- Intermediate signals - Part 1
-signal SP_NB	: std_logic_vector(4 downto 0);
+signal SP_NB	: std_logic_vector(6 downto 0);
 signal SP_CUR_Y	: std_logic_vector(9 downto 0);
 signal SP_Y		: std_logic_vector(9 downto 0);
 signal SP_X		: std_logic_vector(9 downto 0);
@@ -225,7 +211,7 @@ type sp_prebuf_entry_t is
 		CG		: std_logic;
 		ADDR	: std_logic_vector(15 downto 0);
 	end record;
-type sp_prebuf_t is array(0 to 15) of sp_prebuf_entry_t;
+type sp_prebuf_t is array(0 to MAX_SPPL) of sp_prebuf_entry_t;
 signal SP_PREBUF	: sp_prebuf_t;
 
 -- Sprite engine - SAT access signals
@@ -243,7 +229,7 @@ signal SP1_CNT	: std_logic_vector(1 downto 0);
 
 
 -- Intermediate signals - Part 2
-signal SP_CUR	: std_logic_vector(3 downto 0);
+signal SP_CUR	: std_logic_vector(5 downto 0);
 
 -- Sprite buffers
 type sp_buf_entry_t is
@@ -259,7 +245,7 @@ type sp_buf_entry_t is
 		P2		: std_logic_vector(15 downto 0);
 		P3		: std_logic_vector(15 downto 0);
 	end record;
-type sp_buf_t is array(0 to 15) of sp_buf_entry_t;
+type sp_buf_t is array(0 to MAX_SPPL) of sp_buf_entry_t;
 signal SP_BUF	: sp_buf_t;
 
 -- Sprite engine - RAM access signals
@@ -288,8 +274,9 @@ signal REN_MEM_WE	: std_logic;
 signal REN_MEM_DO	: std_logic_vector(7 downto 0);
 
 signal REN_BG_COL	: std_logic_vector(7 downto 0);
-signal REN_SP_OPQ	: std_logic_vector(15 downto 0); -- Sprite pixel on/off
-type ren_sp_col_t is array(15 downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
+signal REN_SP_OPQ	: std_logic_vector(MAX_SPPL downto 0); -- Sprite pixel on/off
+constant SP_OPQ_Z : std_logic_vector(MAX_SPPL downto 0) := (others => '0');
+type ren_sp_col_t is array(MAX_SPPL downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
 signal REN_SP_COLTAB	: ren_sp_col_t;
 signal REN_SP_COL	: std_logic_vector(7 downto 0);
 signal REN_SP_PRI	: std_logic;
@@ -449,23 +436,18 @@ port map(
 --------------------------------------------------------------------------------
 process( CLK )
 
-variable V_HDS : std_logic_vector(9 downto 0);
 variable V_HSW : std_logic_vector(9 downto 0);
+variable V_HDS : std_logic_vector(9 downto 0);
 variable V_HDE : std_logic_vector(6 downto 0);
 variable V_HDW : std_logic_vector(9 downto 0);
 
-variable V_VDS : std_logic_vector(7 downto 0);
-variable V_VSW : std_logic_vector(4 downto 0);
+variable V_VDS : std_logic_vector(8 downto 0);
+variable V_VDE : std_logic_vector(8 downto 0);
+variable V_VSW : std_logic_vector(5 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
 
-constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
-constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
-constant HSIZE2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/4,10));
-
-constant HSTART0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/8,10));
-constant HSTART1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/6,10));
-constant HSTART2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/4,10));
+variable RCNT	: std_logic_vector(8 downto 0);
 
 begin
 	if rising_edge(CLK) then
@@ -479,7 +461,6 @@ begin
 			
 			HS_N_PREV <= '1';
 			VS_N_PREV <= '0';
-			Y_UPDATE <= '0';
 
 			BG_ACTIVE <= '0';
 			SP1_ACTIVE <= '0';
@@ -495,228 +476,153 @@ begin
 			Y_BGREN_START <= (others => '1');
 			Y_BGREN_END <= (others => '1');
 			
-			Y_DISP_END <= (others => '1');
-			Y_DISP_START <= (others => '1');
-			
 			-- X_SP_START <= (others => '1');
 			-- X_SP_END <= (others => '1');
 			Y_SP_START <= (others => '1');
 			Y_SP_END <= (others => '1');
 
-			RCNT <= (others => '1');
-			VBLANK_DONE <= '1';
-			
+			RCNT := (others => '1');
+
 			SP_ON <= '0';
 			BG_ON <= '0';
 			BURST <= '1';
-			
+
 			YOFS <= (others => '0');
 		else
 			if CLKEN = '1' then
 				HS_N_PREV <= HS_N;
 				X <= X + 1;
-				
-				Y_UPDATE <= '0';
+
 				DCR_DMAS_REQ <= '0';
-				
+
 				if HS_N_PREV = '1' and HS_N = '0' then
 					X <= (others => '0');
-					
+
 					--V_HDS := HPR(14 downto 8)&"000";
 					V_HDW := (HDR(6 downto 0)+"1")&"000";
-					
-					-- For external sync, HSW is whatever the HUC6260 generates (3 * 8 cycles).
-					-- Does it change with clock frequency? i.e. 2, 3.5, 5 (3,4.5,6)-1
-					case DOTCLOCK is
-					when "00" =>
-						if V_HDW >= HSIZE0 then V_HSW := (others => '0'); else V_HSW := HSIZE0 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART0;
-					when "01" =>
-						if V_HDW >= HSIZE1 then V_HSW := (others => '0'); else V_HSW := HSIZE1 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART1;
-					when others =>
-						if V_HDW >= HSIZE2 then V_HSW := (others => '0'); else V_HSW := HSIZE2 - V_HDW; end if;
-						V_HSW := '0'&V_HSW(9 downto 1) + HSTART2;
-					end case;
-					--V_HSW := HPR(4 downto 0);
-					--V_HDE := HDR(14 downto 8);
-		
-					--HDS <= V_HDS;
-					--HSW <= V_HSW;
-					--HDE <= V_HDE;
-					HDW <= HDR(6 downto 0);
-		
-					X_REN_START <= V_HSW;
-					X_REN_END   <= V_HSW + V_HDW - "1";
-					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
-					X_BG_START  <= V_HSW - "10101";
 
-					-- X_BG_END <= ("00" & V_HSW) 
-						-- + ( V_HDS & "000" ) 
-						-- + ( V_HDW & "000" )
-						-- + ( "0000010" & "000" ); -- (HSW+1+HDS+1+HDW+1 -1+1 - 1)<<3
-						
-					-- if X < X_BG_END then 
-					if X < X_REN_END then 
-						-- Force Y update even if Hxx register settings
-						-- prevent to reach the end of the active display
-						-- BG_ACTIVE <= '0';
-						Y_UPDATE <= '1';
-						REN_ACTIVE <= '0';
-						-- SP1_ACTIVE <= '0';
-					end if;
-				end if;
-				
-				if X = X_BG_START and Y >= Y_BGREN_START and Y < Y_BGREN_END and BG_ON = '1' then
-					BG_ACTIVE <= '1';
-					YOFS_REL_ACK <= '1';
-					if Y = Y_BGREN_START then
-						YOFS <= BYR(8 downto 0);
-					elsif YOFS_RELOAD = '1' then
-						YOFS <= BYR(8 downto 0) + 1;
+					if V_HDW >= HSIZE then 
+						V_HDS := (others => '0');
+						V_HDW := HSIZE;
 					else
-						YOFS <= YOFS + 1;
+						V_HDS := HSIZE - V_HDW;
 					end if;
-					XOFS <= BXR(9 downto 0);
+					V_HDS := '0'&V_HDS(9 downto 1) + HSTART - 1;
+
+					--V_HDS := HPR(4 downto 0);
+					--V_HDE := HDR(14 downto 8);
+
+					HDW <= HDR(6 downto 0);
+
+					X_REN_START <= V_HDS;
+					X_REN_END   <= V_HDS + V_HDW;
+					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
+					X_BG_START  <= V_HDS - "10101";
+
+					-- Raster counter
+					RCNT := RCNT + 1;
+					if Y = Y_BGREN_START then
+						RCNT := "0" & x"40";
+					end if;
+
+					-- Raster compare interrupt
+					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
+						IRQ_RCR_SET <= '1';
+					end if;
 				end if;
-				if X = X_REN_START - 1 and Y >= Y_BGREN_START and Y < Y_BGREN_END then
-					REN_ACTIVE <= '1';
-				end if;
-				if X = X_REN_START and Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
-					SP1_ACTIVE <= '1';
-				end if;
-				
-				if X = X_BG_START then
+
+				if X = X_BG_START-1 then
 					SP2_ACTIVE <= '0';
-				end if;
-				-- if X = X_BG_END then
-					-- BG_ACTIVE <= '0';
-					-- Y_UPDATE <= '1';
-				-- end if;
-				if X = X_REN_END then
-					-- BG_ACTIVE <= '0';
-					Y_UPDATE <= '1';
-					REN_ACTIVE <= '0';
-					-- SP1_ACTIVE <= '0';
-				end if;
-				
-				if Y_UPDATE = '1' then
-					BG_ACTIVE <= '0';
-					REN_ACTIVE <= '0';
-					SP1_ACTIVE <= '0';
-
-					VS_N_PREV <= VS_N;
-					
-					Y <= Y + 1;
-					
-					SP_ON <= CR(6);
 					BG_ON <= CR(7);
-					
-					if VS_N_PREV = '0' and VS_N = '1' then
-						Y <= "000000001"; --(others => '0');
-						VBLANK_DONE <= '0';
-						
-						V_VDS := VSR(15 downto 8);
-						V_VSW := VSR(4 downto 0);
-						V_VDW := VDR(8 downto 0); 
-						--Prevent addition overflow; >263 doesn't matter
-						if (V_VDW >= 264) then
-							V_VDW := "100000111";
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
+						BG_ACTIVE <= '1';
+						YOFS_REL_ACK <= '1';
+						if Y = Y_BGREN_START then
+							YOFS <= BYR(8 downto 0);
+						elsif YOFS_RELOAD = '1' then
+							YOFS <= BYR(8 downto 0) + 1;
+						else
+							YOFS <= YOFS + 1;
 						end if;
-						V_VCR := VDE(7 downto 0);
-						
-						--VDS <= V_VDS;
-						--VSW <= V_VSW;
-						--VDW <= V_VDW;
-						--VCR <= V_VCR;
+						XOFS <= BXR(9 downto 0);
+					end if;
+				end if;
 
-						Y_DISP_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							- 2;
-						
-						Y_BGREN_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ ( "000000010" )
-							- 2;
-						
-						Y_BGREN_END <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ V_VDW
-							+ ( "000000011" )
-							- 2;							
-							
-						-- SP1 state machine starts on line before BG REN
-						Y_SP_START <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ ( "000000001" )
-							- 2;
-						
-						Y_SP_END <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ V_VDW
-							+ ( "000000010" )
-							- 2;
-			
-						Y_DISP_END <= ("0000" & V_VSW)
-							+ ("0" & V_VDS)
-							+ V_VDW
-							+ ("0" & V_VCR)
-							+ ( "000000011" )
-							- 2;
+				if X = X_REN_START-1 then
+					SP_ON <= CR(6);
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
+						REN_ACTIVE <= '1';
+					end if;
 
-						-- Is it needed ?
-						--if CR(7 downto 6) = "00" then
-						--	BURST <= '1';
-						--else
-						--	BURST <= '0';
-						--end if;
-			
+					if Y >= Y_SP_START and Y < Y_SP_END and CR(6) = '1' then
+						SP1_ACTIVE <= '1';
+					end if;
+
+					-- VBlank Interrupt
+					if Y = Y_BGREN_END and CR(3) = '1' then
+						IRQ_VBL_SET <= '1';
 					end if;
 
 					-- Burst Mode
-					if Y = Y_DISP_START then
+					-- Shouldn't CR(7 downto 6)be checked every visible line according to doc?
+					if Y = Y_BGREN_START then
 						if CR(7 downto 6) = "00" then
 							BURST <= '1';
 						else
 							BURST <= '0';
 						end if;
 					end if;
-					
-					if Y = Y_DISP_END then
-						-- Frame counter reset
+				end if;
+
+				if X = X_REN_END-1 then
+					BG_ACTIVE <= '0';
+					REN_ACTIVE <= '0';
+					SP1_ACTIVE <= '0';
+
+					Y <= Y + 1;
+
+					VS_N_PREV <= VS_N;
+					if VS_N_PREV = '1' and VS_N = '0' then
 						Y <= (others => '0');
+
+						V_VDS := ('0'&VSR(15 downto 8))+2;
+						V_VSW := ('0'&VSR( 4 downto 0))+1;
+						V_VDW := VDR(8 downto 0);
+						if V_VDW > 262 then
+							-- some games use 1FF value for VDW which overflows calculations below
+							-- thus limit it to max possible value.
+							V_VDW := std_logic_vector(to_unsigned(262,9));
+						end if;
+
+						--V_VCR := VDE(7 downto 0);
+
+						V_VDS := V_VDS + V_VSW;
+						V_VDE := V_VDS + V_VDW + 1;
+
+						-- Make sure display ends before vsync and there is at least 1 blank line at the end
+						-- possible Y values 0..262 (limited by ext VS_N)
+						if V_VDE > 262 then
+							V_VDE := std_logic_vector(to_unsigned(262,9));
+						end if;
+
+						Y_BGREN_START <= V_VDS;
+						Y_BGREN_END   <= V_VDE;
+						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
+						Y_SP_END      <= V_VDE;
 					end if;
-					
-					if Y = Y_BGREN_END - 1 or (Y = 262 and BURST = '0') then
+
+					if Y = Y_BGREN_END-1 then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
 						end if;
 					end if;
 
-					-- Raster counter
-					RCNT <= RCNT + 1;
-					if Y = Y_DISP_START - 1 then
-					--if Y = Y_BGREN_START - 1 then
-						RCNT <= "0" & x"40";
-					end if;
-					-- Raster compare interrupt
-					if ("0" & RCNT) = RCR(9 downto 0) and CR(2) = '1' then
-						IRQ_RCR_SET <= '1';
-					end if;
-					
-					if Y >= Y_SP_START and Y < Y_SP_END and SP_ON = '1' then
+					if Y >= Y_SP_START-1 and Y < Y_SP_END-1 and SP_ON = '1' then
 						SP2_ACTIVE <= '1';
 					end if;
-					
 				end if;
-				if X = X_REN_START and ((Y = Y_BGREN_END) or (Y = 263 and VBLANK_DONE = '0')) then
-					-- VBlank Interrupt
-					VBLANK_DONE <= '1';
-					if CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
-					end if;
-				end if;
+
 			end if; -- CLKEN
 		end if;
 	end if;
@@ -983,7 +889,7 @@ begin
 					& BG2_P2(conv_integer(TPX)) 
 					& BG2_P1(conv_integer(TPX)) 
 					& BG2_P0(conv_integer(TPX));
-				if (BG2_MEM_A >= X_REN_START) and (BG2_MEM_A <= X_REN_END) then
+				if (BG2_MEM_A >= X_REN_START) and (BG2_MEM_A < X_REN_END) then
 					BG2_MEM_WE <= '1';
 				end if;
 				BG2 <= BG2_LOOP;
@@ -1028,13 +934,13 @@ begin
 		
 		if RESET_N = '0' then
 			SP1 <= SP1_INI;			
-			SP_NB <= "00000";
+			SP_NB <= "0000000";
 		else
 			case SP1 is
 			when SP1_INI =>
 				if SP1_ACTIVE = '1' then
-					SP_NB <= "00000";					
-					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64 + 1;
+					SP_NB <= "0000000";					
+					SP_CUR_Y <= ("0" & Y) - ("0" & Y_SP_START) + 64;
 					SP_SAT_A <= "000000" & "11";
 					
 					SP1_CNT <= "00";
@@ -1075,8 +981,8 @@ begin
 				end case;
 
 				if ( SP_CUR_Y >= SP_Y) and ( SP_CUR_Y < SP_Y + V_SP_H) then
-					if SP_NB = "10000" then 
-						SP_NB <= "11111"; -- Overflow
+					if (SP_NB = "0010000" and SP64 = '0') or SP_NB = "1000000" then 
+						SP_NB <= "1111111"; -- Overflow
 						if CR(1) = '1' then
 							IRQ_OVF_SET <= '1';
 						end if;
@@ -1141,21 +1047,21 @@ begin
 					V_SP_NAME(0) := SP_NAME(0);
 				end if;
 
-				if SP_NB = "00000" then
-					SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ZERO <= '1';
+				if SP_NB = "0000000" then
+					SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ZERO <= '1';
 				else
-					SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ZERO <= '0';
+					SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ZERO <= '0';
 				end if;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PRI <= SP_PRI;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PAL <= SP_PAL;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).X <= SP_X + X_REN_START - 32;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).HF <= SP_HF;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).CG <= SP_CG;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PRI <= SP_PRI;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PAL <= SP_PAL;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).X <= SP_X + X_REN_START - 32;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).HF <= SP_HF;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).CG <= SP_CG;
 
 				if SP_CGX = '1' then
-					if SP_NB = "01111" then
-						SP_NB <= "11111"; -- Overflow
+					if (SP_NB = "0001111" and SP64='0') or SP_NB = "0111111" then
+						SP_NB <= "1111111"; -- Overflow
 						if CR(1) = '1' then
 							IRQ_OVF_SET <= '1';
 						end if;						
@@ -1197,13 +1103,13 @@ begin
 				end case;
 				V_SP_NAME(0) := not SP_HF;
 
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ZERO <= '0';
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PRI <= SP_PRI;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).PAL <= SP_PAL;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).X <= SP_X + X_REN_START - 32 + 16;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).HF <= SP_HF;
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
-				SP_PREBUF(conv_integer(SP_NB(3 downto 0))).CG <= SP_CG;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ZERO <= '0';
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PRI <= SP_PRI;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).PAL <= SP_PAL;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).X <= SP_X + X_REN_START - 32 + 16;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).HF <= SP_HF;
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).ADDR <= V_SP_NAME & "00" & V_Y_OFS(3 downto 0);
+				SP_PREBUF(conv_integer(SP_NB(5 downto 0))).CG <= SP_CG;
 
 				SP_NB <= SP_NB + 1;
 				SP1 <= SP1_LOOP;
@@ -1244,7 +1150,7 @@ begin
 			when SP2_INI =>
 				SP_BUSY <= '0';
 				if SP2_ACTIVE = '1' or SP_ON = '0' then
-					for I in 0 to 15 loop
+					for I in 0 to MAX_SPPL loop
 						SP_BUF(I).X <= "1111111100"; -- Set off-screen
 					end loop;
 				end if;
@@ -1252,14 +1158,14 @@ begin
 					SP_BUSY <= '1';
 					SP_CYC <= "00";
 					
-					SP_CUR <= "0000";
+					SP_CUR <= "000000";
 			
 					SP2 <= SP2_INI_W;
 				end if;
 
 			when SP2_INI_W =>
 				if CLKEN = '1' then
-					if SP_NB /= "00000" then
+					if SP_NB /= "0000000" then
 						SP2 <= SP2_RD0;
 					else
 						SP2 <= SP2_END;
@@ -1295,7 +1201,7 @@ begin
 				end if;
 			
 			when SP2_RD0_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1341,7 +1247,7 @@ begin
 				end if;
 				
 			when SP2_RD1_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1373,7 +1279,7 @@ begin
 				end if;
 				
 			when SP2_RD2_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1409,7 +1315,7 @@ begin
 				end if;
 				
 			when SP2_RD3_W =>
-				if CLKEN = '1' and SP_RAM_REQ_FF = SP_RAM_ACK then
+				if SP_RAM_REQ_FF = SP_RAM_ACK then
 					if SP2_ACTIVE = '0' then
 						SP2 <= SP2_END;					
 					else
@@ -1418,7 +1324,7 @@ begin
 						when "00" =>
 							SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 							SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-							if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+							if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 								SP2 <= SP2_END;
 							else
 								SP_CUR <= SP_CUR + 1;
@@ -1429,7 +1335,7 @@ begin
 							if SP_CYC = "01" then
 								SP_BUF(conv_integer(SP_CUR)).P1 <= SP_RAM_DO;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-								if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+								if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 									SP2 <= SP2_END;
 								else
 									SP_CUR <= SP_CUR + 1;
@@ -1441,7 +1347,7 @@ begin
 							if SP_CYC = "01" then
 								SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-								if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+								if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 									SP2 <= SP2_END;
 								else
 									SP_CUR <= SP_CUR + 1;
@@ -1456,7 +1362,7 @@ begin
 									SP_BUF(conv_integer(SP_CUR)).P3 <= SP_RAM_DO;
 								end if;
 								SP_BUF(conv_integer(SP_CUR)).X <= SP_PREBUF(conv_integer(SP_CUR)).X;
-								if (SP_CUR = "1111") or ("0" & SP_CUR = SP_NB-1) then
+								if (SP_CUR = "001111" and SP64 = '0') or (SP_CUR = "111111") or ("0" & SP_CUR = SP_NB-1) then
 									SP2 <= SP2_END;
 								else
 									SP_CUR <= SP_CUR + 1;
@@ -1514,7 +1420,7 @@ begin
 				end if;
 
 			when REN_BGW =>
-				for I in 0 to 15 loop
+				for I in 0 to MAX_SPPL loop
 					if (X >= SP_BUF(I).X) and (X < SP_BUF(I).X + 16) and SP_ON = '1' then
 						if SP_BUF(I).HF = '0' then
 							V_X := "0000001111" - (X - SP_BUF(I).X);
@@ -1544,62 +1450,18 @@ begin
 				REN <= REN_BGR;
 			
 			when REN_BGR =>
-				if REN_SP_OPQ(0) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(0)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(0)(8);
-				elsif REN_SP_OPQ(1) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(1)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(1)(8);
-				elsif REN_SP_OPQ(2) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(2)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(2)(8);
-				elsif REN_SP_OPQ(3) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(3)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(3)(8);
-				elsif REN_SP_OPQ(4) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(4)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(4)(8);
-				elsif REN_SP_OPQ(5) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(5)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(5)(8);
-				elsif REN_SP_OPQ(6) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(6)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(6)(8);
-				elsif REN_SP_OPQ(7) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(7)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(7)(8);
-				elsif REN_SP_OPQ(8) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(8)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(8)(8);
-				elsif REN_SP_OPQ(9) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(9)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(9)(8);
-				elsif REN_SP_OPQ(10) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(10)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(10)(8);
-				elsif REN_SP_OPQ(11) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(11)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(11)(8);
-				elsif REN_SP_OPQ(12) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(12)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(12)(8);
-				elsif REN_SP_OPQ(13) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(13)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(13)(8);
-				elsif REN_SP_OPQ(14) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(14)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(14)(8);
-				elsif REN_SP_OPQ(15) = '1' then
-					REN_SP_COL <= REN_SP_COLTAB(15)(7 downto 0);
-					REN_SP_PRI <= REN_SP_COLTAB(15)(8);				
-				else
-					REN_SP_COL <= x"00";
-					REN_SP_PRI <= '0';
-				end if;
+				REN_SP_COL <= x"00";
+				REN_SP_PRI <= '0';
+				for I in MAX_SPPL downto 0 loop
+					if REN_SP_OPQ(I) = '1' then
+						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
+						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
+					end if;
+				end loop;
 				
 				-- Collision
 				if REN_SP_OPQ(0) = '1' 
-				and REN_SP_OPQ(14 downto 0) /= "000000000000000" 
+				and REN_SP_OPQ /= SP_OPQ_Z
 				and SP_BUF(0).ZERO = '1'
 				and IRQ_COL_TRIG = '0'
 				then
@@ -1856,7 +1718,7 @@ begin
 			HDR <= x"031F";
 			VSR <= x"0F02";
 			VDR <= x"00EF";
-			VDE <= x"0003";
+			--VDE <= x"0003";
 			BXR <= x"0000";
 			BYR <= x"0000";			
 			-- DCR <= x"0010";
@@ -1934,8 +1796,8 @@ begin
 							VSR(7 downto 0) <= DI;
 						when "01101" =>
 							VDR(7 downto 0) <= DI;
-						when "01110" =>
-							VDE(7 downto 0) <= DI;
+						--when "01110" =>
+							--VDE(7 downto 0) <= DI;
 						when "01111" =>
 							DCR(7 downto 0) <= DI;
 						when "10000" =>
@@ -1992,8 +1854,8 @@ begin
 							VSR(15 downto 8) <= DI;
 						when "01101" =>
 							VDR(15 downto 8) <= DI;
-						when "01110" =>
-							VDE(15 downto 8) <= DI;
+						--when "01110" =>
+							--VDE(15 downto 8) <= DI;
 						when "01111" =>
 							DCR(15 downto 8) <= DI;
 						when "10000" =>

@@ -8,6 +8,9 @@ use IEEE.STD_LOGIC_TEXTIO.all;
 use IEEE.NUMERIC_STD.ALL;
 
 entity pce_top is
+	generic (
+		MAX_SPPL : integer := 15
+	);
 	port(
 		RESET			: in  std_logic;
 		CLK 			: in  std_logic;
@@ -28,17 +31,23 @@ entity pce_top is
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
 		AUD_RDATA	: out std_logic_vector(23 downto 0);
 
+		SP64			: in  std_logic;
 		SGX			: in  std_logic;
 		TURBOTAP    : in  std_logic;
 		SIXBUTTON   : in  std_logic;
-		JOY1 		   : in  std_logic_vector(15 downto 0);
-		JOY2 		   : in  std_logic_vector(15 downto 0);
+		JOY1 		   : in  std_logic_vector(11 downto 0);
+		JOY2 		   : in  std_logic_vector(11 downto 0);
+		JOY3 		   : in  std_logic_vector(11 downto 0);
+		JOY4 		   : in  std_logic_vector(11 downto 0);
+		JOY5 		   : in  std_logic_vector(11 downto 0);
 
+		ReducedVBL	: in  std_logic;
 		VIDEO_R		: out std_logic_vector(2 downto 0);
 		VIDEO_G		: out std_logic_vector(2 downto 0);
 		VIDEO_B		: out std_logic_vector(2 downto 0);
 		VIDEO_BW		: out std_logic;
 		VIDEO_CE		: out std_logic;
+		VIDEO_CE_FS	: out std_logic;
 		VIDEO_VS		: out std_logic;
 		VIDEO_HS		: out std_logic;
 		VIDEO_HBL	: out std_logic;
@@ -47,10 +56,6 @@ entity pce_top is
 end pce_top;
 
 architecture rtl of pce_top is
-
-constant LEFT_BL_CLOCKS	: integer := 408;  --should be divisible by 24! (LCM of 4, 6 and 8)
-constant DISP_CLOCKS	   : integer := 2160; --should be divisible by 24! (LCM of 4, 6 and 8)
-
 
 signal RESET_N			: std_logic := '0';
 
@@ -81,7 +86,8 @@ signal CPU_PRAM_SEL_N: std_logic;
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
-signal DOTCLOCK		: std_logic_vector(1 downto 0);
+signal HSIZE			: std_logic_vector(9 downto 0);
+signal HSTART			: std_logic_vector(9 downto 0);
 
 -- VDC signals
 signal VDC0_DO			: std_logic_vector(7 downto 0);
@@ -151,15 +157,11 @@ VIDEO_VS <= not VS_N;
 VIDEO_HS <= not HS_N;
 
 VCE : entity work.huc6260
-generic map
-(
-	LEFT_BL_CLOCKS,
-	DISP_CLOCKS
-)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	DOTCLOCK_O => DOTCLOCK,
+	HSIZE		=> HSIZE,
+	HSTART	=> HSTART,
 
 	-- CPU Interface
 	A			=> CPU_A(2 downto 0),
@@ -168,10 +170,12 @@ port map(
 	RD_N		=> CPU_RD_N,
 	DI			=> CPU_DO,
 	DO 		=> VCE_DO,
-		
+
 	-- VDC Interface
 	COLNO		=> VDC_COLNO,
 	CLKEN		=> VDC_CLKEN,
+	CLKEN_FS => VIDEO_CE_FS,
+	RVBL		=> ReducedVBL,
 		
 	-- NTSC/RGB Video Output
 	R			=> VIDEO_R,
@@ -185,15 +189,13 @@ port map(
 );
 
 VDC0 : entity work.huc6270
-generic map
-(
-	LEFT_BL_CLOCKS,
-	DISP_CLOCKS
-)
+generic map (MAX_SPPL)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	DOTCLOCK => DOTCLOCK,
+	HSIZE		=> HSIZE,
+	HSTART	=> HSTART,
+	SP64     => SP64,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
@@ -204,7 +206,7 @@ port map(
 	DO 		=> VDC0_DO,
 	BUSY_N	=> VDC0_BUSY_N,
 	IRQ_N		=> VDC0_IRQ_N,
-	
+
 	-- VCE Interface
 	COLNO		=> VDC0_COLNO,
 	CLKEN		=> VDC_CLKEN,
@@ -213,15 +215,13 @@ port map(
 );
 
 VDC1 : entity work.huc6270
-generic map
-(
-	LEFT_BL_CLOCKS,
-	DISP_CLOCKS
-)
+generic map (MAX_SPPL)
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	DOTCLOCK => DOTCLOCK,
+	HSIZE		=> HSIZE,
+	HSTART	=> HSTART,
+	SP64     => SP64,
 
 	-- CPU Interface
 	A			=> CPU_A(1 downto 0),
@@ -378,12 +378,21 @@ BRM_WE <= CPU_CLKEN and not CPU_BRM_SEL_N and not CPU_WR_N;
 CPU_IO_DI(7 downto 4) <= "1011"; -- No CD-Rom unit, TGFX-16
 CPU_IO_DI(3 downto 0) <= 
 	     "0000"            when CPU_IO_DO(1) = '1' or  (CPU_IO_DO(0) = '1'  and gamepad_nibble = '1')
-	else joy1( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = "000" and gamepad_nibble = '0'
-	else joy1( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = "000" and gamepad_nibble = '0'
-	else joy1(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = "000" and gamepad_nibble = '1'
-	else joy2( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = "001" and gamepad_nibble = '0'
-	else joy2( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = "001" and gamepad_nibble = '0'
-	else joy2(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = "001" and gamepad_nibble = '1'
+	else joy1( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 0 and gamepad_nibble = '0'
+	else joy1( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 0 and gamepad_nibble = '0'
+	else joy1(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 0 and gamepad_nibble = '1'
+	else joy2( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 1 and gamepad_nibble = '0'
+	else joy2( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 1 and gamepad_nibble = '0'
+	else joy2(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 1 and gamepad_nibble = '1'
+	else joy3( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 2 and gamepad_nibble = '0'
+	else joy3( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 2 and gamepad_nibble = '0'
+	else joy3(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 2 and gamepad_nibble = '1'
+	else joy4( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 3 and gamepad_nibble = '0'
+	else joy4( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 3 and gamepad_nibble = '0'
+	else joy4(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 3 and gamepad_nibble = '1'
+	else joy5( 7 downto 4) when CPU_IO_DO(0) = '0' and gamepad_port = 4 and gamepad_nibble = '0'
+	else joy5( 3 downto 0) when CPU_IO_DO(0) = '1' and gamepad_port = 4 and gamepad_nibble = '0'
+	else joy5(11 downto 8) when CPU_IO_DO(0) = '0' and gamepad_port = 4 and gamepad_nibble = '1'
 	else "1111";
 
 process(clk)
