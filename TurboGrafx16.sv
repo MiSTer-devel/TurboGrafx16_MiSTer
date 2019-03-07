@@ -145,20 +145,15 @@ parameter CONF_STR1 = {
 	"FS13,SGX,Load SuperGrafx;",
 	"-;"
 };
-
 parameter CONF_STR2 = {
-	"DE,Save Slot,1,2,3,4;"
-};
-
-parameter CONF_STR3 = {
 	"G,Load Backup RAM;"
 };
 
-parameter CONF_STR4 = {
+parameter CONF_STR3 = {
 	"7,Save Backup RAM;"
 };
 
-parameter CONF_STR5 = {
+parameter CONF_STR4 = {
 	"C,Format Save;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
@@ -218,12 +213,12 @@ wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 
-hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + ($size(CONF_STR5)>>3) + 4), .WIDE(1)) hps_io
+hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + 3), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
-	.conf_str({CONF_STR1,bk_ena ? "O" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4,bk_ena ? "R" : "+",CONF_STR5}),
+	.conf_str({CONF_STR1,bk_ena ? "R" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4}),
 
 	.buttons(buttons),
 	.status(status),
@@ -502,16 +497,16 @@ dpram #(12) backram_h
 
 
 wire downloading = ioctl_download;
+reg old_downloading = 0;
 
 reg bk_ena = 0;
 always @(posedge clk_sys) begin
-	reg old_downloading = 0;
 	
 	old_downloading <= downloading;
 	if(~old_downloading & downloading) bk_ena <= 0;
 	
 	//Save file always mounted in the end of downloading state.
-	if(downloading && img_mounted && img_size && !img_readonly) bk_ena <= 1;
+	if(downloading && img_mounted && !img_readonly) bk_ena <= 1;
 end
 
 wire bk_load    = status[16];
@@ -533,9 +528,16 @@ always @(posedge clk_sys) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
-			sd_lba <= {status[14:13],4'd0};
+			sd_lba <= 0;
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
+		end
+		if(old_downloading & ~downloading & |img_size & bk_ena) begin
+			bk_state <= 1;
+			bk_loading <= 1;
+			sd_lba <= 0;
+			sd_rd <= 1;
+			sd_wr <= 0;
 		end
 	end else begin
 		if(old_ack & ~sd_ack) begin
