@@ -2,7 +2,7 @@
 //  TurboGrafx16 / PC Engine
 //
 //  Port to MiSTer
-//  Copyright (C) 2017,2018 Sorgelig
+//  Copyright (C) 2017-2019 Sorgelig
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
@@ -105,6 +105,14 @@ module emu
 	output        UART_DTR,
 	input         UART_DSR,
 
+	// Open-drain User port.
+	// 0 - D+/RX
+	// 1 - D-/TX
+	// 2..5 - USR1..USR4
+	// Set USER_OUT to 1 to read from USER_IN.
+	input   [5:0] USER_IN,
+	output  [5:0] USER_OUT,
+
 	input         OSD_STATUS
 );
 
@@ -118,6 +126,7 @@ localparam MAX_SPPL = 15;
 localparam SP64     = 1'b0;
 `endif
 
+assign USER_OUT = '1;
 assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
