@@ -53,8 +53,8 @@ type chan_t is
 		WF_INC	: std_logic;
 
 		-- Noise generator
-		LFSR		: std_logic_vector(16 downto 0);
-		NG_CNT	: std_logic_vector(12 downto 0);
+		LFSR		: std_logic_vector(17 downto 0);
+		NG_CNT	: std_logic_vector(11 downto 0);
 
 		-- Outputs
 		DA_OUT	: std_logic_vector(4 downto 0);
@@ -230,7 +230,11 @@ process( CLK ) begin
 				end if;
 
 				if CH(i).NE = '0' then
-					CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "11111111";
+				   if CH(i).NG_FREQ = "11111" then
+						CH(i).NG_CNT <= "000000111111";
+					else
+						CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "1111111";
+					end if;
 				else
 					if CH(i).LFSR(0) = '0' then
 						CH(i).NG_OUT <= "00000";
@@ -241,11 +245,15 @@ process( CLK ) begin
 					if CLKEN = '1' then
 						CH(i).NG_CNT <= CH(i).NG_CNT - 1;
 						if CH(i).NG_CNT = 0 then
-							CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "11111111";
-							if CH(i).LFSR = 0 then
-								CH(i).LFSR(16) <= '1';
+							if CH(i).NG_FREQ = "11111" then
+								CH(i).NG_CNT <= "000000111111";
 							else
-								CH(i).LFSR <= (CH(i).LFSR(0) xor CH(i).LFSR(2)) & CH(i).LFSR(16 downto 1);
+								CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "1111111";
+							end if;
+							if CH(i).LFSR = 0 then
+								CH(i).LFSR(0) <= '1';
+							else
+								CH(i).LFSR <= (CH(i).LFSR(0) xor CH(i).LFSR(1) xor CH(i).LFSR(11) xor CH(i).LFSR(12) xor CH(i).LFSR(17)) & CH(i).LFSR(17 downto 1);
 							end if;
 						end if;
 					end if;
