@@ -13,6 +13,7 @@ entity pce_top is
 	);
 	port(
 		RESET			: in  std_logic;
+		RST_COLD	: in std_logic;
 		CLK 			: in  std_logic;
 
 		ROM_RD		: out std_logic;
@@ -30,6 +31,9 @@ entity pce_top is
 
 		AUD_LDATA	: out std_logic_vector(23 downto 0);
 		AUD_RDATA	: out std_logic_vector(23 downto 0);
+
+		GG_EN		: in std_logic;
+		GG_CODE		: in std_logic_vector(128 downto 0);
 
 		SP64			: in  std_logic;
 		SGX			: in  std_logic;
@@ -114,11 +118,51 @@ signal gamepad_out	: std_logic_vector(1 downto 0);
 signal gamepad_port	: unsigned(2 downto 0);
 signal gamepad_nibble: std_logic;
 
+signal GENIE		: boolean;
+signal GENIE_DO	: std_logic_vector(7 downto 0);
+signal GENIE_DI   : std_logic_vector(7 downto 0);
+
+component CODES is
+	generic(
+		ADDR_WIDTH  : in integer := 16;
+		DATA_WIDTH  : in integer := 8
+	);
+	port(
+		clk         : in  std_logic;
+		cold_reset  : in  std_logic;
+		enable      : in  std_logic;
+		addr_in     : in  std_logic_vector(20 downto 0);
+		data_in     : in  std_logic_vector(7 downto 0);
+		code        : in  std_logic_vector(128 downto 0);
+		genie_ovr   : out boolean;
+		genie_data  : out std_logic_vector(7 downto 0)
+	);
+end component;
+
 begin
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+
+-- Game Genie
+GAMEGENIE : component CODES
+generic map(
+	ADDR_WIDTH => 21,
+	DATA_WIDTH => 8
+)
+port map(
+	clk => CLK,
+	cold_reset => RST_COLD,
+	enable => not GG_EN,
+	addr_in => CPU_A,
+	data_in => CPU_DI,
+	code => GG_CODE,
+	genie_ovr => GENIE,
+	genie_data => GENIE_DO
+);
+
+GENIE_DI <= GENIE_DO when GENIE else CPU_DI;
 
 CPU : entity work.huc6280
 port map(
@@ -127,7 +171,7 @@ port map(
 	
 	IRQ1_N	=> VDC0_IRQ_N and VDC1_IRQ_N,
 
-	DI			=> CPU_DI,
+	DI			=> GENIE_DI,
 	DO 		=> CPU_DO,
 	
 	A 			=> CPU_A,
