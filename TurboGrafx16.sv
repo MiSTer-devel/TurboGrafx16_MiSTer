@@ -131,7 +131,7 @@ assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = ioctl_download | bk_state;
+assign LED_USER  = cart_download | bk_state | (status[23] & bk_pending);
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 
@@ -143,6 +143,9 @@ parameter CONF_STR1 = {
 	"TGFX16;;",
 	"FS13,PCEBIN,Load TurboGrafx;",
 	"FS13,SGX,Load SuperGrafx;",
+	"-;",
+	"FC,GG,Game Genie Code;",
+	"OO,Game Genie,ON,OFF;",
 	"-;"
 };
 parameter CONF_STR2 = {
@@ -155,6 +158,7 @@ parameter CONF_STR3 = {
 
 parameter CONF_STR4 = {
 	"C,Format Save;",
+	"ON,Autosave,OFF,ON;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -171,6 +175,10 @@ parameter CONF_STR4 = {
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
 	"V,v",`BUILD_DATE
 };
+
+wire code_index = ioctl_index == 3;
+wire code_download = ioctl_download & code_index;
+wire cart_download = ioctl_download & ~code_index;
 
 ////////////////////   CLOCKS   ///////////////////
 
@@ -266,7 +274,8 @@ always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 
 pce_top #(MAX_SPPL) pce_top
 (
-	.RESET(reset|ioctl_download),
+	.RESET(reset|cart_download),
+	.RST_COLD(cart_download),
 
 	.CLK(clk_sys),
 
@@ -285,6 +294,9 @@ pce_top #(MAX_SPPL) pce_top
 	
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
+
+	.GG_EN(status[24]),
+	.GG_CODE(gg_code),
 
 	.SP64(status[11] & SP64),
 	.SGX(sgx),
@@ -425,17 +437,17 @@ reg sgx;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 
-	old_download <= ioctl_download;
+	old_download <= cart_download;
 	old_reset <= reset;
 
 	if(~old_reset && reset) ioctl_wait <= 0;
-	if(~old_download && ioctl_download) begin
+	if(~old_download && cart_download) begin
 		romwr_a <= 0;
 		populous <= 2'b11;
 		sgx <= (ioctl_index[4:0] == 2);
 	end
 	else begin
-		if(ioctl_wr) begin
+		if(ioctl_wr & cart_download) begin
 			ioctl_wait <= 1;
 			rom_wr <= ~rom_wr;
 			if((romwr_a[23:4] == 'h212) || (romwr_a[23:4] == 'h1f2)) begin
@@ -453,7 +465,48 @@ always @(posedge clk_sys) begin
 	end
 end
 
+////////////////////////////  CODES  ///////////////////////////////////
+
+reg [128:0] gg_code;
+
+// Code layout:
+// {clock bit, code flags,     32'b address, 32'b compare, 32'b replace}
+//  128        127:96          95:64         63:32         31:0
+// Integer values are in BIG endian byte order, so it up to the loader
+// or generator of the code to re-arrange them correctly.
+
+always_ff @(posedge clk_sys) begin
+	gg_code[128] <= 1'b0;
+
+	if (code_download & ioctl_wr) begin
+		case (ioctl_addr[3:0])
+			0:  gg_code[111:96]  <= ioctl_dout; // Flags Bottom Word
+			2:  gg_code[127:112] <= ioctl_dout; // Flags Top Word
+			4:  gg_code[79:64]   <= ioctl_dout; // Address Bottom Word
+			6:  gg_code[95:80]   <= ioctl_dout; // Address Top Word
+			8:  gg_code[47:32]   <= ioctl_dout; // Compare Bottom Word
+			10: gg_code[63:48]   <= ioctl_dout; // Compare top Word
+			12: gg_code[15:0]    <= ioctl_dout; // Replace Bottom Word
+			14: begin
+				gg_code[31:16]   <= ioctl_dout; // Replace Top Word
+				gg_code[128]     <=  1'b1;      // Clock it in
+			end
+		endcase
+	end
+end
+
+
 /////////////////////////  STATE SAVE/LOAD  /////////////////////////////
+
+wire bk_save_write = bram_wr;
+reg bk_pending;
+
+always @(posedge clk_sys) begin
+	if (bk_ena && ~OSD_STATUS && bk_save_write)
+		bk_pending <= 1'b1;
+	else if (bk_state)
+		bk_pending <= 1'b0;
+end
 
 wire [10:0] bram_addr;
 wire [7:0] bram_data;
@@ -496,7 +549,7 @@ dpram #(12) backram_h
 );
 
 
-wire downloading = ioctl_download;
+wire downloading = cart_download;
 reg old_downloading = 0;
 
 reg bk_ena = 0;
@@ -510,7 +563,7 @@ always @(posedge clk_sys) begin
 end
 
 wire bk_load    = status[16];
-wire bk_save    = status[7];
+wire bk_save    = status[7] | (bk_pending & OSD_STATUS && status[23]);
 reg  bk_loading = 0;
 reg  bk_state   = 0;
 
