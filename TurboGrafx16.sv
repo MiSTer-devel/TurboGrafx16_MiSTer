@@ -144,19 +144,21 @@ parameter CONF_STR1 = {
 	"FS13,PCEBIN,Load TurboGrafx;",
 	"FS13,SGX,Load SuperGrafx;",
 	"-;",
-	"FC,GG,Game Genie Code;",
-	"OO,Game Genie,ON,OFF;",
-	"-;"
+	"C,Cheats;"
 };
 parameter CONF_STR2 = {
+	"O,Cheats enabled,ON,OFF;",
+	"-;"
+};
+parameter CONF_STR3 = {
 	"G,Load Backup RAM;"
 };
 
-parameter CONF_STR3 = {
+parameter CONF_STR4 = {
 	"7,Save Backup RAM;"
 };
 
-parameter CONF_STR4 = {
+parameter CONF_STR5 = {
 	"C,Format Save;",
 	"ON,Autosave,OFF,ON;",
 	"-;",
@@ -176,7 +178,7 @@ parameter CONF_STR4 = {
 	"V,v",`BUILD_DATE
 };
 
-wire code_index = ioctl_index == 3;
+wire code_index = &ioctl_index;
 wire code_download = ioctl_download & code_index;
 wire cart_download = ioctl_download & ~code_index;
 
@@ -221,12 +223,12 @@ wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 
-hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + 3), .WIDE(1)) hps_io
+hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + ($size(CONF_STR5)>>3) + 4), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
-	.conf_str({CONF_STR1,bk_ena ? "R" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4}),
+	.conf_str({CONF_STR1,gg_avail ? "O" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4,bk_ena ? "R" : "+",CONF_STR5}),
 
 	.buttons(buttons),
 	.status(status),
@@ -275,7 +277,6 @@ always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 pce_top #(MAX_SPPL) pce_top
 (
 	.RESET(reset|cart_download),
-	.RST_COLD(cart_download),
 
 	.CLK(clk_sys),
 
@@ -297,6 +298,9 @@ pce_top #(MAX_SPPL) pce_top
 
 	.GG_EN(status[24]),
 	.GG_CODE(gg_code),
+	.GG_RESET(ioctl_download && ioctl_wr && !ioctl_addr),
+	.GG_AVAIL(gg_avail),
+
 
 	.SP64(status[11] & SP64),
 	.SGX(sgx),
@@ -468,6 +472,7 @@ end
 ////////////////////////////  CODES  ///////////////////////////////////
 
 reg [128:0] gg_code;
+wire gg_avail;
 
 // Code layout:
 // {clock bit, code flags,     32'b address, 32'b compare, 32'b replace}

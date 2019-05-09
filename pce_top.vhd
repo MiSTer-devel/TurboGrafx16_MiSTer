@@ -13,7 +13,6 @@ entity pce_top is
 	);
 	port(
 		RESET			: in  std_logic;
-		RST_COLD	: in std_logic;
 		CLK 			: in  std_logic;
 
 		ROM_RD		: out std_logic;
@@ -34,6 +33,8 @@ entity pce_top is
 
 		GG_EN		: in std_logic;
 		GG_CODE		: in std_logic_vector(128 downto 0);
+		GG_RESET	: in std_logic;
+		GG_AVAIL	: out std_logic;
 
 		SP64			: in  std_logic;
 		SGX			: in  std_logic;
@@ -129,11 +130,12 @@ component CODES is
 	);
 	port(
 		clk         : in  std_logic;
-		cold_reset  : in  std_logic;
+		reset       : in  std_logic;
 		enable      : in  std_logic;
 		addr_in     : in  std_logic_vector(20 downto 0);
 		data_in     : in  std_logic_vector(7 downto 0);
 		code        : in  std_logic_vector(128 downto 0);
+		available   : out std_logic;
 		genie_ovr   : out boolean;
 		genie_data  : out std_logic_vector(7 downto 0)
 	);
@@ -153,11 +155,12 @@ generic map(
 )
 port map(
 	clk => CLK,
-	cold_reset => RST_COLD,
+	reset => GG_RESET,
 	enable => not GG_EN,
 	addr_in => CPU_A,
 	data_in => CPU_DI,
 	code => GG_CODE,
+	available => GG_AVAIL,
 	genie_ovr => GENIE,
 	genie_data => GENIE_DO
 );
