@@ -26,8 +26,8 @@ module sdram
 	// interface to the MT48LC16M16 chip
 	inout  reg [15:0] SDRAM_DQ,   // 16 bit bidirectional data bus
 	output reg [12:0] SDRAM_A,    // 13 bit multiplexed address bus
-	output reg        SDRAM_DQML, // byte mask
-	output reg        SDRAM_DQMH, // byte mask
+	output            SDRAM_DQML, // byte mask
+	output            SDRAM_DQMH, // byte mask
 	output reg  [1:0] SDRAM_BA,   // two banks
 	output reg        SDRAM_nCS,  // a single chip select
 	output reg        SDRAM_nWE,  // write enable
@@ -51,7 +51,8 @@ module sdram
 	output reg        we_ack = 0
 );
 
-assign SDRAM_CKE = ~init;
+assign SDRAM_CKE = 1;
+assign {SDRAM_DQMH,SDRAM_DQML} = SDRAM_A[12:11];
 
 // no burst configured
 localparam RASCAS_DELAY   = 3'd3;   // tRCD=20ns -> 3 cycles@128MHz
@@ -172,15 +173,11 @@ always @(posedge clk) begin
 		                          default: SDRAM_A <= 13'b0000000000000;
 	endcase
 
-	if(q == STATE_START) begin
-		SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
-		SDRAM_DQ <= wr ? data : 16'bZZZZZZZZZZZZZZZZ;
-		{SDRAM_DQMH,SDRAM_DQML} <= 0;
-	end
+	if(q == STATE_START) SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
 
-	if (q == STATE_READY) begin
-		if (~wr & ram_req) dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
-	end
+	SDRAM_DQ <= 16'hZZZZ;
+	if(q == STATE_CONT && wr) SDRAM_DQ <= data;
+	if(q == STATE_READY && ~wr && ram_req) dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
 end
 
 endmodule
