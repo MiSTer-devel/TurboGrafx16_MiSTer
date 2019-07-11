@@ -29,7 +29,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [44:0] HPS_BUS,
+	inout  [45:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -63,7 +63,9 @@ module emu
 	output [15:0] AUDIO_R,
 	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
 	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
-	input         TAPE_IN,
+
+	//ADC
+	inout   [3:0] ADC_BUS,
 
 	// SD-SPI
 	output        SD_SCK,
@@ -126,6 +128,7 @@ localparam MAX_SPPL = 15;
 localparam SP64     = 1'b0;
 `endif
 
+assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
