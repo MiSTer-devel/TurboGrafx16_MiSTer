@@ -142,28 +142,18 @@ assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
 
 `include "build_id.v" 
-parameter CONF_STR1 = {
+parameter CONF_STR = {
 	"TGFX16;;",
-	"FS13,PCEBIN,Load TurboGrafx;",
-	"FS13,SGX,Load SuperGrafx;",
+	"FS,PCEBIN,Load TurboGrafx;",
+	"FS,SGX,Load SuperGrafx;",
 	"-;",
-	"C,Cheats;"
-};
-parameter CONF_STR2 = {
-	"O,Cheats enabled,ON,OFF;",
-	"-;"
-};
-parameter CONF_STR3 = {
-	"G,Load Backup RAM;"
-};
-
-parameter CONF_STR4 = {
-	"7,Save Backup RAM;"
-};
-
-parameter CONF_STR5 = {
-	"C,Format Save;",
-	"ON,Autosave,OFF,ON;",
+	"C,Cheats;",
+	"H1OO,Cheats enabled,ON,OFF;",
+	"-;",
+	"D0RG,Load Backup RAM;",
+	"D0R7,Save Backup RAM;",
+	"D0ON,Autosave,OFF,ON;",
+	"D0RC,Format Save;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -226,15 +216,16 @@ wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 
-hps_io #(.STRLEN(($size(CONF_STR1)>>3) + ($size(CONF_STR2)>>3) + ($size(CONF_STR3)>>3) + ($size(CONF_STR4)>>3) + ($size(CONF_STR5)>>3) + 4), .WIDE(1)) hps_io
+hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
-	.conf_str({CONF_STR1,gg_avail ? "O" : "+",CONF_STR2,bk_ena ? "R" : "+",CONF_STR3,bk_ena ? "R" : "+",CONF_STR4,bk_ena ? "R" : "+",CONF_STR5}),
+	.conf_str(CONF_STR),
 
 	.buttons(buttons),
 	.status(status),
+	.status_menumask({~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
 
 	.new_vmode(0),
