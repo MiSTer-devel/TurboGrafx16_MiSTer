@@ -129,7 +129,6 @@ localparam SP64     = 1'b0;
 `endif
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
 assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -166,6 +165,8 @@ parameter CONF_STR = {
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
+	"OI,Serial Mode,OFF,LLAPI;",
+	"-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
 	"V,v",`BUILD_DATE
@@ -300,8 +301,8 @@ pce_top #(MAX_SPPL) pce_top
 	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
-	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
-	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
+	.JOY1(~{joy_a[11:4], joy_a[1], joy_a[2], joy_a[0], joy_a[3]}),
+	.JOY2(~{joy_b[11:4], joy_b[1], joy_b[2], joy_b[0], joy_b[3]}),
 	.JOY3(~{joystick_2[11:4], joystick_2[1], joystick_2[2], joystick_2[0], joystick_2[3]}),
 	.JOY4(~{joystick_3[11:4], joystick_3[1], joystick_3[2], joystick_3[0], joystick_3[3]}),
 	.JOY5(~{joystick_4[11:4], joystick_4[1], joystick_4[2], joystick_4[0], joystick_4[3]}),
@@ -462,6 +463,114 @@ always @(posedge clk_sys) begin
 		end
 	end
 end
+
+
+//////////////////   LLAPI   ///////////////////
+
+wire [31:0] llapi_buttons, llapi_buttons2;
+wire [71:0] llapi_analog, llapi_analog2;
+wire [7:0]  llapi_type, llapi_type2;
+wire llapi_en, llapi_en2;
+
+wire llapi_select = status[18];
+
+wire llapi_latch_o, llapi_latch_o2, llapi_data_o, llapi_data_o2;
+
+always_comb begin
+	USER_OUT = 5'b111111;
+	if (llapi_select) begin
+		USER_OUT[0] = llapi_latch_o;
+		USER_OUT[1] = llapi_data_o;
+		USER_OUT[2] = ~(llapi_select & ~OSD_STATUS);
+		USER_OUT[4] = llapi_latch_o2;
+		USER_OUT[5] = llapi_data_o2;
+	end
+end
+
+LLAPI llapi
+(
+	.CLK_50M(CLK_50M),
+	.LLAPI_SYNC(VSync),
+	.IO_LATCH_IN(USER_IN[0]),
+	.IO_LATCH_OUT(llapi_latch_o),
+	.IO_DATA_IN(USER_IN[1]),
+	.IO_DATA_OUT(llapi_data_o),
+	.ENABLE(llapi_select & ~OSD_STATUS),
+	.LLAPI_BUTTONS(llapi_buttons),
+	.LLAPI_ANALOG(llapi_analog),
+	.LLAPI_TYPE(llapi_type),
+	.LLAPI_EN(llapi_en)
+);
+
+LLAPI llapi2
+(
+	.CLK_50M(CLK_50M),
+	.LLAPI_SYNC(VSync),
+	.IO_LATCH_IN(USER_IN[4]),
+	.IO_LATCH_OUT(llapi_latch_o2),
+	.IO_DATA_IN(USER_IN[5]),
+	.IO_DATA_OUT(llapi_data_o2),
+	.ENABLE(llapi_select & ~OSD_STATUS),
+	.LLAPI_BUTTONS(llapi_buttons2),
+	.LLAPI_ANALOG(llapi_analog2),
+	.LLAPI_TYPE(llapi_type2),
+	.LLAPI_EN(llapi_en2)
+);
+
+wire use_llapi = llapi_en && llapi_select;
+wire use_llapi2 = llapi_en2 && llapi_select;
+// Indexes:
+// 0 = D+    = P1 Latch
+// 1 = D-    = P1 Data
+// 2 = TX-   = LLAPI Enable
+// 3 = GND_d = N/C
+// 4 = RX+   = P2 Latch
+// 5 = RX-   = P2 Data
+
+wire [11:0] joy_ll_a;
+always_comb begin
+        // button layout for 6 button controllers
+        if (llapi_type == 20 || llapi_type == 21 || llapi_type == 8 || llapi_type == 3 || llapi_type == 54 || llapi_type == 11) begin
+                joy_ll_a = {
+                        llapi_buttons[2], llapi_buttons[3], llapi_buttons[6], llapi_buttons[0], // VI, V, IV, III
+                        llapi_buttons[5], llapi_buttons[4], // Run, Select
+                        llapi_buttons[1], llapi_buttons[7], // II, I
+                        llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
+                };
+        end else begin
+                joy_ll_a = {
+                        llapi_buttons[7], llapi_buttons[3], llapi_buttons[6], llapi_buttons[2], // VI, V, IV, III
+                        llapi_buttons[5], llapi_buttons[4], // Run, Select
+                        llapi_buttons[0], llapi_buttons[1], // II, I
+                        llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
+                };
+        end
+end
+
+wire [11:0] joy_ll_b;
+always_comb begin
+        // button layout for 6 button controllers
+        if (llapi_type2 == 20 || llapi_type2 == 21 || llapi_type2 == 8 || llapi_type2 == 3 || llapi_type2 == 54 || llapi_type2 == 11) begin
+                joy_ll_b = {
+                        llapi_buttons2[2],  llapi_buttons2[3],  llapi_buttons2[6],  llapi_buttons2[0], // VI, V, IV, III
+                        llapi_buttons2[5],  llapi_buttons2[4], // Run, Select
+                        llapi_buttons2[1],  llapi_buttons2[7], // II, I
+                        llapi_buttons2[27], llapi_buttons2[26], llapi_buttons2[25], llapi_buttons2[24] // d-pad
+                };
+        end else begin
+                joy_ll_b = {
+                        llapi_buttons2[7],  llapi_buttons2[3],  llapi_buttons2[6],  llapi_buttons2[2], // VI, V, IV, III
+                        llapi_buttons2[5],  llapi_buttons2[4], // Run, Select
+                        llapi_buttons2[0],  llapi_buttons2[1], // II, I
+                        llapi_buttons2[27], llapi_buttons2[26], llapi_buttons2[25], llapi_buttons2[24] // d-pad
+                };
+        end
+end
+
+wire llapi_osd = (llapi_buttons[4] & llapi_buttons[5]) || (llapi_buttons2[4] & llapi_buttons2[5]);
+
+wire [15:0] joy_a = use_llapi  ? joy_ll_a : joystick_0;
+wire [15:0] joy_b = use_llapi2 ? joy_ll_b : joystick_1;
 
 ////////////////////////////  CODES  ///////////////////////////////////
 
