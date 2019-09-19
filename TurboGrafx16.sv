@@ -532,7 +532,7 @@ always_comb begin
         // button layout for genesis and 6 button controllers
         if (llapi_type == 20 || llapi_type == 21 || llapi_type == 54 || llapi_type == 11) begin
                 joy_ll_a = {
-                        llapi_buttons[2],  llapi_buttons[3],  llapi_buttons[6],  llapi_buttons[0], // VI, V, IV, III
+                        llapi_buttons[6],  llapi_buttons[3],  llapi_buttons[2],  llapi_buttons[0], // VI, V, IV, III
                         llapi_buttons[5],  llapi_buttons[4], // Run, Select
                         llapi_buttons[1],  llapi_buttons[7], // II, I
                         llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
@@ -540,7 +540,7 @@ always_comb begin
 	// saturn controller layout, same as 6 button with select moved to RT
 	end else if (llapi_type == 8 || llapi_type == 3) begin
                 joy_ll_a = {
-                        llapi_buttons[2],  llapi_buttons[3],  llapi_buttons[6],  llapi_buttons[0], // VI, V, IV, III
+                        llapi_buttons[6],  llapi_buttons[3],  llapi_buttons[2],  llapi_buttons[0], // VI, V, IV, III
                         llapi_buttons[5],  llapi_buttons[9], // Run, Select
                         llapi_buttons[1],  llapi_buttons[7], // II, I
                         llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
@@ -560,7 +560,7 @@ always_comb begin
         // button layout for genesis and 6 button controllers
         if (llapi_type2 == 20 || llapi_type2 == 21 || llapi_type2 == 54 || llapi_type2 == 11) begin
                 joy_ll_b = {
-                        llapi_buttons2[2],  llapi_buttons2[3],  llapi_buttons2[6],  llapi_buttons2[0], // VI, V, IV, III
+                        llapi_buttons2[6],  llapi_buttons2[3],  llapi_buttons2[2],  llapi_buttons2[0], // VI, V, IV, III
                         llapi_buttons2[5],  llapi_buttons2[4], // Run, Select
                         llapi_buttons2[1],  llapi_buttons2[7], // II, I
                         llapi_buttons2[27], llapi_buttons2[26], llapi_buttons2[25], llapi_buttons2[24] // d-pad
@@ -568,7 +568,7 @@ always_comb begin
 	// saturn controller layout, same as 6 button with select moved to RT
 	end else if (llapi_type2 == 8 || llapi_type2 == 3) begin
                 joy_ll_b = {
-                        llapi_buttons2[2],  llapi_buttons2[3],  llapi_buttons2[6],  llapi_buttons2[0], // VI, V, IV, III
+                        llapi_buttons2[6],  llapi_buttons2[3],  llapi_buttons2[2],  llapi_buttons2[0], // VI, V, IV, III
                         llapi_buttons2[5],  llapi_buttons2[9], // Run, Select
                         llapi_buttons2[1],  llapi_buttons2[7], // II, I
                         llapi_buttons2[27], llapi_buttons2[26], llapi_buttons2[25], llapi_buttons2[24] // d-pad
