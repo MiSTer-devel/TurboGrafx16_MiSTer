@@ -334,7 +334,7 @@ wire ce_vid;
 assign CLK_VIDEO = clk_ram;
 
 reg ce_pix;
-always @(posedge clk_ram) begin
+always @(posedge CLK_VIDEO) begin
 	reg old_ce;
 	
 	old_ce <= ce_vid;
@@ -343,7 +343,7 @@ end
 
 color_mix color_mix
 (
-	.clk_vid(clk_ram),
+	.clk_vid(CLK_VIDEO),
 	.ce_pix(ce_pix),
 	.mix(bw ? 3'd5 : 0),
 
@@ -358,14 +358,14 @@ color_mix color_mix
 	.R_out(R),
 	.G_out(G),
 	.B_out(B),
-	.HSync_out(HSync),
-	.VSync_out(VSync),
+	.HSync_out(HS),
+	.VSync_out(VS),
 	.HBlank_out(HBlank),
 	.VBlank_out(VBlank)
 );
 
 wire [7:0] R,G,B;
-wire HSync,VSync;
+wire HS,VS;
 wire HBlank,VBlank;
 
 wire [2:0] scale = status[10:8];
@@ -373,11 +373,17 @@ wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
 
 assign VGA_SL = sl[1:0];
 
+reg VSync, HSync;
+always @(posedge CLK_VIDEO) begin
+	HSync <= HS;
+	if(~HSync & HS) VSync <= VS;
+end
+
 video_mixer #(.LINE_LENGTH(560)) video_mixer
 (
 	.*,
 
-	.clk_sys(clk_ram),
+	.clk_sys(CLK_VIDEO),
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
