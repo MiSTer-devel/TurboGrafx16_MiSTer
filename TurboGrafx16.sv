@@ -141,7 +141,7 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign LED_USER  = cart_download | bk_state | (status[23] & bk_pending);
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
-assign BUTTONS   = 0;
+assign BUTTONS   = llapi_osd;
 
 assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
@@ -489,7 +489,7 @@ wire llapi_select = status[18];
 wire llapi_latch_o, llapi_latch_o2, llapi_data_o, llapi_data_o2;
 
 always_comb begin
-	USER_OUT = 5'b111111;
+	USER_OUT = 6'b111111;
 	if (llapi_select) begin
 		USER_OUT[0] = llapi_latch_o;
 		USER_OUT[1] = llapi_data_o;
