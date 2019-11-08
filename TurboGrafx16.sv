@@ -529,8 +529,23 @@ LLAPI llapi2
 	.LLAPI_EN(llapi_en2)
 );
 
-wire use_llapi = llapi_en && llapi_select;
-wire use_llapi2 = llapi_en2 && llapi_select;
+reg llapi_button_pressed, llapi_button_pressed2;
+
+always @(posedge clk_sys) begin
+        if (reset) begin
+                llapi_button_pressed  <= 0;
+                llapi_button_pressed2 <= 0;
+        end else if (|llapi_buttons)
+                llapi_button_pressed  <= 1;
+        else if (|llapi_buttons2)
+                llapi_button_pressed2 <= 1;
+end
+
+// controller id is 0 if there is either an Atari controller or no controller
+// if id is 0, assume there is no controller until a button is pressed
+wire use_llapi = llapi_en && llapi_select && (|llapi_type || llapi_button_pressed);
+wire use_llapi2 = llapi_en2 && llapi_select && (|llapi_type2 || llapi_button_pressed2);
+
 // Indexes:
 // 0 = D+    = P1 Latch
 // 1 = D-    = P1 Data
