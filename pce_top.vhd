@@ -40,6 +40,8 @@ entity pce_top is
 		SGX			: in  std_logic;
 		TURBOTAP    : in  std_logic;
 		SIXBUTTON   : in  std_logic;
+		JOY_IN      : in std_logic_vector(7 downto 0);
+		JOY_OUT     : out std_logic_vector(7 downto 0);
 		JOY1 		   : in  std_logic_vector(11 downto 0);
 		JOY2 		   : in  std_logic_vector(11 downto 0);
 		JOY3 		   : in  std_logic_vector(11 downto 0);
@@ -192,8 +194,8 @@ port map(
 	CEB_N		=> CPU_BRM_SEL_N,
 	VDCNUM   => VDCNUM,
 
-	K			=> CPU_IO_DI,
-	O			=> CPU_IO_DO,
+	K			=> JOY_IN,
+	O			=> JOY_OUT,
 	
 	AUD_LDATA=> AUD_LDATA,
 	AUD_RDATA=> AUD_RDATA

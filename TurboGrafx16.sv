@@ -134,7 +134,6 @@ localparam SP64     = 1'b0;
 `endif
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
 assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -172,6 +171,8 @@ parameter CONF_STR = {
 	"O6,ROM Storage,DDR3,SDRAM;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
+	"O5,Serial,Off,SNAC;",
+	"-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
 	"V,v",`BUILD_DATE
@@ -274,6 +275,33 @@ wire ce_rom;
 reg use_sdr = 0;
 always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
 
+wire snac = status[5];
+
+// Index Name    HDMI System
+// 0   = D+    = 2  = d1/right/2
+// 1   = D-    = 1  = d0/up/1
+// 2   = TX-   = 5  = SEL
+// 3   = GND_d = 4  = d3/left/run
+// 4   = RX+   = 6  = CLR
+// 5   = RX-   = 3  = d2/down/sel
+
+reg [2:0] d0sr, d1sr, d2sr, d3sr;
+reg [44:0] sesr, clsr;
+
+always @(posedge clk_sys) begin
+	d0sr <= {d0sr[1:0], USER_IN[1]};
+	d1sr <= {d1sr[1:0], USER_IN[0]};
+	d2sr <= {d2sr[1:0], USER_IN[5]};
+	d3sr <= {d3sr[1:0], USER_IN[3]};
+	sesr <= {sesr[43:0], joy_out[0]};
+	clsr <= {clsr[43:0], joy_out[1]};
+end
+
+wire [7:0] joy_out;
+wire [7:0] joy_in = {4'b1011, snac ? {|d3sr, |d2sr, |d1sr, |d0sr} : joy_latch};
+
+assign USER_OUT = snac ? {2'b11, |clsr, 1'b1, |sesr, 2'b11} : '1;
+
 pce_top #(MAX_SPPL) pce_top
 (
 	.RESET(reset|cart_download),
@@ -306,6 +334,8 @@ pce_top #(MAX_SPPL) pce_top
 	.SGX(sgx),
 	.TURBOTAP(status[2]),
 	.SIXBUTTON(status[4]),
+	.JOY_IN(joy_in),
+	.JOY_OUT(joy_out),
 	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
 	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
 	.JOY3(~{joystick_2[11:4], joystick_2[1], joystick_2[2], joystick_2[0], joystick_2[3]}),
@@ -506,6 +536,47 @@ always_ff @(posedge clk_sys) begin
 	end
 end
 
+////////////////////////////  Input  ///////////////////////////////////
+
+wire [11:0] joy_current;
+reg [2:0] joy_port;
+
+always_comb begin
+	case (joy_port)
+		3'd0: joy_current = joystick_0;
+		3'd1: joy_current = joystick_1;
+		3'd2: joy_current = joystick_2;
+		3'd3: joy_current = joystick_3;
+		3'd4: joy_current = joystick_4;
+		default: joy_current = 12'd0;
+	endcase
+end
+
+reg [3:0] joy_latch;
+wire [11:0] joy_data = ~{joy_current[11:4], joy_current[1], joy_current[2], joy_current[0], joy_current[3]};
+reg high_buttons;
+
+always @(posedge clk_sys) begin : input_block
+	reg [1:0] last_gp;
+
+	case ({high_buttons, joy_out[0]})
+		2'b00: joy_latch <= joy_data[7:4];
+		2'b01: joy_latch <= joy_data[3:0];
+		2'b10: joy_latch <= joy_data[11:8];
+		2'b11: joy_latch <= 4'b0000;
+	endcase
+
+	last_gp <= joy_out[1:0];
+
+	if (joy_out[1]) begin
+		joy_port <= 3'd0;
+		joy_latch <= 4'd0;
+		if (~last_gp[1])
+			high_buttons <= ~high_buttons && status[4];
+	end else if (joy_out[0] && ~last_gp[0] && status[2]) begin
+		joy_port <= joy_port + 3'd1;
+	end
+end
 
 /////////////////////////  STATE SAVE/LOAD  /////////////////////////////
 
