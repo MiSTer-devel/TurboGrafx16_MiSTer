@@ -169,7 +169,9 @@ parameter CONF_STR = {
 `endif
 	"-;",
 	"O3,ROM Data Swap,No,Yes;",
-	"O6,ROM Storage,DDR3,SDRAM;",
+	//"O6,ROM Storage,DDR3,SDRAM;",
+	"D4H2O6,ROM Storage,SDRAM,SDRAM;",
+	"D4H3O6,ROM Storage,DDR3,DDR3;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
@@ -221,7 +223,9 @@ wire        sd_buff_wr;
 wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
+
 wire [21:0] gamma_bus;
+wire [15:0] sdram_sz;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 (
@@ -232,8 +236,10 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({~gg_avail,~bk_ena}),
+	.status_menumask({1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
+	
+	.sdram_sz(sdram_sz),
 
 	.new_vmode(0),
 	.gamma_bus(gamma_bus),
@@ -274,7 +280,7 @@ wire reset = (RESET | status[0] | buttons[1] | bk_loading);
 wire ce_rom;
 
 reg use_sdr = 0;
-always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
+always @(posedge clk_ram) if(rom_rd) use_sdr <= |sdram_sz[14:0]; //status[6];
 
 pce_top #(MAX_SPPL) pce_top
 (
