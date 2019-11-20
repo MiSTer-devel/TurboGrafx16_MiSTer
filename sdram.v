@@ -29,7 +29,7 @@ module sdram
 	output            SDRAM_DQML, // byte mask
 	output            SDRAM_DQMH, // byte mask
 	output reg  [1:0] SDRAM_BA,   // two banks
-	output reg        SDRAM_nCS,  // a single chip select
+	output            SDRAM_nCS,  // a single chip select
 	output reg        SDRAM_nWE,  // write enable
 	output reg        SDRAM_nRAS, // row address select
 	output reg        SDRAM_nCAS, // columns address select
@@ -51,11 +51,12 @@ module sdram
 	output reg        we_ack = 0
 );
 
+assign SDRAM_nCS = 0;
 assign SDRAM_CKE = 1;
 assign {SDRAM_DQMH,SDRAM_DQML} = SDRAM_A[12:11];
 
 // no burst configured
-localparam RASCAS_DELAY   = 3'd3;   // tRCD=20ns -> 3 cycles@128MHz
+localparam RASCAS_DELAY   = 3'd2;   // tRCD=20ns -> 3 cycles@128MHz
 localparam BURST_LENGTH   = 3'b000; // 000=1, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2;   // 2/3 allowed
@@ -68,7 +69,7 @@ localparam STATE_IDLE  = 4'd0;   // first state in cycle
 localparam STATE_START = 4'd1;   // state in which a new command can be started
 localparam STATE_CONT  = STATE_START+RASCAS_DELAY; // 4 command can be continued
 localparam STATE_LAST  = 4'd7;   // last state in cycle
-localparam STATE_READY = STATE_CONT+CAS_LATENCY+1;
+localparam STATE_READY = STATE_CONT+CAS_LATENCY+2;
 
 
 reg  [3:0] q;
@@ -137,47 +138,46 @@ always @(posedge clk) begin
 	end
 end
 
-localparam CMD_INHIBIT         = 4'b1111;
-localparam CMD_NOP             = 4'b0111;
-localparam CMD_ACTIVE          = 4'b0011;
-localparam CMD_READ            = 4'b0101;
-localparam CMD_WRITE           = 4'b0100;
-localparam CMD_BURST_TERMINATE = 4'b0110;
-localparam CMD_PRECHARGE       = 4'b0010;
-localparam CMD_AUTO_REFRESH    = 4'b0001;
-localparam CMD_LOAD_MODE       = 4'b0000;
+localparam CMD_NOP             = 3'b111;
+localparam CMD_BURST_TERMINATE = 3'b110;
+localparam CMD_READ            = 3'b101;
+localparam CMD_WRITE           = 3'b100;
+localparam CMD_ACTIVE          = 3'b011;
+localparam CMD_PRECHARGE       = 3'b010;
+localparam CMD_AUTO_REFRESH    = 3'b001;
+localparam CMD_LOAD_MODE       = 3'b000;
 
 // SDRAM state machines
 always @(posedge clk) begin
-	casex({ram_req,wr,mode,q})
-		{2'b1X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
-		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_WRITE;
-		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
-		{2'b0X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
-
-		// init
-		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
-		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
-
-		                          default: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_INHIBIT;
-	endcase
-
-	casex({ram_req,mode,q})
-		{1'b1,  MODE_NORMAL, STATE_START}: SDRAM_A <= a[21:9];
-		{1'b1,  MODE_NORMAL, STATE_CONT }: SDRAM_A <= {4'b0010, a[22], a[8:1]};
-
-		// init
-		{1'bX,     MODE_LDM, STATE_START}: SDRAM_A <= MODE;
-		{1'bX,     MODE_PRE, STATE_START}: SDRAM_A <= 13'b0010000000000;
-
-		                          default: SDRAM_A <= 13'b0000000000000;
-	endcase
-
-	if(q == STATE_START) SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
+	reg [15:0] data_reg;
 
 	SDRAM_DQ <= 16'hZZZZ;
-	if(q == STATE_CONT && wr) SDRAM_DQ <= data;
-	if(q == STATE_READY && ~wr && ram_req) dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
+	casex({ram_req,wr,mode,q})
+		{2'b1X, MODE_NORMAL, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
+		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE, SDRAM_DQ} <= {CMD_WRITE, data};
+		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
+		{2'b0X, MODE_NORMAL, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
+
+		// init
+		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
+		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
+
+		                          default: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_NOP;
+	endcase
+
+	if(mode == MODE_NORMAL) begin
+		casex(q)
+			STATE_START: SDRAM_A <= a[21:9];
+			STATE_CONT:  SDRAM_A <= {4'b0010, a[22], a[8:1]};
+		endcase;
+	end
+	else if(mode == MODE_LDM && q == STATE_START) SDRAM_A <= MODE;
+	else if(mode == MODE_PRE && q == STATE_START) SDRAM_A <= 13'b0010000000000;
+	else SDRAM_A <= 0;
+
+	data_reg <= SDRAM_DQ;
+	if(q == STATE_START) SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
+	if(q == STATE_READY && ~wr && ram_req) dout <= a[0] ? data_reg[15:8] : data_reg[7:0];
 end
 
 endmodule
