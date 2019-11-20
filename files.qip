@@ -11,4 +11,5 @@ set_global_assignment -name VHDL_FILE huc6280.vhd
 set_global_assignment -name VHDL_FILE huc6270.vhd
 set_global_assignment -name VHDL_FILE huc6260.vhd
 set_global_assignment -name VHDL_FILE pce_top.vhd
+set_global_assignment -name SDC_FILE TurboGrafx16.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE TurboGrafx16.sv
