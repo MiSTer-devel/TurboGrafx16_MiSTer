@@ -176,6 +176,8 @@ parameter CONF_STR = {
 	"O4,Controller Buttons,2,6;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
+	"jn,A,B,Select,Start,X,Y,L,R;",
+	"jp,A,B,Select,Start,L,R,Y,X;",
 	"V,v",`BUILD_DATE
 };
 
