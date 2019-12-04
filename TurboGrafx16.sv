@@ -535,10 +535,12 @@ always @(posedge CLK_50M) begin
         if (reset) begin
                 llapi_button_pressed  <= 0;
                 llapi_button_pressed2 <= 0;
-        end else if (|llapi_buttons)
-                llapi_button_pressed  <= 1;
-        else if (|llapi_buttons2)
-                llapi_button_pressed2 <= 1;
+	end else begin
+		if (|llapi_buttons)
+                	llapi_button_pressed  <= 1;
+        	if (|llapi_buttons2)
+                	llapi_button_pressed2 <= 1;
+	end
 end
 
 // controller id is 0 if there is either an Atari controller or no controller
