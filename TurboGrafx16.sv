@@ -123,7 +123,7 @@ module emu
 	input         OSD_STATUS
 );
 
-//`define USE_SP64
+`define USE_SP64
 
 `ifdef USE_SP64
 localparam MAX_SPPL = 63;
