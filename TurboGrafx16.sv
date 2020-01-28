@@ -123,7 +123,7 @@ module emu
 	input         OSD_STATUS
 );
 
-`define USE_SP64
+//`define USE_SP64
 
 `ifdef USE_SP64
 localparam MAX_SPPL = 63;
@@ -195,8 +195,7 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_ram),
-	.outclk_1(SDRAM_CLK),
-	.outclk_2(clk_sys),
+	.outclk_1(clk_sys),
 	.locked(pll_locked)
 );
 

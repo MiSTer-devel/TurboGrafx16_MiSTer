@@ -1,4 +1,4 @@
-set_global_assignment -name QIP_FILE sdram.qip
+set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name SYSTEMVERILOG_FILE ddram.sv
 set_global_assignment -name VHDL_FILE dpram.vhd
 set_global_assignment -name VHDL_FILE vram_controller.vhd
