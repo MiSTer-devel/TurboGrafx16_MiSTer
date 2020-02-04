@@ -525,10 +525,6 @@ begin
 						RCNT := "0" & x"40";
 					end if;
 
-					-- Raster compare interrupt
-					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
-						IRQ_RCR_SET <= '1';
-					end if;
 				end if;
 
 				if X = X_BG_START-1 then
@@ -574,6 +570,12 @@ begin
 						else
 							BURST <= '0';
 						end if;
+					end if;
+				end if;
+
+				if X = X_REN_END-11 then										-- DS - FIX: should actually be 13, but other timings are off
+					if RCNT = RCR(9 downto 0) and CR(2) = '1' then		-- DS - FIX: should actually be RCR(9 downto 0)+1, but this reduces visual problems
+						IRQ_RCR_SET <= '1';
 					end if;
 				end if;
 
