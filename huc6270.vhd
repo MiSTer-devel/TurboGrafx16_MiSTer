@@ -534,6 +534,13 @@ begin
 				if X = X_BG_START-1 then
 					SP2_ACTIVE <= '0';
 					BG_ON <= CR(7);
+
+					-- VBlank Interrupt
+					if Y = Y_BGREN_END and CR(3) = '1' then
+						IRQ_VBL_SET <= '1';
+					end if;
+
+
 					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
 						BG_ACTIVE <= '1';
 						YOFS_REL_ACK <= '1';
@@ -558,10 +565,6 @@ begin
 						SP1_ACTIVE <= '1';
 					end if;
 
-					-- VBlank Interrupt
-					if Y = Y_BGREN_END and CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
-					end if;
 
 					-- Burst Mode
 					-- Shouldn't CR(7 downto 6)be checked every visible line according to doc?
