@@ -65,7 +65,7 @@ signal COLOR	: std_logic_vector(8 downto 0);
 -- Video Counting. All horizontal constants should be divisible by 24! (LCM of 4, 6 and 8)
 constant LEFT_BL_CLOCKS	: integer := 432;
 constant DISP_CLOCKS	   : integer := 2160;
-constant LINE_CLOCKS	   : integer := 2736;
+constant LINE_CLOCKS	   : integer := 2730;
 constant HS_CLOCKS		: integer := 192;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
@@ -239,9 +239,12 @@ begin
 			CLKEN_FS <= '1';				
 		end if;
 
+		if H_CNT = LINE_CLOCKS-1 then
+			 CLKEN_FS_CNT <= (others => '0');
+			 CLKEN_FS <= '1';
+		end if;
+
 		if H_CNT = LEFT_BL_CLOCKS and V_CNT = TOP_BL_LINES then
-			CLKEN_FS_CNT <= (others => '0');
-			CLKEN_FS <= '1';				
 			DOTCLOCK_FS <= CR(1 downto 0);
 		end if;
 	end if;

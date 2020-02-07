@@ -18,6 +18,7 @@
 { "" "" "" "Ignoring invalid fast I/O register assignments. See the Ignored Assignments panel in the Fitter Compilation Report for more information." {  } {  } 0 176250 "" 0 0 "Quartus II" 0 -1 0 ""}
 { "" "" "" "Ignored locations or region assignments to the following nodes" {  } {  } 0 15705 "" 0 0 "Quartus II" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 10268 "" 0 0 "Quartus II" 0 -1 0 ""}
+{ "" "" "" "*" {  } {  } 0 276027 "" 0 0 "Quartus II" 0 -1 0 ""}
 { "" "" "" "altera_pll.v" {  } {  } 0 9999 "" 0 0 "Quartus II" 0 -1 0 ""}
 { "" "" "" "altera_cyclonev_pll.v" {  } {  } 0 9999 "" 0 0 "Quartus II" 0 -1 0 ""}
 { "" "" "" "altera_pll_reconfig_core.v" {  } {  } 0 9999 "" 0 0 "Quartus II" 0 -1 0 ""}

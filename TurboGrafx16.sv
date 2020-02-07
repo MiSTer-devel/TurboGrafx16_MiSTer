@@ -168,13 +168,17 @@ parameter CONF_STR = {
 `endif
 	"-;",
 	"O3,ROM Data Swap,No,Yes;",
-	"O6,ROM Storage,DDR3,SDRAM;",
+	//"O6,ROM Storage,DDR3,SDRAM;",
+	"D4H2O6,ROM Storage,SDRAM,SDRAM;",
+	"D4H3O6,ROM Storage,DDR3,DDR3;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
 	"O5,Serial,Off,SNAC;",
 	"-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
+	"jn,A,B,Select,Start,X,Y,L,R;",
+	"jp,A,B,Select,Start,L,R,Y,X;",
 	"V,v",`BUILD_DATE
 };
 
@@ -192,8 +196,7 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_ram),
-	.outclk_1(SDRAM_CLK),
-	.outclk_2(clk_sys),
+	.outclk_1(clk_sys),
 	.locked(pll_locked)
 );
 
@@ -223,6 +226,9 @@ wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 
+wire [21:0] gamma_bus;
+wire [15:0] sdram_sz;
+
 hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -232,10 +238,13 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({~gg_avail,~bk_ena}),
+	.status_menumask({1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
+	
+	.sdram_sz(sdram_sz),
 
 	.new_vmode(0),
+	.gamma_bus(gamma_bus),
 	
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
@@ -273,7 +282,7 @@ wire reset = (RESET | status[0] | buttons[1] | bk_loading);
 wire ce_rom;
 
 reg use_sdr = 0;
-always @(posedge clk_ram) if(rom_rd) use_sdr <= status[6];
+always @(posedge clk_ram) if(rom_rd) use_sdr <= |sdram_sz[14:0]; //status[6];
 
 wire snac = status[5];
 
@@ -402,11 +411,11 @@ always @(posedge CLK_VIDEO) begin
 	if(~HSync & HS) VSync <= VS;
 end
 
-video_mixer #(.LINE_LENGTH(560)) video_mixer
+video_mixer #(.LINE_LENGTH(560), .GAMMA(1)) video_mixer
 (
 	.*,
 
-	.clk_sys(CLK_VIDEO),
+	.clk_vid(CLK_VIDEO),
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
