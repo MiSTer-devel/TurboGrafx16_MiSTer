@@ -286,15 +286,15 @@ wire snac = status[5];
 // 5   = RX-   = 3  = d2/down/sel
 
 reg [2:0] d0sr, d1sr, d2sr, d3sr;
-reg [44:0] sesr, clsr;
+reg [20:0] sesr, clsr;
 
 always @(posedge clk_sys) begin
 	d0sr <= {d0sr[1:0], USER_IN[1]};
 	d1sr <= {d1sr[1:0], USER_IN[0]};
 	d2sr <= {d2sr[1:0], USER_IN[5]};
 	d3sr <= {d3sr[1:0], USER_IN[3]};
-	sesr <= {sesr[43:0], joy_out[0]};
-	clsr <= {clsr[43:0], joy_out[1]};
+	sesr <= {sesr[8:0], joy_out[0]};
+	clsr <= {clsr[19:0], joy_out[1]};
 end
 
 wire [7:0] joy_out;
@@ -332,15 +332,8 @@ pce_top #(MAX_SPPL) pce_top
 
 	.SP64(status[11] & SP64),
 	.SGX(sgx),
-	.TURBOTAP(status[2]),
-	.SIXBUTTON(status[4]),
 	.JOY_IN(joy_in),
 	.JOY_OUT(joy_out),
-	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
-	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
-	.JOY3(~{joystick_2[11:4], joystick_2[1], joystick_2[2], joystick_2[0], joystick_2[3]}),
-	.JOY4(~{joystick_3[11:4], joystick_3[1], joystick_3[2], joystick_3[0], joystick_3[3]}),
-	.JOY5(~{joystick_4[11:4], joystick_4[1], joystick_4[2], joystick_4[0], joystick_4[3]}),
 
 	.ReducedVBL(status[17]),
 	.VIDEO_R(r),
