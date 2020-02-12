@@ -50,6 +50,7 @@ signal CPU_A		: std_logic_vector(20 downto 0);
 signal CPU_DI		: std_logic_vector(7 downto 0);
 signal CPU_DO		: std_logic_vector(7 downto 0);
 
+signal CPU_VDCNOWAIT	: std_logic;  -- DS ST0/1/2 opcodes don't incur wait on VDC access
 signal CPU_HSM		: std_logic;
 signal CPU_BLK		: std_logic;
 
@@ -131,6 +132,7 @@ CPU: entity work.cpu65xx(fast)
 		di 			=> unsigned(CPU_DI),
 		do 			=> CPU_DO_U,
 		addr 			=> CPU_ADDR_U,
+		vdcDirect   => CPU_VDCNOWAIT,
 		we 			=> CPU_WE,
 		oe				=> CPU_OE,
 		
@@ -196,7 +198,7 @@ end process;
 VSEL_N <= (VDC_SEL_N and VCE_SEL_N) or not (CPU_WE or CPU_OE);
 process( CLK ) begin
 	if rising_edge( CLK ) then
-		if CLKEN_FF = '1' and VSEL_N = '0' then
+		if CLKEN_FF = '1' and VSEL_N = '0' and CPU_VDCNOWAIT = '0' then  -- DS: no extra wait on ST0/1/2 opcode
 			VRDY <= '0';
 		elsif CLKEN7_FF2 = '1' then
 			VRDY <= '1';
