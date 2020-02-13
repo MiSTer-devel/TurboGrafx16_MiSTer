@@ -46,6 +46,7 @@ entity cpu65xx is
 		do : out unsigned(7 downto 0);
 		--GE addr : out unsigned(15 downto 0);
 		addr : out unsigned(20 downto 0); --GE
+		vdcDirect : out std_logic;        --DS
 		we : out std_logic;
 		oe : out std_logic; --GE HuC6280
 		
@@ -2554,6 +2555,7 @@ calcAddr: process(clk)
 	addr <= x"FF00" & vdcn & myAddr(3 downto 0) when vdcAddr = '1'
 		else MPR(to_integer(myAddr(15 downto 13))) & myAddr(12 downto 0); --GE
 
+	vdcDirect <= vdcAddr;  -- DS
 	debugA <= A;
 	debugX <= X;
 	debugY <= Y;
