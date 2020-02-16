@@ -1,7 +1,12 @@
 -- #############################################################################
 -- ################################## TODO #####################################
 -- #############################################################################
-
+-- 1) Come back and 'alias' some sub-registers to reduce intermediate signals
+--    and make the code more readable
+-- 2) Correct timing of CPU-to-VRAM availability windows
+-- 3) Implement rendering of overscan areas (vertical and horizontal).  This
+--    implies more correct usage of vertical and horizontal registers
+-- 4) Once decapped Hu6270 is understood, validate implementation
 -- #############################################################################
 -- #############################################################################
 -- #############################################################################
@@ -45,30 +50,158 @@ architecture rtl of huc6270 is
 --------------------------------------------------------------------------------
 -- Registers
 --------------------------------------------------------------------------------
+--
+-- Status register is returned in $FF:$0000
+-- ->  Sub-registers:
+-- Bit   0   : CR -> Sprite #0 collision interrupt occurred
+-- Bit   1   : OR -> Sprite overflow interrupt occurred
+-- Bit   2   : RR -> RCR interrupt occurred
+-- Bit   3   : DS -> VRAM to SAT DMA completion interrupt occurred
+-- Bit   4   : DV -> VRAM to VRAM DMA completion interrupt occurred
+-- Bit   5   : VD -> Vertical Blank interrupt occurred
+-- Bit   6   : BSY-> VDC waiting for CPU access slot during acive display
+-- Bits  7-15: (Unused)
+
+
+-- VDC Register 00 (W): MAWR = Memory Address Write Register
+-- VDC Register 01 (W): MARR = Memory Address Read Register
+--
 signal MAWR		: std_logic_vector(15 downto 0);
 signal MARR		: std_logic_vector(15 downto 0);
 
+
+-- VDC Register 02 (W): VWR = VRAM Data Write Register
+-- VDC Register 02 (R): VRR = VRAM Data Read Register
+--
 signal VRR		: std_logic_vector(15 downto 0); -- VRAM Read Buffer
 signal VWR		: std_logic_vector(15 downto 0); -- VRAM Write Latch
 
+-- VDC Register 03 : Unused
+-- VDC Register 04 : Unused
+
+
+-- VDC Register 05 (W): CR = Control Register
+-- ->  Sub-registers:
+-- Bits  0- 3: IE = interrupt request enable
+--             Bit 0 = CC = Collision Detect
+--             Bit 1 = OC = Sprite Overflow Detect
+--             Bit 2 = RC = Scanning Line Detect
+--             Bit 3 = VC = Vertical Blanking Period Detect
+--
+-- Bits  4- 5: EX = External Sync:
+--             00 = Both /Vsync and /Hsync work as input and are synchronized to external signals
+--             01 = /Vsync works as input and is synchronized to external signal (/Hsync works as output)
+--             10 = Invalid
+--             11 = Both /Vsync and /Hsync work as output
+--
+-- Bit   6   : SB = Sprite blanking (0=suppress sprites; 1=display sprites)
+-- Bit   7   : BB = Background blankng (0=suppress background; 1=display background)
+-- Bits  8- 9: TE = Disp output select
+-- Bit  10   : DR = Dynamic RAM refresh
+-- Bits 11-12: IW = Increment select - read/write register is automatically incremented by:
+--             00 = +1
+--             01 = +$20
+--             10 = +$40
+--             11 = +$80
+
+-- Bits 13-15: (Unused)
+--
 signal CR		: std_logic_vector(15 downto 0);
+
+
+-- VDC Register 06 (W): (bits 0-9 used) RCR = Raster Counter Register
+-- VDC Register 07 (W): (bits 0-9 used) BXR = Background X scroll
+-- VDC Register 08 (W): (bits 0-8 used) BYR = Background Y scroll
+--
 signal RCR		: std_logic_vector(15 downto 0);
 signal BXR		: std_logic_vector(15 downto 0);
 signal BYR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 09 (W): MWR = Memory Width Register
+-- ->  Sub-registers:
+-- Bits  0- 1: VM - VRAM Access mode width - how many clocks needed for access: 8-dot pattern as below:
+--             00 = 1 cyc = | CPU | BAT | CPU |  -  | CPU | CG0 | CPU | CG1 |
+--             01 = 2 cyc = |    BAT    |    CPU    |    CG0    |    CG1    |
+--             10 = 2 cyc = |    BAT    |    CPU    |    CG0    |    CG1    |
+--             11 = 4 cyc = |          BAT          |       CG0 or CG1      |
+--
+-- Bits  2- 3: SM - Sprite Access width mode - how many clocks needed for sprite generator access during HBLANK:
+--             00 = 1 cyc = | SP0 | SP1 | SP2 | SP3 | SP0 | SP1 | SP2 | SP3 |
+--             01 = 2 cyc = |  SP0/SP2  |  SP1/SP3  |  SP0/SP2  |  SP1/SP3  |
+--             10 = 2 cyc = |    SP0    |    SP1    |    SP2    |    SP3    |
+--             11 = 4 cyc = |        SP0/SP2        |        SP1/SP3        |
+--
+-- Bit   4- 6: SCREEN - # of characters on virtual screen
+--             000 = X= 32, Y= 32
+--             001 = X= 64, Y= 32
+--             010 = X=128, Y= 32
+--             011 = X=128, Y= 32
+--             100 = X= 32, Y= 64
+--             101 = X= 64, Y= 64
+--             110 = X=128, Y= 64
+--             111 = X=128, Y= 64
+--
+-- Bit   7   : CM = CG mode for 4-cycle access: 0 = CH0/CH1, 1 = CH2/CH3
+-- Bits  8-15: (Unused)
+--
 signal MWR		: std_logic_vector(15 downto 0);
 
+
+-- VDC Register 0A (W): HPR (aka HSR) = Horizontal Sync Register
+-- ->  Sub-registers:
+-- Bits  0- 4: HSW = Horizontal Sync Width
+-- Bits  5- 7: (Unused)
+-- Bit   8-14: HDS = Horizontal Display Start
+-- Bit   15  : (Unused)
+--
 --signal HPR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0B (W): HDR = Horizontal Display Register
+-- ->  Sub-registers:
+-- Bits  0- 6: HDW = Horizontal Display Width
+-- Bits  7   : (Unused)
+-- Bit   8-14: HDE = Horizontal Display End
+-- Bit   15  : (Unused)
+--
 signal HDR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0C (W): VSR (aka VPR) = (Vertical Period Register ?)
+-- ->  Sub-registers:
+-- Bits  0- 4: VSW = Vertical Sync Width
+-- Bits  5- 7: (Unused)
+-- Bit   8-15: VDS = Vertical Display Start
+--
 signal VSR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0D (W): (bits 0-8 used) VDR (aka VDW) = Vertical Display Width
+--
 signal VDR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0E (W): (bits 0-7 used) VDE (aka VCR) = (Vertical Display End Position ?)
+--
 signal VDE		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0F (W): DCR = DMA Control Register
+-- ->  Sub-registers:
+-- Bit   0   : DSC  = VRAM-SATB xfer complete IRQ enable (0=disable)
+-- Bit   1   : DVC  = VRAM-VRAM xfer complete IRQ enable (0=disable)
+-- Bit   2   : SI/D = VRAM-VRAM source address control:      0=auto-increment, 1=auto=decrement
+-- Bit   3   : DI/D = VRAM-VRAM destination address control: 0=auto-increment, 1=auto=decrement
+-- Bit   4   : DSR  = VRAM-SATB xfer auto-repeat: 1 = repeat during each VBLANK period
+-- Bit   5-15: (Unused)
 
 signal DCR		: std_logic_vector(15 downto 0);
 
+-- VDC Register 10 (W): SOUR = VRAM-VRAM DMA Source Address
+-- VDC Register 11 (W): DESR = VRAM-VRAM DMA Destination Address
+-- VDC Register 12 (W): LENR = VRAM-VRAM DMA Length
+--
 signal SOUR		: std_logic_vector(15 downto 0);
 signal DESR		: std_logic_vector(15 downto 0);
 signal LENR		: std_logic_vector(15 downto 0);
 
+-- VDC Register 13 (W): DVSSR = VRAM-SATB block transfer source address
+--
 signal SATB		: std_logic_vector(15 downto 0);
 
 --------------------------------------------------------------------------------
@@ -76,6 +209,9 @@ signal SATB		: std_logic_vector(15 downto 0);
 --------------------------------------------------------------------------------
 -- Registers
 signal HDW : std_logic_vector(6 downto 0);
+
+signal RCNT	: std_logic_vector(8 downto 0);
+
 
 -- Interrupts
 signal IRQ_RCR_SET	: std_logic;
@@ -94,6 +230,9 @@ signal X_REN_END	: std_logic_vector(9 downto 0);
 signal Y_BGREN_START	: std_logic_vector(8 downto 0);
 signal Y_BGREN_END	: std_logic_vector(8 downto 0);
 
+signal X_BYR_LATCH	: std_logic_vector(9 downto 0);
+signal X_BXR_LTCH_DIFF	: std_logic_vector(3 downto 0);
+
 -- signal X_SP_START	: std_logic_vector(9 downto 0);
 -- signal X_SP_END		: std_logic_vector(9 downto 0);
 signal Y_SP_START	: std_logic_vector(8 downto 0);
@@ -109,6 +248,9 @@ signal DCR_DMAS_REQ		: std_logic;
 signal SP_ON		: std_logic;
 signal BG_ON		: std_logic;
 signal BURST		: std_logic;
+signal FSTNONDISP	: std_logic;	-- first non-display line. Blank, same as when BG_ON and SP_ON = 0
+signal VSYNCFIRST	: std_logic;	-- first line of VSYNC; not part of line count
+
 
 --------------------------------------------------------------------------------
 -- Background engine
@@ -447,8 +589,6 @@ variable V_VSW : std_logic_vector(5 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
 
-variable RCNT	: std_logic_vector(8 downto 0);
-
 begin
 	if rising_edge(CLK) then
 		IRQ_RCR_SET <= '0';
@@ -476,16 +616,20 @@ begin
 			Y_BGREN_START <= (others => '1');
 			Y_BGREN_END <= (others => '1');
 			
+			X_BYR_LATCH <= (others => '1');
+			
 			-- X_SP_START <= (others => '1');
 			-- X_SP_END <= (others => '1');
 			Y_SP_START <= (others => '1');
 			Y_SP_END <= (others => '1');
 
-			RCNT := (others => '1');
+			RCNT <= (others => '1');
 
 			SP_ON <= '0';
 			BG_ON <= '0';
 			BURST <= '1';
+			FSTNONDISP <= '0';
+			VSYNCFIRST <= '0';
 
 			YOFS <= (others => '0');
 		else
@@ -495,8 +639,11 @@ begin
 
 				DCR_DMAS_REQ <= '0';
 
-				if HS_N_PREV = '1' and HS_N = '0' then
+				if HS_N_PREV = '1' and HS_N = '0' then		-- start of HSYNC
 					X <= (others => '0');
+				end if;
+
+				if HS_N_PREV = '0' and HS_N = '1' then		-- End of HSYNC
 
 					--V_HDS := HPR(14 downto 8)&"000";
 					V_HDW := (HDR(6 downto 0)+"1")&"000";
@@ -519,26 +666,27 @@ begin
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
 					X_BG_START  <= V_HDS - "10101";
 
+					-- Latches happen before display starts
+					-- So, latch at start of render engine
+					
+					-- 6 cycles before render is needed.  I'm not sure whether it's required for
+					-- reasons of software or hardware, but if it's any later, Outrun gets double-lines
+					-- and other titles get horizontal white lines near RCR interrupt areas.
+					X_BYR_LATCH     <= V_HDS - "10101" - 6;
+					X_BXR_LTCH_DIFF <= x"1";
+
 					-- Raster counter
-					RCNT := RCNT + 1;
-					if Y = Y_BGREN_START then
-						RCNT := "0" & x"40";
+					RCNT <= RCNT + 1;
+					if Y = Y_BGREN_START-1 then
+						RCNT <= "0" & x"40";
 					end if;
 
 				end if;
 
-				if X = X_BG_START-1 then
-					SP2_ACTIVE <= '0';
-					BG_ON <= CR(7);
 
-					-- VBlank Interrupt
-					if Y = Y_BGREN_END and CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
-					end if;
+				if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
 
-
-					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
-						BG_ACTIVE <= '1';
+					if X = X_BYR_LATCH then
 						YOFS_REL_ACK <= '1';
 						if Y = Y_BGREN_START then
 							YOFS <= BYR(8 downto 0);
@@ -547,7 +695,29 @@ begin
 						else
 							YOFS <= YOFS + 1;
 						end if;
+					end if;
+
+					if X = X_BYR_LATCH + X_BXR_LTCH_DIFF then			-- BXR is latched 1 cycle later than BYR
 						XOFS <= BXR(9 downto 0);
+					end if;
+				end if;
+				
+				if X = X_BG_START-1 then
+					SP2_ACTIVE <= '0';
+					BG_ON <= CR(7);
+
+					-- VBlank Interrupt
+					if Y = Y_BGREN_END and CR(3) = '1' then
+						IRQ_VBL_SET <= '1';
+						FSTNONDISP <= '1';			-- first line after displayable area is dark.
+															-- May need to come back later and disable render for that line
+					else
+						FSTNONDISP <= '0';
+					end if;
+
+
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
+						BG_ACTIVE <= '1';
 					end if;
 				end if;
 
@@ -573,8 +743,8 @@ begin
 					end if;
 				end if;
 
-				if X = X_REN_END-11 then										-- DS - FIX: should actually be 13, but other timings are off
-					if RCNT = RCR(9 downto 0) and CR(2) = '1' then		-- DS - FIX: should actually be RCR(9 downto 0)+1, but this reduces visual problems
+				if X = X_REN_END - 13 then
+					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
 						IRQ_RCR_SET <= '1';
 					end if;
 				end if;
@@ -585,12 +755,16 @@ begin
 					SP1_ACTIVE <= '0';
 
 					Y <= Y + 1;
+					if (VSYNCFIRST = '1') then
+						Y <= (others => '0');
+					end if;
 
 					VS_N_PREV <= VS_N;
-					if VS_N_PREV = '1' and VS_N = '0' then
-						Y <= (others => '0');
+					if VS_N_PREV = '1' and VS_N = '0' then		-- start of VSYNC signal
+					
+						VSYNCFIRST <= '1';							-- first line of VSYNC is non-counted
 
-						V_VDS := ('0'&VSR(15 downto 8))+2;
+						V_VDS := ('0'&VSR(15 downto 8))+1;
 						V_VSW := ('0'&VSR( 4 downto 0))+1;
 						V_VDW := VDR(8 downto 0);
 						if V_VDW > 262 then
@@ -614,9 +788,12 @@ begin
 						Y_BGREN_END   <= V_VDE;
 						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
+
+					else
+						VSYNCFIRST <= '0';
 					end if;
 
-					if Y = Y_BGREN_END-1 then
+					if Y = Y_BGREN_END+1 then
 						BURST <= '1';
 						if DCR(4) = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
@@ -1490,6 +1667,14 @@ begin
 					COLNO_FF <= "1" & REN_SP_COL;
 				else
 					COLNO_FF <= "0" & "00000000";
+				end if;
+				
+				if BG_ON = '0' AND SP_ON = '0' then		-- according to docs, this is "burst mode"
+					COLNO_FF <= "1" & "00000000";			-- required for Air Zonk blank screen after "Toxy Lond"
+				end if;
+				
+				if	FSTNONDISP = '1' then					-- first line after end of VDW is blank
+					COLNO_FF <= "1" & "00000000";
 				end if;
 				
 				-- REN_MEM_WE <= '1';
