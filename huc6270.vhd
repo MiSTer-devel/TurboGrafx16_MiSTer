@@ -420,8 +420,6 @@ signal REN_SP_OPQ	: std_logic_vector(MAX_SPPL downto 0); -- Sprite pixel on/off
 constant SP_OPQ_Z : std_logic_vector(MAX_SPPL downto 0) := (others => '0');
 type ren_sp_col_t is array(MAX_SPPL downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
 signal REN_SP_COLTAB	: ren_sp_col_t;
-signal REN_SP_COL	: std_logic_vector(7 downto 0);
-signal REN_SP_PRI	: std_logic;
 
 -- State machine
 type ren_t is ( REN_INI, REN_BGR, REN_BGW, REN_CLK );
@@ -1576,6 +1574,9 @@ end process;
 -- REN_MEM_A <= X;
 process( CLK )
 variable V_X	: std_logic_vector(9 downto 0);
+variable REN_SP_COL	: std_logic_vector(7 downto 0);
+variable REN_SP_PRI	: std_logic;
+
 begin
 	if rising_edge(CLK) then
 		IRQ_COL_SET <= '0';
@@ -1632,12 +1633,12 @@ begin
 				REN <= REN_BGR;
 			
 			when REN_BGR =>
-				REN_SP_COL <= x"00";
-				REN_SP_PRI <= '0';
+				REN_SP_COL := x"00";
+				REN_SP_PRI := '0';
 				for I in MAX_SPPL downto 0 loop
 					if REN_SP_OPQ(I) = '1' then
-						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
-						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
+						REN_SP_COL := REN_SP_COLTAB(I)(7 downto 0);
+						REN_SP_PRI := REN_SP_COLTAB(I)(8);
 					end if;
 				end loop;
 				
@@ -1653,10 +1654,6 @@ begin
 					end if;
 				end if;
 				
-				-- REN_BG_COL <= REN_MEM_DO;
-				REN <= REN_CLK;
-			
-			when REN_CLK =>
 				if REN_SP_PRI = '1' then
 					COLNO_FF <= "1" & REN_SP_COL;
 				-- elsif REN_BG_COL(3 downto 0) /= "0000" then
@@ -1676,6 +1673,11 @@ begin
 				if	FSTNONDISP = '1' then					-- first line after end of VDW is blank
 					COLNO_FF <= "1" & "00000000";
 				end if;
+
+				-- REN_BG_COL <= REN_MEM_DO;
+				REN <= REN_CLK;
+			
+			when REN_CLK =>
 				
 				-- REN_MEM_WE <= '1';
 				if CLKEN = '1' then
