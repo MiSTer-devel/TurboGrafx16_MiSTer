@@ -257,7 +257,7 @@ begin
 		if H_CNT = 0           then HS_N <= '0'; end if;
 		if H_CNT = HS_CLOCKS-1 then HS_N <= '1'; end if;
 		if V_CNT = 0           then VS_N <= '0'; end if;
-		if V_CNT = VS_LINES-1  then VS_N <= '1'; end if;
+		if V_CNT = VS_LINES    then VS_N <= '1'; end if;
 	end if;
 end process;
 
