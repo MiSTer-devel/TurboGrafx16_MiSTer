@@ -24,6 +24,9 @@ It will be automatically loaded with ROM.
 Both Turbotap and 6-button are for games explicitly supporting these features.
 Do not enable these features for games not supporting it, otherwise game will work incorrectly.
 
+## Reset
+Tap the Start + Select buttons together quickly to reset.  The PC Engine/Turbografx-16 did not have a hardware reset button, and instead relies on this button combination.  The timing needs to be exact to trigger this, and sometimes it will take a couple tries.  With this method, in-game options will remain if you have changed them, whereas the MiSTer OSD reset will revert them.
+
 ### Notes:
 * Do not forget to assign joystick buttons on keyboard in order to play on keyboard.
 * Both headerless ROMs and ROMs with header (512b) are supported and automatically distinguished by file size.
