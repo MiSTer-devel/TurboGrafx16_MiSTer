@@ -667,10 +667,11 @@ begin
 					-- Latches happen before display starts
 					-- So, latch at start of render engine
 					
-					-- 6 cycles before render is needed.  I'm not sure whether it's required for
+					-- Several cycles are needed before render.  I'm not sure whether it's required for
 					-- reasons of software or hardware, but if it's any later, Outrun gets double-lines
 					-- and other titles get horizontal white lines near RCR interrupt areas.
-					X_BYR_LATCH     <= V_HDS - "10101" - 6;
+					-- note that the number of cycles may depend on 
+					X_BYR_LATCH     <= V_HDS - "10101" - 10;
 					X_BXR_LTCH_DIFF <= x"1";
 
 					-- Raster counter
