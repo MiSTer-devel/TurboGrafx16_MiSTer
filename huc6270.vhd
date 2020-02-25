@@ -699,8 +699,8 @@ begin
 					-- and other titles get horizontal white lines near RCR interrupt areas.
 					-- note that the number of cycles may depend on
 					
-					if (V_HDS - "10101") > 10 then
-						X_BYR_LATCH     <= V_HDS - "10101" - 10;
+					if (V_HDS - "10101") > 6 then
+						X_BYR_LATCH     <= V_HDS - "10101" - 6;
 					else
 						X_BYR_LATCH     <= "0000000010";		-- 2
 					end if;
