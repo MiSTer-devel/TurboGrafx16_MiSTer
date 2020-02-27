@@ -210,7 +210,7 @@ begin
 
 		if H_CNT = LINE_CLOCKS-1 then
 			CLKEN_CNT <= (others => '0');
-			CLKEN_FF <= '1';				
+		--	CLKEN_FF <= '1';							-- remove excess cycle from scanline as per paulbni
 			H_CNT <= (others => '0');
 			V_CNT <= V_CNT + 1;
 			if V_CNT = TOTAL_LINES-1 then
@@ -241,7 +241,7 @@ begin
 
 		if H_CNT = LINE_CLOCKS-1 then
 			 CLKEN_FS_CNT <= (others => '0');
-			 CLKEN_FS <= '1';
+		--	 CLKEN_FS <= '1';							--  remove excess cycle from scanline as per paulbni
 		end if;
 
 		if H_CNT = LEFT_BL_CLOCKS and V_CNT = TOP_BL_LINES then
