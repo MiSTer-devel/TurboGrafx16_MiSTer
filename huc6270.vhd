@@ -1,12 +1,10 @@
 -- #############################################################################
 -- ################################## TODO #####################################
 -- #############################################################################
--- 1) Come back and 'alias' some sub-registers to reduce intermediate signals
---    and make the code more readable
--- 2) Correct timing of CPU-to-VRAM availability windows
--- 3) Implement rendering of overscan areas (vertical and horizontal).  This
+-- 1) Correct timing of CPU-to-VRAM availability windows
+-- 2) Implement rendering of overscan areas (vertical and horizontal).  This
 --    implies more correct usage of vertical and horizontal registers
--- 4) Once decapped Hu6270 is understood, validate implementation
+-- 3) Once decapped Hu6270 is understood, validate implementation
 -- #############################################################################
 -- #############################################################################
 -- #############################################################################
@@ -154,6 +152,13 @@ signal VDCREG_BYR		: std_logic_vector(15 downto 0);
 -- Bits  8-15: (Unused)
 --
 signal VDCREG_MWR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_VRAM_ACCS_WDTH_MODE	: std_logic_vector(1 downto 0) is VDCREG_MWR(1 downto 0);
+alias VDCREG_SPRT_ACCS_WDTH_MODE	: std_logic_vector(1 downto 0) is VDCREG_MWR(3 downto 2);
+alias VDCREG_VSCRN_XSIZE	: std_logic_vector(1 downto 0) is VDCREG_MWR(5 downto 4);
+alias VDCREG_VSCRN_YSIZE	: std_logic is VDCREG_MWR(6);
+alias VDCREG_CG_MODE		: std_logic is VDCREG_MWR(7);
+
 
 -- VDC Register 0A (W): HSR = Horizontal Sync Register
 -- ->  Sub-registers:
@@ -698,6 +703,9 @@ begin
 					-- reasons of software or hardware, but if it's any later, Outrun gets double-lines
 					-- and other titles get horizontal white lines near RCR interrupt areas.
 					-- note that the number of cycles may depend on
+
+					-- note that CR may also need to be latched at transition from HSync to HDS
+					-- perhaps check for BURST mode here, at this transition, on every line
 					
 					if (V_HDS - "10101") > 6 then
 						X_BYR_LATCH     <= V_HDS - "10101" - 6;
@@ -849,11 +857,11 @@ end process;
 -- Background engine
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-BG_VS <= VDCREG_MWR(6);
-BG_HS <= VDCREG_MWR(5 downto 4);
-BG_DW <= VDCREG_MWR(1 downto 0);
+BG_VS <= VDCREG_VSCRN_YSIZE;	-- virtual screen size (Y): 0 = 32, 1 = 64
+BG_HS <= VDCREG_VSCRN_XSIZE;	-- virtual screen size (X): 0 = 32, 1 = 64, 2 = 128, 3 = 128
+BG_DW <= VDCREG_VRAM_ACCS_WDTH_MODE; 
 -- BG_DW <= "11";
-BG_CM <= VDCREG_MWR(7);
+BG_CM <= VDCREG_CG_MODE;
 -- BG_CM <= '1';
 
 --------------------------------------------------------------------------------
@@ -1133,7 +1141,7 @@ end process;
 -- Sprite engine
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-SP_DW <= VDCREG_MWR(3 downto 2);
+SP_DW <= VDCREG_SPRT_ACCS_WDTH_MODE;
 
 --------------------------------------------------------------------------------
 -- Sprite engine - Part 1
@@ -1784,6 +1792,11 @@ begin
 				DMA_RAM_A_FF <= VDCREG_DESR;
 				DMA_RAM_WE_FF <= '1';
 				DMA <= DMA_WRITE1;
+			-- check for BURST mode end and abort -> Needs testing
+				--if BURST = '0' then --incomplete
+				--	DMA <= DMA_IDLE;
+				--	DMA_BUSY <= '0';
+				--end if;
 
 			when DMA_WRITE1 =>
 				if CLKEN = '1' and DMA_RAM_REQ_FF = DMA_RAM_ACK then
@@ -1812,6 +1825,7 @@ begin
 				
 			when DMA_LOOP2 =>
 				DMA <= DMA_IDLE;
+				DMA_BUSY <= '0';
 			
 			when others => null;
 			end case;
