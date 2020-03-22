@@ -52,6 +52,7 @@ signal CPU_DO		: std_logic_vector(7 downto 0);
 
 signal CPU_VDCNOWAIT	: std_logic;  -- DS ST0/1/2 opcodes don't incur wait on VDC access
 signal CPU_HSM		: std_logic;
+signal CPU_HSM_FF	: std_logic;
 signal CPU_BLK		: std_logic;
 
 signal CPU_WE		: std_logic;
@@ -66,6 +67,7 @@ signal CPU_EN		: std_logic;
 
 -- Clock dividers
 signal CLKDIV_HI	: std_logic_vector(2 downto 0) := (others => '0');
+signal CLKDIV_LO	: std_logic_vector(4 downto 0) := (others => '0');
 signal CPU_CLKEN	: std_logic := '0';
 signal TMR_CLKEN	: std_logic := '0';
 signal PSG_CLKEN	: std_logic := '0';
@@ -172,14 +174,36 @@ begin
 		CPU_EN    <= '0';
 		CLKEN7_FF <= '0';
 
-		CLKDIV_HI <= CLKDIV_HI + 1;
-		if CLKDIV_HI = "101" then
-			CPU_EN    <= RDY and VRDY;
-			CLKEN7_FF <= '1';
-			TMR_CLKEN <= '1';
-			PSG_CLKEN <= '1';
-			CLKDIV_HI <= "000";
+		if CPU_HSM /= CPU_HSM_FF then			-- if clock speed changed, reset clock counters
+			CLKDIV_HI <= "001";
+			CLKDIV_LO <= "00001";
+			
+		else
+		
+			CLKDIV_HI <= CLKDIV_HI + 1;		-- clock divider for high-speed CPU, TIMER, and PSG
+			if CLKDIV_HI = "101" then
+				if CPU_HSM = '1' then
+					CPU_EN    <= RDY and VRDY;
+					CLKEN7_FF <= '1';
+				end if;
+		
+				TMR_CLKEN <= '1';
+				PSG_CLKEN <= '1';
+				CLKDIV_HI <= "000";
+			end if;
+
+			CLKDIV_LO <= CLKDIV_LO + 1;		-- clock divider for low-speed CPU
+			if CLKDIV_LO = "10111" then		-- seems like it should be 1/4 of hi-speed ("10100"), but this measures as correct
+				if CPU_HSM = '0' then
+					CPU_EN    <= RDY and VRDY;
+					CLKEN7_FF <= '1';
+				end if;
+				CLKDIV_LO <= "00000";
+			end if;
 		end if;
+
+		CPU_HSM_FF <= CPU_HSM;
+
 	end if;
 end process;
 
