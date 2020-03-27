@@ -141,7 +141,7 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign LED_USER  = cart_download | bk_state | (status[23] & bk_pending);
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
-assign BUTTONS   = llapi_osd;
+assign BUTTONS   = osd_btn | llapi_osd;
 
 assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
@@ -485,7 +485,6 @@ always @(posedge clk_sys) begin
 	end
 end
 
-
 //////////////////   LLAPI   ///////////////////
 
 wire [31:0] llapi_buttons, llapi_buttons2;
@@ -661,6 +660,26 @@ always_comb begin
                 joy_3 = joystick_3;
                 joy_4 = joystick_4;
         end
+end
+
+reg osd_btn = 0;
+always @(posedge clk_sys) begin
+	integer timeout = 0;
+	reg	has_bootrom = 0;
+	reg	last_rst = 0;
+
+	if (reset) last_rst = 0;
+	if (status[0]) last_rst = 1;
+
+	if (cart_download & ioctl_wr & status[0]) has_bootrom <= 1;
+
+	if (last_rst & ~status[0]) begin
+		osd_btn <= 0;
+		if (timeout < 24000000) begin
+			timeout <= timeout + 1;
+			osd_btn <= ~has_bootrom;
+		end
+	end
 end
 
 ////////////////////////////  CODES  ///////////////////////////////////
