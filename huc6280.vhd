@@ -181,7 +181,7 @@ begin
 		else
 		
 			CLKDIV_HI <= CLKDIV_HI + 1;		-- clock divider for high-speed CPU, TIMER, and PSG
-			if CLKDIV_HI = "101" then
+			if CLKDIV_HI = "101" then			-- divide by 6, from 42.95MHz -> 7.16MHz
 				if CPU_HSM = '1' then
 					CPU_EN    <= RDY and VRDY;
 					CLKEN7_FF <= '1';
@@ -193,7 +193,7 @@ begin
 			end if;
 
 			CLKDIV_LO <= CLKDIV_LO + 1;		-- clock divider for low-speed CPU
-			if CLKDIV_LO = "10111" then		-- seems like it should be 1/4 of hi-speed ("10100"), but this measures as correct
+			if CLKDIV_LO = "10111" then		-- divide by 24, from 42.95MHz -> 1.78MHz
 				if CPU_HSM = '0' then
 					CPU_EN    <= RDY and VRDY;
 					CLKEN7_FF <= '1';
