@@ -834,7 +834,7 @@ begin
 						VSYNCFIRST <= '0';
 					end if;
 
-					if Y = Y_BGREN_END+1 then
+					if Y = Y_BGREN_END then
 						BURST <= '1';
 						if VDCREG_SATBDMA_AUTORPT_FLG = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
