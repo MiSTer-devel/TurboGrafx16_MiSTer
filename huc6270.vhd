@@ -1,7 +1,10 @@
 -- #############################################################################
 -- ################################## TODO #####################################
 -- #############################################################################
-
+-- 1) Correct timing of CPU-to-VRAM availability windows
+-- 2) Implement rendering of overscan areas (vertical and horizontal).  This
+--    implies more correct usage of vertical and horizontal registers
+-- 3) Once decapped Hu6270 is understood, validate implementation
 -- #############################################################################
 -- #############################################################################
 -- #############################################################################
@@ -45,37 +48,202 @@ architecture rtl of huc6270 is
 --------------------------------------------------------------------------------
 -- Registers
 --------------------------------------------------------------------------------
-signal MAWR		: std_logic_vector(15 downto 0);
-signal MARR		: std_logic_vector(15 downto 0);
+--
+-- Status register is returned in $FF:$0000
+-- ->  Sub-registers:
+-- Bit   0   : CR -> Sprite #0 collision interrupt occurred
+-- Bit   1   : OR -> Sprite overflow interrupt occurred
+-- Bit   2   : RR -> RCR interrupt occurred
+-- Bit   3   : DS -> VRAM to SAT DMA completion interrupt occurred
+-- Bit   4   : DV -> VRAM to VRAM DMA completion interrupt occurred
+-- Bit   5   : VD -> Vertical Blank interrupt occurred
+-- Bit   6   : BSY-> VDC waiting for CPU access slot during acive display
+-- Bits  7-15: (Unused)
 
-signal VRR		: std_logic_vector(15 downto 0); -- VRAM Read Buffer
-signal VWR		: std_logic_vector(15 downto 0); -- VRAM Write Latch
 
-signal CR		: std_logic_vector(15 downto 0);
-signal RCR		: std_logic_vector(15 downto 0);
-signal BXR		: std_logic_vector(15 downto 0);
-signal BYR		: std_logic_vector(15 downto 0);
-signal MWR		: std_logic_vector(15 downto 0);
+-- VDC Register 00 (W): MAWR = Memory Address Write Register
+-- VDC Register 01 (W): MARR = Memory Address Read Register
+--
+signal VDCREG_MAWR		: std_logic_vector(15 downto 0);
+signal VDCREG_MARR		: std_logic_vector(15 downto 0);
 
---signal HPR		: std_logic_vector(15 downto 0);
-signal HDR		: std_logic_vector(15 downto 0);
-signal VSR		: std_logic_vector(15 downto 0);
-signal VDR		: std_logic_vector(15 downto 0);
-signal VDE		: std_logic_vector(15 downto 0);
 
-signal DCR		: std_logic_vector(15 downto 0);
+-- VDC Register 02 (W): VWR = VRAM Data Write Register
+-- VDC Register 02 (R): VRR = VRAM Data Read Register
+--
+signal VDCREG_VRR		: std_logic_vector(15 downto 0); -- VRAM Read Buffer
+signal VDCREG_VWR		: std_logic_vector(15 downto 0); -- VRAM Write Latch
 
-signal SOUR		: std_logic_vector(15 downto 0);
-signal DESR		: std_logic_vector(15 downto 0);
-signal LENR		: std_logic_vector(15 downto 0);
+-- VDC Register 03 : Unused
+-- VDC Register 04 : Unused
 
-signal SATB		: std_logic_vector(15 downto 0);
+
+-- VDC Register 05 (W): CR = Control Register
+-- ->  Sub-registers:
+-- Bits  0- 3: IE = interrupt request enable
+--             Bit 0 = CC = Collision Detect
+--             Bit 1 = OC = Sprite Overflow Detect
+--             Bit 2 = RC = Scanning Line Detect
+--             Bit 3 = VC = Vertical Blanking Period Detect
+--
+-- Bits  4- 5: EX = External Sync:
+--             00 = Both /Vsync and /Hsync work as input and are synchronized to external signals
+--             01 = /Vsync works as input and is synchronized to external signal (/Hsync works as output)
+--             10 = Invalid
+--             11 = Both /Vsync and /Hsync work as output
+--
+-- Bit   6   : SB = Sprite blanking (0=suppress sprites; 1=display sprites)
+-- Bit   7   : BB = Background blankng (0=suppress background; 1=display background)
+-- Bits  8- 9: TE = Disp output select
+-- Bit  10   : DR = Dynamic RAM refresh
+-- Bits 11-12: IW = Increment select - read/write register is automatically incremented by:
+--             00 = +1
+--             01 = +$20
+--             10 = +$40
+--             11 = +$80
+
+-- Bits 13-15: (Unused)
+--
+signal VDCREG_CR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_COLL_IRQEN_FLG	: std_logic is VDCREG_CR(0);
+alias VDCREG_OVER_IRQEN_FLG	: std_logic is VDCREG_CR(1);
+alias VDCREG_RCR_IRQEN_FLG		: std_logic is VDCREG_CR(2);
+alias VDCREG_VBLNK_IRQEN_FLG	: std_logic is VDCREG_CR(3);
+
+alias VDCREG_SPRITE_EN_FLG		: std_logic is VDCREG_CR(6);
+alias VDCREG_BKGRND_EN_FLG		: std_logic is VDCREG_CR(7);
+alias VDCREG_MAWR_RR_INC_SEL	: std_logic_vector(1 downto 0) is VDCREG_CR(12 downto 11);
+
+
+-- VDC Register 06 (W): (bits 0-9 used) RCR = Raster Counter Register
+-- VDC Register 07 (W): (bits 0-9 used) BXR = Background X scroll
+-- VDC Register 08 (W): (bits 0-8 used) BYR = Background Y scroll
+--
+signal VDCREG_RCR		: std_logic_vector(15 downto 0);
+signal VDCREG_BXR		: std_logic_vector(15 downto 0);
+signal VDCREG_BYR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 09 (W): MWR = Memory Width Register
+-- ->  Sub-registers:
+-- Bits  0- 1: VM - VRAM Access mode width - how many clocks needed for access: 8-dot pattern as below:
+--             00 = 1 cyc = | CPU | BAT | CPU |  -  | CPU | CG0 | CPU | CG1 |
+--             01 = 2 cyc = |    BAT    |    CPU    |    CG0    |    CG1    |
+--             10 = 2 cyc = |    BAT    |    CPU    |    CG0    |    CG1    |
+--             11 = 4 cyc = |          BAT          |       CG0 or CG1      |
+--
+-- Bits  2- 3: SM - Sprite Access width mode - how many clocks needed for sprite generator access during HBLANK:
+--             00 = 1 cyc = | SP0 | SP1 | SP2 | SP3 | SP0 | SP1 | SP2 | SP3 |
+--             01 = 2 cyc = |  SP0/SP2  |  SP1/SP3  |  SP0/SP2  |  SP1/SP3  |
+--             10 = 2 cyc = |    SP0    |    SP1    |    SP2    |    SP3    |
+--             11 = 4 cyc = |        SP0/SP2        |        SP1/SP3        |
+--
+-- Bit   4- 6: SCREEN - # of characters on virtual screen
+--             000 = X= 32, Y= 32
+--             001 = X= 64, Y= 32
+--             010 = X=128, Y= 32
+--             011 = X=128, Y= 32
+--             100 = X= 32, Y= 64
+--             101 = X= 64, Y= 64
+--             110 = X=128, Y= 64
+--             111 = X=128, Y= 64
+--
+-- Bit   7   : CM = CG mode for 4-cycle access: 0 = CH0/CH1, 1 = CH2/CH3
+-- Bits  8-15: (Unused)
+--
+signal VDCREG_MWR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_VRAM_ACCS_WDTH_MODE	: std_logic_vector(1 downto 0) is VDCREG_MWR(1 downto 0);
+alias VDCREG_SPRT_ACCS_WDTH_MODE	: std_logic_vector(1 downto 0) is VDCREG_MWR(3 downto 2);
+alias VDCREG_VSCRN_XSIZE	: std_logic_vector(1 downto 0) is VDCREG_MWR(5 downto 4);
+alias VDCREG_VSCRN_YSIZE	: std_logic is VDCREG_MWR(6);
+alias VDCREG_CG_MODE		: std_logic is VDCREG_MWR(7);
+
+
+-- VDC Register 0A (W): HSR = Horizontal Sync Register
+-- ->  Sub-registers:
+-- Bits  0- 4: HSW = Horizontal Sync Width
+-- Bits  5- 7: (Unused)
+-- Bit   8-14: HDS = Horizontal Display Start
+-- Bit   15  : (Unused)
+--
+signal VDCREG_HSR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_HSW	: std_logic_vector(4 downto 0) is VDCREG_HSR( 4 downto 0);
+alias VDCREG_HDS	: std_logic_vector(6 downto 0) is VDCREG_HSR(14 downto 8);
+
+
+-- VDC Register 0B (W): HDR = Horizontal Display Register
+-- ->  Sub-registers:
+-- Bits  0- 6: HDW = Horizontal Display Width
+-- Bits  7   : (Unused)
+-- Bit   8-14: HDE = Horizontal Display End
+-- Bit   15  : (Unused)
+--
+signal VDCREG_HDR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_HDW	: std_logic_vector(6 downto 0) is VDCREG_HDR( 6 downto 0);
+alias VDCREG_HDE	: std_logic_vector(6 downto 0) is VDCREG_HDR(14 downto 8);
+
+
+-- VDC Register 0C (W): VSR (aka VPR) = (Vertical Period Register ?)
+-- ->  Sub-registers:
+-- Bits  0- 4: VSW = Vertical Sync Width
+-- Bits  5- 7: (Unused)
+-- Bit   8-15: VDS = Vertical Display Start
+--
+signal VDCREG_VSR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_VSW	: std_logic_vector(4 downto 0) is VDCREG_VSR( 4 downto 0);
+alias VDCREG_VDS	: std_logic_vector(7 downto 0) is VDCREG_VSR(15 downto 8);
+
+
+-- VDC Register 0D (W): (bits 0-8 used) VDR (aka VDW) = Vertical Display Width
+--
+signal VDCREG_VDR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0E (W): (bits 0-7 used) VDE (aka VCR) = (Vertical Display End Position ?)
+--
+signal VDCREG_VDE		: std_logic_vector(15 downto 0);
+
+-- VDC Register 0F (W): DCR = DMA Control Register
+-- ->  Sub-registers:
+-- Bit   0   : DSC  = VRAM-SATB xfer complete IRQ enable (0=disable)
+-- Bit   1   : DVC  = VRAM-VRAM xfer complete IRQ enable (0=disable)
+-- Bit   2   : SI/D = VRAM-VRAM source address control:      0=auto-increment, 1=auto=decrement
+-- Bit   3   : DI/D = VRAM-VRAM destination address control: 0=auto-increment, 1=auto=decrement
+-- Bit   4   : DSR  = VRAM-SATB xfer auto-repeat: 1 = repeat during each VBLANK period
+-- Bit   5-15: (Unused)
+
+signal VDCREG_DCR		: std_logic_vector(15 downto 0);
+
+alias VDCREG_SATBDMA_IRQEN_FLG	: std_logic is VDCREG_DCR(0);
+alias VDCREG_VRAMDMA_IRQEN_FLG	: std_logic is VDCREG_DCR(1);
+alias VDCREG_VRAMDMA_SRCDEC_FLG	: std_logic is VDCREG_DCR(2);
+alias VDCREG_VRAMDMA_DSTDEC_FLG	: std_logic is VDCREG_DCR(3);
+alias VDCREG_SATBDMA_AUTORPT_FLG	: std_logic is VDCREG_DCR(4);
+
+
+-- VDC Register 10 (W): SOUR = VRAM-VRAM DMA Source Address
+-- VDC Register 11 (W): DESR = VRAM-VRAM DMA Destination Address
+-- VDC Register 12 (W): LENR = VRAM-VRAM DMA Length
+--
+signal VDCREG_SOUR		: std_logic_vector(15 downto 0);
+signal VDCREG_DESR		: std_logic_vector(15 downto 0);
+signal VDCREG_LENR		: std_logic_vector(15 downto 0);
+
+-- VDC Register 13 (W): DVSSR = VRAM-SATB block transfer source address
+--
+signal VDCREG_SATB		: std_logic_vector(15 downto 0);
 
 --------------------------------------------------------------------------------
 -- Video counting and internal synchronization
 --------------------------------------------------------------------------------
 -- Registers
 signal HDW : std_logic_vector(6 downto 0);
+
+signal RCNT	: std_logic_vector(8 downto 0);
+
 
 -- Interrupts
 signal IRQ_RCR_SET	: std_logic;
@@ -94,6 +262,9 @@ signal X_REN_END	: std_logic_vector(9 downto 0);
 signal Y_BGREN_START	: std_logic_vector(8 downto 0);
 signal Y_BGREN_END	: std_logic_vector(8 downto 0);
 
+signal X_BYR_LATCH	: std_logic_vector(9 downto 0);
+signal X_BXR_LTCH_DIFF	: std_logic_vector(3 downto 0);
+
 -- signal X_SP_START	: std_logic_vector(9 downto 0);
 -- signal X_SP_END		: std_logic_vector(9 downto 0);
 signal Y_SP_START	: std_logic_vector(8 downto 0);
@@ -109,6 +280,9 @@ signal DCR_DMAS_REQ		: std_logic;
 signal SP_ON		: std_logic;
 signal BG_ON		: std_logic;
 signal BURST		: std_logic;
+signal FSTNONDISP	: std_logic;	-- first non-display line. Blank, same as when BG_ON and SP_ON = 0
+signal VSYNCFIRST	: std_logic;	-- first line of VSYNC; not part of line count
+
 
 --------------------------------------------------------------------------------
 -- Background engine
@@ -278,8 +452,6 @@ signal REN_SP_OPQ	: std_logic_vector(MAX_SPPL downto 0); -- Sprite pixel on/off
 constant SP_OPQ_Z : std_logic_vector(MAX_SPPL downto 0) := (others => '0');
 type ren_sp_col_t is array(MAX_SPPL downto 0) of std_logic_vector(8 downto 0); -- PRI & PAL & COL
 signal REN_SP_COLTAB	: ren_sp_col_t;
-signal REN_SP_COL	: std_logic_vector(7 downto 0);
-signal REN_SP_PRI	: std_logic;
 
 -- State machine
 type ren_t is ( REN_INI, REN_BGR, REN_BGW, REN_CLK );
@@ -447,8 +619,6 @@ variable V_VSW : std_logic_vector(5 downto 0);
 variable V_VDW : std_logic_vector(8 downto 0);
 variable V_VCR : std_logic_vector(7 downto 0);
 
-variable RCNT	: std_logic_vector(8 downto 0);
-
 begin
 	if rising_edge(CLK) then
 		IRQ_RCR_SET <= '0';
@@ -476,16 +646,20 @@ begin
 			Y_BGREN_START <= (others => '1');
 			Y_BGREN_END <= (others => '1');
 			
+			X_BYR_LATCH <= (others => '1');
+			
 			-- X_SP_START <= (others => '1');
 			-- X_SP_END <= (others => '1');
 			Y_SP_START <= (others => '1');
 			Y_SP_END <= (others => '1');
 
-			RCNT := (others => '1');
+			RCNT <= (others => '1');
 
 			SP_ON <= '0';
 			BG_ON <= '0';
 			BURST <= '1';
+			FSTNONDISP <= '0';
+			VSYNCFIRST <= '0';
 
 			YOFS <= (others => '0');
 		else
@@ -495,11 +669,14 @@ begin
 
 				DCR_DMAS_REQ <= '0';
 
-				if HS_N_PREV = '1' and HS_N = '0' then
+				if HS_N_PREV = '1' and HS_N = '0' then		-- start of HSYNC
 					X <= (others => '0');
+				end if;
 
-					--V_HDS := HPR(14 downto 8)&"000";
-					V_HDW := (HDR(6 downto 0)+"1")&"000";
+				if HS_N_PREV = '0' and HS_N = '1' then		-- End of HSYNC
+
+					--V_HDS := VDCREG_HSR(14 downto 8)&"000";
+					V_HDW := (VDCREG_HDW + "1") & "000";
 
 					if V_HDW >= HSIZE then 
 						V_HDS := (others => '0');
@@ -509,68 +686,107 @@ begin
 					end if;
 					V_HDS := '0'&V_HDS(9 downto 1) + HSTART - 1;
 
-					--V_HDS := HPR(4 downto 0);
-					--V_HDE := HDR(14 downto 8);
+					--V_HDS := VDCREG_HSR(4 downto 0);
+					--V_HDE := VDCREG_HDR(14 downto 8);
 
-					HDW <= HDR(6 downto 0);
+					HDW <= VDCREG_HDW;
 
 					X_REN_START <= V_HDS;
 					X_REN_END   <= V_HDS + V_HDW;
 					-- BG must start before REN (max 2*8 tile reads, plus render overhead)
 					X_BG_START  <= V_HDS - "10101";
 
+					-- Latches happen before display starts
+					-- So, latch at start of render engine
+					
+					-- Several cycles are needed before render.  I'm not sure whether it's required for
+					-- reasons of software or hardware, but if it's any later, Outrun gets double-lines
+					-- and other titles get horizontal white lines near RCR interrupt areas.
+					-- note that the number of cycles may depend on
+
+					-- note that CR may also need to be latched at transition from HSync to HDS
+					-- perhaps check for BURST mode here, at this transition, on every line
+					
+					if (V_HDS - "10101") > 6 then
+						X_BYR_LATCH     <= V_HDS - "10101" - 6;
+					else
+						X_BYR_LATCH     <= "0000000010";		-- 2
+					end if;
+					
+					X_BXR_LTCH_DIFF <= x"1";
+
 					-- Raster counter
-					RCNT := RCNT + 1;
-					if Y = Y_BGREN_START then
-						RCNT := "0" & x"40";
+					RCNT <= RCNT + 1;
+					if Y = Y_BGREN_START-1 then
+						RCNT <= "0" & x"40";
 					end if;
 
-					-- Raster compare interrupt
-					if RCNT = RCR(9 downto 0) and CR(2) = '1' then
-						IRQ_RCR_SET <= '1';
-					end if;
 				end if;
 
-				if X = X_BG_START-1 then
-					SP2_ACTIVE <= '0';
-					BG_ON <= CR(7);
-					if Y >= Y_BGREN_START and Y < Y_BGREN_END and CR(7) = '1' then
-						BG_ACTIVE <= '1';
+
+				if Y >= Y_BGREN_START and Y < Y_BGREN_END and VDCREG_BKGRND_EN_FLG = '1' then
+
+					if X = X_BYR_LATCH then
 						YOFS_REL_ACK <= '1';
 						if Y = Y_BGREN_START then
-							YOFS <= BYR(8 downto 0);
+							YOFS <= VDCREG_BYR(8 downto 0);
 						elsif YOFS_RELOAD = '1' then
-							YOFS <= BYR(8 downto 0) + 1;
+							YOFS <= VDCREG_BYR(8 downto 0) + 1;
 						else
 							YOFS <= YOFS + 1;
 						end if;
-						XOFS <= BXR(9 downto 0);
+					end if;
+
+					if X = X_BYR_LATCH + X_BXR_LTCH_DIFF then			-- BXR is latched 1 cycle later than BYR
+						XOFS <= VDCREG_BXR(9 downto 0);
+					end if;
+					
+				end if;
+				
+				if X = X_BG_START-1 then
+					SP2_ACTIVE <= '0';
+					BG_ON <= VDCREG_BKGRND_EN_FLG;
+
+					-- VBlank Interrupt
+					if Y = Y_BGREN_END and VDCREG_VBLNK_IRQEN_FLG = '1' then
+						IRQ_VBL_SET <= '1';
+						FSTNONDISP <= '1';			-- first line after displayable area is dark.
+															-- May need to come back later and disable render for that line
+					else
+						FSTNONDISP <= '0';
+					end if;
+
+
+					if Y >= Y_BGREN_START and Y < Y_BGREN_END and VDCREG_BKGRND_EN_FLG = '1' then
+						BG_ACTIVE <= '1';
 					end if;
 				end if;
 
 				if X = X_REN_START-1 then
-					SP_ON <= CR(6);
+					SP_ON <= VDCREG_SPRITE_EN_FLG;
 					if Y >= Y_BGREN_START and Y < Y_BGREN_END then
 						REN_ACTIVE <= '1';
 					end if;
 
-					if Y >= Y_SP_START and Y < Y_SP_END and CR(6) = '1' then
+					if Y >= Y_SP_START and Y < Y_SP_END and VDCREG_SPRITE_EN_FLG = '1' then
 						SP1_ACTIVE <= '1';
 					end if;
 
-					-- VBlank Interrupt
-					if Y = Y_BGREN_END and CR(3) = '1' then
-						IRQ_VBL_SET <= '1';
-					end if;
 
 					-- Burst Mode
-					-- Shouldn't CR(7 downto 6)be checked every visible line according to doc?
+					-- Shouldn't VDCREG_CR(7 downto 6)be checked every visible line according to doc?
 					if Y = Y_BGREN_START then
-						if CR(7 downto 6) = "00" then
+						if VDCREG_BKGRND_EN_FLG = '0' and VDCREG_SPRITE_EN_FLG = '0' then
 							BURST <= '1';
 						else
 							BURST <= '0';
 						end if;
+					end if;
+				end if;
+
+				if X = X_REN_END - 13 then
+					if RCNT = VDCREG_RCR(9 downto 0) and VDCREG_RCR_IRQEN_FLG = '1' then
+						IRQ_RCR_SET <= '1';
 					end if;
 				end if;
 
@@ -580,21 +796,25 @@ begin
 					SP1_ACTIVE <= '0';
 
 					Y <= Y + 1;
+					if (VSYNCFIRST = '1') then
+						Y <= (others => '0');
+					end if;
 
 					VS_N_PREV <= VS_N;
-					if VS_N_PREV = '1' and VS_N = '0' then
-						Y <= (others => '0');
+					if VS_N_PREV = '1' and VS_N = '0' then		-- start of VSYNC signal
+					
+						VSYNCFIRST <= '1';							-- first line of VSYNC is non-counted
 
-						V_VDS := ('0'&VSR(15 downto 8))+2;
-						V_VSW := ('0'&VSR( 4 downto 0))+1;
-						V_VDW := VDR(8 downto 0);
+						V_VDS := ('0' & VDCREG_VDS) + 1;
+						V_VSW := ('0' & VDCREG_VSW) + 1;
+						V_VDW := VDCREG_VDR(8 downto 0);
 						if V_VDW > 262 then
 							-- some games use 1FF value for VDW which overflows calculations below
 							-- thus limit it to max possible value.
 							V_VDW := std_logic_vector(to_unsigned(262,9));
 						end if;
 
-						--V_VCR := VDE(7 downto 0);
+						--V_VCR := VDCREG_VDE(7 downto 0);
 
 						V_VDS := V_VDS + V_VSW;
 						V_VDE := V_VDS + V_VDW + 1;
@@ -609,11 +829,14 @@ begin
 						Y_BGREN_END   <= V_VDE;
 						Y_SP_START    <= V_VDS - 1;   -- SP1 state machine starts on line before BG REN
 						Y_SP_END      <= V_VDE;
+
+					else
+						VSYNCFIRST <= '0';
 					end if;
 
-					if Y = Y_BGREN_END-1 then
+					if Y = Y_BGREN_END then
 						BURST <= '1';
-						if DCR(4) = '1' then -- Auto SATB DMA
+						if VDCREG_SATBDMA_AUTORPT_FLG = '1' then -- Auto SATB DMA
 							DCR_DMAS_REQ <= '1';
 						end if;
 					end if;
@@ -634,11 +857,11 @@ end process;
 -- Background engine
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-BG_VS <= MWR(6);
-BG_HS <= MWR(5 downto 4);
-BG_DW <= MWR(1 downto 0);
+BG_VS <= VDCREG_VSCRN_YSIZE;	-- virtual screen size (Y): 0 = 32, 1 = 64
+BG_HS <= VDCREG_VSCRN_XSIZE;	-- virtual screen size (X): 0 = 32, 1 = 64, 2 = 128, 3 = 128
+BG_DW <= VDCREG_VRAM_ACCS_WDTH_MODE; 
 -- BG_DW <= "11";
-BG_CM <= MWR(7);
+BG_CM <= VDCREG_CG_MODE;
 -- BG_CM <= '1';
 
 --------------------------------------------------------------------------------
@@ -672,7 +895,7 @@ begin
 					BG_BUSY <= '1';
 					--BG_BUSY2 <= '1';
 					
-					-- V_BG_Y := Y - Y_BGREN_START + BYR(8 downto 0);
+					-- V_BG_Y := Y - Y_BGREN_START + VDCREG_BYR(8 downto 0);
 					V_BG_Y := YOFS;
 					if BG_VS = '0' then
 						BG_Y <= "0" & V_BG_Y(7 downto 0);
@@ -918,7 +1141,7 @@ end process;
 -- Sprite engine
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-SP_DW <= MWR(3 downto 2);
+SP_DW <= VDCREG_SPRT_ACCS_WDTH_MODE;
 
 --------------------------------------------------------------------------------
 -- Sprite engine - Part 1
@@ -983,7 +1206,7 @@ begin
 				if ( SP_CUR_Y >= SP_Y) and ( SP_CUR_Y < SP_Y + V_SP_H) then
 					if (SP_NB = "0010000" and SP64 = '0') or SP_NB = "1000000" then 
 						SP_NB <= "1111111"; -- Overflow
-						if CR(1) = '1' then
+						if VDCREG_OVER_IRQEN_FLG = '1' then
 							IRQ_OVF_SET <= '1';
 						end if;
 						SP1 <= SP1_END;
@@ -1062,7 +1285,7 @@ begin
 				if SP_CGX = '1' then
 					if (SP_NB = "0001111" and SP64='0') or SP_NB = "0111111" then
 						SP_NB <= "1111111"; -- Overflow
-						if CR(1) = '1' then
+						if VDCREG_OVER_IRQEN_FLG = '1' then
 							IRQ_OVF_SET <= '1';
 						end if;						
 						SP1 <= SP1_END;
@@ -1394,6 +1617,9 @@ end process;
 -- REN_MEM_A <= X;
 process( CLK )
 variable V_X	: std_logic_vector(9 downto 0);
+variable REN_SP_COL	: std_logic_vector(7 downto 0);
+variable REN_SP_PRI	: std_logic;
+
 begin
 	if rising_edge(CLK) then
 		IRQ_COL_SET <= '0';
@@ -1450,12 +1676,12 @@ begin
 				REN <= REN_BGR;
 			
 			when REN_BGR =>
-				REN_SP_COL <= x"00";
-				REN_SP_PRI <= '0';
+				REN_SP_COL := x"00";
+				REN_SP_PRI := '0';
 				for I in MAX_SPPL downto 0 loop
 					if REN_SP_OPQ(I) = '1' then
-						REN_SP_COL <= REN_SP_COLTAB(I)(7 downto 0);
-						REN_SP_PRI <= REN_SP_COLTAB(I)(8);
+						REN_SP_COL := REN_SP_COLTAB(I)(7 downto 0);
+						REN_SP_PRI := REN_SP_COLTAB(I)(8);
 					end if;
 				end loop;
 				
@@ -1466,15 +1692,11 @@ begin
 				and IRQ_COL_TRIG = '0'
 				then
 					IRQ_COL_TRIG <= '1';
-					if CR(0) = '1' then
+					if VDCREG_COLL_IRQEN_FLG = '1' then
 						IRQ_COL_SET <= '1';
 					end if;
 				end if;
 				
-				-- REN_BG_COL <= REN_MEM_DO;
-				REN <= REN_CLK;
-			
-			when REN_CLK =>
 				if REN_SP_PRI = '1' then
 					COLNO_FF <= "1" & REN_SP_COL;
 				-- elsif REN_BG_COL(3 downto 0) /= "0000" then
@@ -1486,6 +1708,19 @@ begin
 				else
 					COLNO_FF <= "0" & "00000000";
 				end if;
+				
+				if BG_ON = '0' AND SP_ON = '0' then		-- according to docs, this is "burst mode"
+					COLNO_FF <= "1" & "00000000";			-- required for Air Zonk blank screen after "Toxy Lond"
+				end if;
+				
+				if	FSTNONDISP = '1' then					-- first line after end of VDW is blank
+					COLNO_FF <= "1" & "00000000";
+				end if;
+
+				-- REN_BG_COL <= REN_MEM_DO;
+				REN <= REN_CLK;
+			
+			when REN_CLK =>
 				
 				-- REN_MEM_WE <= '1';
 				if CLKEN = '1' then
@@ -1538,7 +1773,7 @@ begin
 			when DMA_READ =>
 				if CLKEN = '1' then
 					DMA_RAM_REQ_FF <= not DMA_RAM_REQ_FF;
-					DMA_RAM_A_FF <= SOUR;
+					DMA_RAM_A_FF <= VDCREG_SOUR;
 					DMA_RAM_WE_FF <= '0';
 					DMA <= DMA_READ1;
 				end if;
@@ -1554,9 +1789,14 @@ begin
 			
 			when DMA_WRITE =>
 				DMA_RAM_REQ_FF <= not DMA_RAM_REQ_FF;
-				DMA_RAM_A_FF <= DESR;
+				DMA_RAM_A_FF <= VDCREG_DESR;
 				DMA_RAM_WE_FF <= '1';
 				DMA <= DMA_WRITE1;
+			-- check for BURST mode end and abort -> Needs testing
+				--if BURST = '0' then --incomplete
+				--	DMA <= DMA_IDLE;
+				--	DMA_BUSY <= '0';
+				--end if;
 
 			when DMA_WRITE1 =>
 				if CLKEN = '1' and DMA_RAM_REQ_FF = DMA_RAM_ACK then
@@ -1574,10 +1814,10 @@ begin
 			when DMA_LOOP =>
 				if CLKEN = '1' then
 					DMA <= DMA_LOOP2;
-					if LENR = x"FFFF" then
+					if VDCREG_LENR = x"FFFF" then
 						DMA_DMA_CLR	<= '1';
 						DMA_BUSY <= '0';
-						if DCR(1) = '1' then 
+						if VDCREG_VRAMDMA_IRQEN_FLG = '1' then 
 							IRQ_DMA_SET	<= '1';
 						end if;
 					end if;
@@ -1585,6 +1825,7 @@ begin
 				
 			when DMA_LOOP2 =>
 				DMA <= DMA_IDLE;
+				DMA_BUSY <= '0';
 			
 			when others => null;
 			end case;
@@ -1620,7 +1861,7 @@ begin
 				if BURST = '1' and DMAS_REQ = '1' then
 					DMAS_BUSY <= '1';
 					DMAS_SAT_A <= x"00";
-					DMAS_RAM_A_FF <= SATB;
+					DMAS_RAM_A_FF <= VDCREG_SATB;
 					DMAS <= DMAS_WAIT1;
 				end if;
 			
@@ -1669,7 +1910,7 @@ begin
 			
 			when DMAS_END =>
 				DMAS <= DMAS_IDLE;
-				if DCR(0) = '1' then
+				if VDCREG_SATBDMA_IRQEN_FLG = '1' then
 						IRQ_DMAS_SET <= '1';
 				end if;
 			
@@ -1701,43 +1942,43 @@ begin
 	
 		if RESET_N = '0' then
 			
-			MAWR <= x"0000";
-			MARR <= x"0000";
+			VDCREG_MAWR <= x"0000";
+			VDCREG_MARR <= x"0000";
 			
-			--VRR <= x"FFFF";
-			--VWR <= x"FFFF";
+			--VDCREG_VRR <= x"FFFF";
+			--VDCREG_VWR <= x"FFFF";
 			
-			RCR <= x"0000";
+			VDCREG_RCR <= x"0000";
 						
 			-- Values taken from The Kung Fu
-			-- CR <= x"00CC";
-			CR <= x"0000";
-			-- MWR <= x"0010";
-			MWR <= x"0000";
-			--HPR <= x"0202";
-			HDR <= x"031F";
-			VSR <= x"0F02";
-			VDR <= x"00EF";
-			--VDE <= x"0003";
-			BXR <= x"0000";
-			BYR <= x"0000";			
-			-- DCR <= x"0010";
-			DCR <= x"0000";
-			--SATB <= x"0800";
-			SATB <= x"0000";
+			-- VDCREG_CR <= x"00CC";
+			VDCREG_CR <= x"0000";
+			-- VDCREG_MWR <= x"0010";
+			VDCREG_MWR <= x"0000";
+			VDCREG_HSR <= x"0202";
+			VDCREG_HDR <= x"031F";
+			VDCREG_VSR <= x"0F02";
+			VDCREG_VDR <= x"00EF";
+			--VDCREG_VDE <= x"0003";
+			VDCREG_BXR <= x"0000";
+			VDCREG_BYR <= x"0000";			
+			-- VDCREG_DCR <= x"0010";
+			VDCREG_DCR <= x"0000";
+			--VDCREG_SATB <= x"0800";
+			VDCREG_SATB <= x"0000";
 
 			-- -- Values taken from BALL.PCE
-			-- CR <= x"00C8";
-			-- MWR <= x"0010";
-			-- HPR <= x"0302";
-			-- HDR <= x"031F";
-			-- VSR <= x"1702";
-			-- VDR <= x"00DF";
-			-- VDE <= x"000C";
-			-- BXR <= x"0000";
-			-- BYR <= x"0000";
-			-- DCR <= x"0010";
-			-- SATB <= x"7F00";
+			-- VDCREG_CR <= x"00C8";
+			-- VDCREG_MWR <= x"0010";
+			-- VDCREG_HSR <= x"0302";
+			-- VDCREG_HDR <= x"031F";
+			-- VDCREG_VSR <= x"1702";
+			-- VDCREG_VDR <= x"00DF";
+			-- VDCREG_VDE <= x"000C";
+			-- VDCREG_BXR <= x"0000";
+			-- VDCREG_BYR <= x"0000";
+			-- VDCREG_DCR <= x"0010";
+			-- VDCREG_SATB <= x"7F00";
 			
 			RD_BUF <= (others => '1');
 			WR_BUF <= (others => '0');
@@ -1772,45 +2013,45 @@ begin
 					when "10" =>
 						case REG_SEL is
 						when "00000" =>
-							MAWR(7 downto 0) <= DI;
+							VDCREG_MAWR(7 downto 0) <= DI;
 						when "00001" =>
-							MARR(7 downto 0) <= DI;
+							VDCREG_MARR(7 downto 0) <= DI;
 						when "00010" =>
 							WR_BUF(7 downto 0) <= DI;
 						when "00101" =>
-							CR(7 downto 0) <= DI;
+							VDCREG_CR(7 downto 0) <= DI;
 						when "00110" =>
-							RCR(7 downto 0) <= DI;
+							VDCREG_RCR(7 downto 0) <= DI;
 						when "00111" =>
-							BXR(7 downto 0) <= DI;
+							VDCREG_BXR(7 downto 0) <= DI;
 						when "01000" =>
-							BYR(7 downto 0) <= DI;
+							VDCREG_BYR(7 downto 0) <= DI;
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
-							MWR(7 downto 0) <= DI;
-						--when "01010" =>
-						--	HPR(7 downto 0) <= DI;
+							VDCREG_MWR(7 downto 0) <= DI;
+						when "01010" =>
+							VDCREG_HSR(7 downto 0) <= DI;
 						when "01011" =>
-							HDR(7 downto 0) <= DI;
+							VDCREG_HDR(7 downto 0) <= DI;
 						when "01100" =>
-							VSR(7 downto 0) <= DI;
+							VDCREG_VSR(7 downto 0) <= DI;
 						when "01101" =>
-							VDR(7 downto 0) <= DI;
-						--when "01110" =>
-							--VDE(7 downto 0) <= DI;
+							VDCREG_VDR(7 downto 0) <= DI;
+						when "01110" =>
+							VDCREG_VDE(7 downto 0) <= DI;
 						when "01111" =>
-							DCR(7 downto 0) <= DI;
+							VDCREG_DCR(7 downto 0) <= DI;
 						when "10000" =>
-							CPU_SOUR_SET_VAL <= SOUR(15 downto 8) & DI;
+							CPU_SOUR_SET_VAL <= VDCREG_SOUR(15 downto 8) & DI;
 							CPU_SOUR_SET_REQ <= '1';
 						when "10001" =>
-							CPU_DESR_SET_VAL <= DESR(15 downto 8) & DI;
+							CPU_DESR_SET_VAL <= VDCREG_DESR(15 downto 8) & DI;
 							CPU_DESR_SET_REQ <= '1';
 						when "10010" =>
-							CPU_LENR_SET_VAL <= LENR(15 downto 8) & DI;
+							CPU_LENR_SET_VAL <= VDCREG_LENR(15 downto 8) & DI;
 							CPU_LENR_SET_REQ <= '1';
 						when "10011" =>
-							SATB(7 downto 0) <= DI;							
+							VDCREG_SATB(7 downto 0) <= DI;							
 							CPU_DMAS_REQ <= '1';
 						when others => null;
 						end case;
@@ -1818,58 +2059,58 @@ begin
 					when "11" =>
 						case REG_SEL is
 						when "00000" =>
-							MAWR(15 downto 8) <= DI;
+							VDCREG_MAWR(15 downto 8) <= DI;
 						when "00001" =>
-							MARR(15 downto 8) <= DI;
+							VDCREG_MARR(15 downto 8) <= DI;
 							
-							CPU_RAM_A_FF <= DI & MARR(7 downto 0);
+							CPU_RAM_A_FF <= DI & VDCREG_MARR(7 downto 0);
 							CPU_RAM_WE_FF <= '0';
 							-- CPU_RAM_REQ_FF <= not CPU_RAM_REQ_FF;
 							BUSY_N_FF <= '0';
 							CPU <= CPU_RAM_PRE_RD;
 						when "00010" =>
 							WR_BUF(15 downto 8) <= DI;
-							CPU_RAM_A_FF <= MAWR;
+							CPU_RAM_A_FF <= VDCREG_MAWR;
 							CPU_RAM_WE_FF <= '1';
 							CPU_RAM_DI_FF <= DI & WR_BUF(7 downto 0);
 							-- CPU_RAM_REQ_FF <= not CPU_RAM_REQ_FF;
 							BUSY_N_FF <= '0';
 							CPU <= CPU_RAM_PRE_WR_INC;
 						when "00101" =>
-							CR(15 downto 8) <= DI;
+							VDCREG_CR(15 downto 8) <= DI;
 						when "00110" =>
-							RCR(15 downto 8) <= DI;
+							VDCREG_RCR(15 downto 8) <= DI;
 						when "00111" =>
-							BXR(15 downto 8) <= DI;
+							VDCREG_BXR(15 downto 8) <= DI;
 						when "01000" =>
-							BYR(15 downto 8) <= DI;
+							VDCREG_BYR(15 downto 8) <= DI;
 							YOFS_REL_REQ <= '1';
 						when "01001" =>
-							MWR(15 downto 8) <= DI;
-						--when "01010" =>
-						--	HPR(15 downto 8) <= DI;
+							VDCREG_MWR(15 downto 8) <= DI;
+						when "01010" =>
+							VDCREG_HSR(15 downto 8) <= DI;
 						when "01011" =>
-							HDR(15 downto 8) <= DI;
+							VDCREG_HDR(15 downto 8) <= DI;
 						when "01100" =>
-							VSR(15 downto 8) <= DI;
+							VDCREG_VSR(15 downto 8) <= DI;
 						when "01101" =>
-							VDR(15 downto 8) <= DI;
-						--when "01110" =>
-							--VDE(15 downto 8) <= DI;
+							VDCREG_VDR(15 downto 8) <= DI;
+						when "01110" =>
+							VDCREG_VDE(15 downto 8) <= DI;
 						when "01111" =>
-							DCR(15 downto 8) <= DI;
+							VDCREG_DCR(15 downto 8) <= DI;
 						when "10000" =>
-							CPU_SOUR_SET_VAL <= DI & SOUR(7 downto 0);
+							CPU_SOUR_SET_VAL <= DI & VDCREG_SOUR(7 downto 0);
 							CPU_SOUR_SET_REQ <= '1';
 						when "10001" =>
-							CPU_DESR_SET_VAL <= DI & DESR(7 downto 0);
+							CPU_DESR_SET_VAL <= DI & VDCREG_DESR(7 downto 0);
 							CPU_DESR_SET_REQ <= '1';
 						when "10010" =>
-							CPU_LENR_SET_VAL <= DI & LENR(7 downto 0);
+							CPU_LENR_SET_VAL <= DI & VDCREG_LENR(7 downto 0);
 							CPU_LENR_SET_REQ <= '1';
 							CPU_DMA_REQ <= '1';
 						when "10011" =>
-							SATB(15 downto 8) <= DI;
+							VDCREG_SATB(15 downto 8) <= DI;
 							CPU_DMAS_REQ <= '1';
 						when others => null;
 						end case;
@@ -1897,14 +2138,14 @@ begin
 					when "11" =>
 						DO_FF <= RD_BUF(15 downto 8);
 						if REG_SEL = "0" & x"2" then
-							case CR(12 downto 11) is
-							when "00" => V_MARR := MARR + 1;
-							when "01" => V_MARR := MARR + 32;
-							when "10" => V_MARR := MARR + 64;
-							when "11" => V_MARR := MARR + 128;
+							case VDCREG_MAWR_RR_INC_SEL is
+							when "00" => V_MARR := VDCREG_MARR + 1;
+							when "01" => V_MARR := VDCREG_MARR + 32;
+							when "10" => V_MARR := VDCREG_MARR + 64;
+							when "11" => V_MARR := VDCREG_MARR + 128;
 							when others => null;
 							end case;
-							MARR <= V_MARR;
+							VDCREG_MARR <= V_MARR;
 							
 							CPU_RAM_A_FF <= V_MARR;
 							CPU_RAM_WE_FF <= '0';
@@ -1946,11 +2187,11 @@ begin
 			when CPU_RAM_WR_INC =>
 				if CPU_RAM_ACK = CPU_RAM_REQ_FF then
 					CPU_RAM_WE_FF <= '0';
-					case CR(12 downto 11) is
-					when "00" => MAWR <= MAWR + 1;
-					when "01" => MAWR <= MAWR + 32;
-					when "10" => MAWR <= MAWR + 64;
-					when "11" => MAWR <= MAWR + 128;
+					case VDCREG_MAWR_RR_INC_SEL is
+					when "00" => VDCREG_MAWR <= VDCREG_MAWR + 1;
+					when "01" => VDCREG_MAWR <= VDCREG_MAWR + 32;
+					when "10" => VDCREG_MAWR <= VDCREG_MAWR + 64;
+					when "11" => VDCREG_MAWR <= VDCREG_MAWR + 128;
 					when others => null;
 					end case;
 					CPU <= CPU_WAIT;
@@ -2090,14 +2331,14 @@ process( CLK )
 begin
 	if rising_edge( CLK ) then
 		if RESET_N = '0' then
-			SOUR <= (others => '0');
+			VDCREG_SOUR <= (others => '0');
 		elsif CPU_SOUR_SET_REQ = '1' then
-			SOUR <= CPU_SOUR_SET_VAL;
+			VDCREG_SOUR <= CPU_SOUR_SET_VAL;
 		elsif DMA_SOUR_SET_REQ = '1' then
-			if DCR(2) = '1' then
-				SOUR <= SOUR - 1;
+			if VDCREG_VRAMDMA_SRCDEC_FLG = '1' then
+				VDCREG_SOUR <= VDCREG_SOUR - 1;
 			else
-				SOUR <= SOUR + 1;
+				VDCREG_SOUR <= VDCREG_SOUR + 1;
 			end if;
 		end if;
 	end if;
@@ -2107,14 +2348,14 @@ process( CLK )
 begin
 	if rising_edge( CLK ) then
 		if RESET_N = '0' then
-			DESR <= (others => '0');
+			VDCREG_DESR <= (others => '0');
 		elsif CPU_DESR_SET_REQ = '1' then
-			DESR <= CPU_DESR_SET_VAL;
+			VDCREG_DESR <= CPU_DESR_SET_VAL;
 		elsif DMA_DESR_SET_REQ = '1' then
-			if DCR(3) = '1' then
-				DESR <= DESR - 1;
+			if VDCREG_VRAMDMA_DSTDEC_FLG = '1' then
+				VDCREG_DESR <= VDCREG_DESR - 1;
 			else
-				DESR <= DESR + 1;
+				VDCREG_DESR <= VDCREG_DESR + 1;
 			end if;
 		end if;
 	end if;
@@ -2124,11 +2365,11 @@ process( CLK )
 begin
 	if rising_edge( CLK ) then
 		if RESET_N = '0' then
-			LENR <= (others => '0');
+			VDCREG_LENR <= (others => '0');
 		elsif CPU_LENR_SET_REQ = '1' then
-			LENR <= CPU_LENR_SET_VAL;
+			VDCREG_LENR <= CPU_LENR_SET_VAL;
 		elsif DMA_LENR_SET_REQ = '1' then
-			LENR <= LENR - 1;
+			VDCREG_LENR <= VDCREG_LENR - 1;
 		end if;
 	end if;
 end process;

@@ -141,12 +141,12 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign LED_USER  = cart_download | bk_state | (status[23] & bk_pending);
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
-assign BUTTONS   = 0;
+assign BUTTONS   = osd_btn;
 
-assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
-assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
+assign VIDEO_ARX = status[1] ? 8'd16 : overscan ? 8'd53 : 8'd47;
+assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd40 : 8'd37;
 
-`include "build_id.v" 
+`include "build_id.v"
 parameter CONF_STR = {
 	"TGFX16;;",
 	"FS,PCEBIN,Load TurboGrafx;",
@@ -162,7 +162,7 @@ parameter CONF_STR = {
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	"OH,Vertical blank,Normal,Reduced;",
+	"OH,Overscan,On,Off;",
 `ifdef USE_SP64
 	"OB,Sprites per line,Std(16),All(64);",
 `endif
@@ -190,7 +190,7 @@ wire cart_download = ioctl_download & ~code_index;
 
 wire clk_sys, clk_ram;
 wire pll_locked;
-		
+
 pll pll
 (
 	.refclk(CLK_50M),
@@ -240,12 +240,12 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.status(status),
 	.status_menumask({1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
-	
+
 	.sdram_sz(sdram_sz),
 
 	.new_vmode(0),
 	.gamma_bus(gamma_bus),
-	
+
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
@@ -311,6 +311,8 @@ wire [7:0] joy_in = {4'b1011, snac ? {|d3sr, |d2sr, |d1sr, |d0sr} : joy_latch};
 
 assign USER_OUT = snac ? {2'b11, |clsr, 1'b1, |sesr, 2'b11} : '1;
 
+wire overscan = ~status[17];
+
 pce_top #(MAX_SPPL) pce_top
 (
 	.RESET(reset|cart_download),
@@ -329,7 +331,7 @@ pce_top #(MAX_SPPL) pce_top
 	.BRM_DO(bram_q),
 	.BRM_DI(bram_data),
 	.BRM_WE(bram_wr),
-	
+
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
@@ -344,7 +346,7 @@ pce_top #(MAX_SPPL) pce_top
 	.JOY_IN(joy_in),
 	.JOY_OUT(joy_out),
 
-	.ReducedVBL(status[17]),
+	.ReducedVBL(~overscan),
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
@@ -368,7 +370,7 @@ assign CLK_VIDEO = clk_ram;
 reg ce_pix;
 always @(posedge CLK_VIDEO) begin
 	reg old_ce;
-	
+
 	old_ce <= ce_vid;
 	ce_pix <= ~old_ce & ce_vid;
 end
@@ -466,7 +468,7 @@ sdram sdram
 
 wire        romwr_ack;
 reg  [23:0] romwr_a;
-wire [15:0] romwr_d = status[3] ? 
+wire [15:0] romwr_d = status[3] ?
 		{ ioctl_dout[8], ioctl_dout[9], ioctl_dout[10],ioctl_dout[11],ioctl_dout[12],ioctl_dout[13],ioctl_dout[14],ioctl_dout[15],
 		  ioctl_dout[0], ioctl_dout[1], ioctl_dout[2], ioctl_dout[3], ioctl_dout[4], ioctl_dout[5], ioctl_dout[6], ioctl_dout[7] }
 		: ioctl_dout;
@@ -503,6 +505,26 @@ always @(posedge clk_sys) begin
 		end else if(ioctl_wait && (rom_wr == dd_wrack) && (rom_wr == sd_wrack)) begin
 			ioctl_wait <= 0;
 			romwr_a <= romwr_a + 2'd2;
+		end
+	end
+end
+
+reg osd_btn = 0;
+always @(posedge clk_sys) begin
+	integer timeout = 0;
+	reg	has_bootrom = 0;
+	reg	last_rst = 0;
+
+	if (reset) last_rst = 0;
+	if (status[0]) last_rst = 1;
+
+	if (cart_download & ioctl_wr & status[0]) has_bootrom <= 1;
+
+	if (last_rst & ~status[0]) begin
+		osd_btn <= 0;
+		if (timeout < 24000000) begin
+			timeout <= timeout + 1;
+			osd_btn <= ~has_bootrom;
 		end
 	end
 end
@@ -638,10 +660,10 @@ reg old_downloading = 0;
 
 reg bk_ena = 0;
 always @(posedge clk_sys) begin
-	
+
 	old_downloading <= downloading;
 	if(~old_downloading & downloading) bk_ena <= 0;
-	
+
 	//Save file always mounted in the end of downloading state.
 	if(downloading && img_mounted && !img_readonly) bk_ena <= 1;
 end
@@ -658,9 +680,9 @@ always @(posedge clk_sys) begin
 	old_load <= bk_load;
 	old_save <= bk_save;
 	old_ack  <= sd_ack;
-	
+
 	if(~old_ack & sd_ack) {sd_rd, sd_wr} <= 0;
-	
+
 	if(!bk_state) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
@@ -688,7 +710,7 @@ always @(posedge clk_sys) begin
 			end
 		end
 	end
-	
+
 	old_format <= format;
 	if(~old_format && format) begin
 		defbram <= 0;
