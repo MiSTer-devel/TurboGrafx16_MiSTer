@@ -134,7 +134,6 @@ localparam SP64     = 1'b0;
 `endif
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
 assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -147,7 +146,7 @@ assign BUTTONS   = osd_btn;
 assign VIDEO_ARX = status[1] ? 8'd16 : overscan ? 8'd53 : 8'd47;
 assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd40 : 8'd37;
 
-`include "build_id.v" 
+`include "build_id.v"
 parameter CONF_STR = {
 	"TGFX16;;",
 	"FS,PCEBIN,Load TurboGrafx;",
@@ -174,6 +173,8 @@ parameter CONF_STR = {
 	"D4H3O6,ROM Storage,DDR3,DDR3;",
 	"O2,Turbo Tap,Disabled,Enabled;",
 	"O4,Controller Buttons,2,6;",
+	"O5,Serial,Off,SNAC;",
+	"-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
 	"jn,A,B,Select,Start,X,Y,L,R;",
@@ -189,7 +190,7 @@ wire cart_download = ioctl_download & ~code_index;
 
 wire clk_sys, clk_ram;
 wire pll_locked;
-		
+
 pll pll
 (
 	.refclk(CLK_50M),
@@ -239,12 +240,12 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.status(status),
 	.status_menumask({1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
-	
+
 	.sdram_sz(sdram_sz),
 
 	.new_vmode(0),
 	.gamma_bus(gamma_bus),
-	
+
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
@@ -283,6 +284,33 @@ wire ce_rom;
 reg use_sdr = 0;
 always @(posedge clk_ram) if(rom_rd) use_sdr <= |sdram_sz[14:0]; //status[6];
 
+wire snac = status[5];
+
+// Index Name    HDMI System
+// 0   = D+    = 2  = d1/right/2
+// 1   = D-    = 1  = d0/up/1
+// 2   = TX-   = 5  = SEL
+// 3   = GND_d = 4  = d3/left/run
+// 4   = RX+   = 6  = CLR
+// 5   = RX-   = 3  = d2/down/sel
+
+reg [2:0] d0sr, d1sr, d2sr, d3sr;
+reg [20:0] sesr, clsr;
+
+always @(posedge clk_sys) begin
+	d0sr <= {d0sr[1:0], USER_IN[1]};
+	d1sr <= {d1sr[1:0], USER_IN[0]};
+	d2sr <= {d2sr[1:0], USER_IN[5]};
+	d3sr <= {d3sr[1:0], USER_IN[3]};
+	sesr <= {sesr[8:0], joy_out[0]};
+	clsr <= {clsr[19:0], joy_out[1]};
+end
+
+wire [7:0] joy_out;
+wire [7:0] joy_in = {4'b1011, snac ? {|d3sr, |d2sr, |d1sr, |d0sr} : joy_latch};
+
+assign USER_OUT = snac ? {2'b11, |clsr, 1'b1, |sesr, 2'b11} : '1;
+
 wire overscan = ~status[17];
 
 pce_top #(MAX_SPPL) pce_top
@@ -303,7 +331,7 @@ pce_top #(MAX_SPPL) pce_top
 	.BRM_DO(bram_q),
 	.BRM_DI(bram_data),
 	.BRM_WE(bram_wr),
-	
+
 	.AUD_LDATA(audio_l),
 	.AUD_RDATA(audio_r),
 
@@ -315,13 +343,8 @@ pce_top #(MAX_SPPL) pce_top
 
 	.SP64(status[11] & SP64),
 	.SGX(sgx),
-	.TURBOTAP(status[2]),
-	.SIXBUTTON(status[4]),
-	.JOY1(~{joystick_0[11:4], joystick_0[1], joystick_0[2], joystick_0[0], joystick_0[3]}),
-	.JOY2(~{joystick_1[11:4], joystick_1[1], joystick_1[2], joystick_1[0], joystick_1[3]}),
-	.JOY3(~{joystick_2[11:4], joystick_2[1], joystick_2[2], joystick_2[0], joystick_2[3]}),
-	.JOY4(~{joystick_3[11:4], joystick_3[1], joystick_3[2], joystick_3[0], joystick_3[3]}),
-	.JOY5(~{joystick_4[11:4], joystick_4[1], joystick_4[2], joystick_4[0], joystick_4[3]}),
+	.JOY_IN(joy_in),
+	.JOY_OUT(joy_out),
 
 	.ReducedVBL(~overscan),
 	.VIDEO_R(r),
@@ -347,7 +370,7 @@ assign CLK_VIDEO = clk_ram;
 reg ce_pix;
 always @(posedge CLK_VIDEO) begin
 	reg old_ce;
-	
+
 	old_ce <= ce_vid;
 	ce_pix <= ~old_ce & ce_vid;
 end
@@ -445,7 +468,7 @@ sdram sdram
 
 wire        romwr_ack;
 reg  [23:0] romwr_a;
-wire [15:0] romwr_d = status[3] ? 
+wire [15:0] romwr_d = status[3] ?
 		{ ioctl_dout[8], ioctl_dout[9], ioctl_dout[10],ioctl_dout[11],ioctl_dout[12],ioctl_dout[13],ioctl_dout[14],ioctl_dout[15],
 		  ioctl_dout[0], ioctl_dout[1], ioctl_dout[2], ioctl_dout[3], ioctl_dout[4], ioctl_dout[5], ioctl_dout[6], ioctl_dout[7] }
 		: ioctl_dout;
@@ -537,6 +560,47 @@ always_ff @(posedge clk_sys) begin
 	end
 end
 
+////////////////////////////  Input  ///////////////////////////////////
+
+wire [11:0] joy_current;
+reg [2:0] joy_port;
+
+always_comb begin
+	case (joy_port)
+		3'd0: joy_current = joystick_0;
+		3'd1: joy_current = joystick_1;
+		3'd2: joy_current = joystick_2;
+		3'd3: joy_current = joystick_3;
+		3'd4: joy_current = joystick_4;
+		default: joy_current = 12'd0;
+	endcase
+end
+
+reg [3:0] joy_latch;
+wire [11:0] joy_data = ~{joy_current[11:4], joy_current[1], joy_current[2], joy_current[0], joy_current[3]};
+reg high_buttons;
+
+always @(posedge clk_sys) begin : input_block
+	reg [1:0] last_gp;
+
+	case ({high_buttons, joy_out[0]})
+		2'b00: joy_latch <= joy_data[7:4];
+		2'b01: joy_latch <= joy_data[3:0];
+		2'b10: joy_latch <= joy_data[11:8];
+		2'b11: joy_latch <= 4'b0000;
+	endcase
+
+	last_gp <= joy_out[1:0];
+
+	if (joy_out[1]) begin
+		joy_port <= 3'd0;
+		joy_latch <= 4'd0;
+		if (~last_gp[1])
+			high_buttons <= ~high_buttons && status[4];
+	end else if (joy_out[0] && ~last_gp[0] && status[2]) begin
+		joy_port <= joy_port + 3'd1;
+	end
+end
 
 /////////////////////////  STATE SAVE/LOAD  /////////////////////////////
 
@@ -596,10 +660,10 @@ reg old_downloading = 0;
 
 reg bk_ena = 0;
 always @(posedge clk_sys) begin
-	
+
 	old_downloading <= downloading;
 	if(~old_downloading & downloading) bk_ena <= 0;
-	
+
 	//Save file always mounted in the end of downloading state.
 	if(downloading && img_mounted && !img_readonly) bk_ena <= 1;
 end
@@ -616,9 +680,9 @@ always @(posedge clk_sys) begin
 	old_load <= bk_load;
 	old_save <= bk_save;
 	old_ack  <= sd_ack;
-	
+
 	if(~old_ack & sd_ack) {sd_rd, sd_wr} <= 0;
-	
+
 	if(!bk_state) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
@@ -646,7 +710,7 @@ always @(posedge clk_sys) begin
 			end
 		end
 	end
-	
+
 	old_format <= format;
 	if(~old_format && format) begin
 		defbram <= 0;
