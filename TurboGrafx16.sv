@@ -163,7 +163,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd40 : 8'd37;
 // 0         1         2         3 
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXX  XX
+// XXXXXXXXXXXXXXX XX
 
 `include "build_id.v" 
 parameter CONF_STR = {
@@ -199,13 +199,14 @@ parameter CONF_STR = {
 	"D4H3P2O6,ROM Storage,DDR3,DDR3;",
 `endif
 	"P2-;",
-	"P2O5,Arcade Card,Disabled,Enabled;",
+	"P2OE,Arcade Card,Disabled,Enabled;",
 	"P2OP,CD Seek,Normal,Fast;",
 	"P2-;",
 	"P2OD,USER I/O,Off,SNAC;",
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
+	"H5O5,Mouse,No,Yes;",
 	"H5-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -238,7 +239,7 @@ pll pll
 wire [31:0] status;
 wire  [1:0] buttons;
 
-wire [11:0] joystick_0, joystick_1, joystick_2, joystick_3, joystick_4;
+wire [11:0] joy_0, joy_1, joy_2, joy_3, joy_4;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
@@ -263,6 +264,7 @@ wire [21:0] gamma_bus;
 wire [15:0] sdram_sz;
 
 wire [10:0] ps2_key;
+wire [24:0] ps2_mouse;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 (
@@ -300,13 +302,14 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.img_readonly(img_readonly),
 	.img_size(img_size),
 
-	.joystick_0(joystick_0),
-	.joystick_1(joystick_1),
-	.joystick_2(joystick_2),
-	.joystick_3(joystick_3),
-	.joystick_4(joystick_4),
+	.joystick_0(joy_0),
+	.joystick_1(joy_1),
+	.joystick_2(joy_2),
+	.joystick_3(joy_3),
+	.joystick_4(joy_4),
 
 	.ps2_key(ps2_key),
+	.ps2_mouse(ps2_mouse),
 
 	.EXT_BUS(EXT_BUS)
 );
@@ -397,7 +400,7 @@ pce_top #(LITE) pce_top
 	.JOY_IN(joy_in),
 
 	.CD_EN(cd_en),
-	.AC_EN(status[5]),
+	.AC_EN(status[14]),
 
 	.CD_RAM_A(cd_ram_a),
 	.CD_RAM_DO(cd_ram_do),
@@ -752,35 +755,65 @@ end
 
 ////////////////////////////  Input  ///////////////////////////////////
 
-wire [11:0] joy_current;
-reg   [2:0] joy_port;
-
+wire [15:0] joy_data;
 always_comb begin
 	case (joy_port)
-		3'd0: joy_current = joystick_0;
-		3'd1: joy_current = joystick_1;
-		3'd2: joy_current = joystick_2;
-		3'd3: joy_current = joystick_3;
-		3'd4: joy_current = joystick_4;
-		default: joy_current = 0;
+		0: joy_data = status[5] ? {mouse_data, mouse_data} : ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
+		1: joy_data = ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
+		2: joy_data = ~{4'hF, joy_2[11:8], joy_2[1], joy_2[2], joy_2[0], joy_2[3], joy_2[7:4]};
+		3: joy_data = ~{4'hF, joy_3[11:8], joy_3[1], joy_3[2], joy_3[0], joy_3[3], joy_3[7:4]};
+		4: joy_data = ~{4'hF, joy_4[11:8], joy_4[1], joy_4[2], joy_4[0], joy_4[3], joy_4[7:4]};
+		default: joy_data = 16'h0FFF;
 	endcase
 end
 
-reg   [3:0] joy_latch;
-wire [11:0] joy_data = ~{joy_current[11:4], joy_current[1], joy_current[2], joy_current[0], joy_current[3]};
-reg high_buttons;
+wire [7:0] mouse_data;
+assign mouse_data[3:0] = ~{joy_0[7:6], ps2_mouse[0], ps2_mouse[1]};
+
+always_comb begin
+	case (mouse_cnt)
+		0: mouse_data[7:4] = ms_x[7:4];
+		1: mouse_data[7:4] = ms_x[3:0];
+		2: mouse_data[7:4] = ms_y[7:4];
+		3: mouse_data[7:4] = ms_y[3:0];
+	endcase
+end
+
+reg [3:0] joy_latch;
+reg [2:0] joy_port;
+reg [1:0] mouse_cnt;
+reg [7:0] ms_x, ms_y;
 
 always @(posedge clk_sys) begin : input_block
-	reg [1:0] last_gp;
+	reg  [1:0] last_gp;
+	reg        high_buttons;
+	reg [14:0] mouse_to;
+	reg        ms_stb;
+	reg  [7:0] msr_x, msr_y;
 
-	case ({high_buttons, joy_out[0]})
-		2'b00: joy_latch <= joy_data[7:4];
-		2'b01: joy_latch <= joy_data[3:0];
-		2'b10: joy_latch <= joy_data[11:8];
-		2'b11: joy_latch <= 0;
-	endcase
+	joy_latch <= joy_data[{high_buttons, joy_out[0], 2'b00} +:4];
 
 	last_gp <= joy_out;
+
+	if(joy_out[1]) mouse_to <= 0;
+	else if(~&mouse_to) mouse_to <= mouse_to + 1'd1;
+
+	if(&mouse_to) mouse_cnt <= 3;
+	if(~last_gp[1] & joy_out[1]) begin
+		mouse_cnt <= mouse_cnt + 1'd1;
+		if(&mouse_cnt) begin
+			ms_x  <= msr_x;
+			ms_y  <= msr_y;
+			msr_x <= 0;
+			msr_y <= 0;
+		end
+	end
+
+	ms_stb <= ps2_mouse[24];
+	if(ms_stb ^ ps2_mouse[24]) begin
+		msr_x <= 8'd0 - ps2_mouse[15:8];
+		msr_y <= ps2_mouse[23:16];
+	end
 
 	if (joy_out[1]) begin
 		joy_port  <= 0;
