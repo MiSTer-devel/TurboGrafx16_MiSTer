@@ -8,7 +8,8 @@ entity dpram is
 	generic (
 		addr_width    : integer := 8;
 		data_width    : integer := 8;
-		mem_init_file : string := " "
+		mem_init_file : string := " ";
+		disable_value : std_logic := '1'
 	);
 	PORT
 	(
@@ -36,8 +37,8 @@ ARCHITECTURE SYN OF dpram IS
 	signal q1 : std_logic_vector((data_width - 1) downto 0);
 
 BEGIN
-	q_a<= q0 when cs_a = '1' else (others => '1');
-	q_b<= q1 when cs_b = '1' else (others => '1');
+	q_a<= q0 when cs_a = '1' else (others => disable_value);
+	q_b<= q1 when cs_b = '1' else (others => disable_value);
 
 	altsyncram_component : altsyncram
 	GENERIC MAP (
