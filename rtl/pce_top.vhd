@@ -9,7 +9,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity pce_top is
 	generic (
-		MAX_SPPL : integer := 15
+		LITE : integer := 0
 	);
 	port(
 		RESET			: in  std_logic;
@@ -28,18 +28,53 @@ entity pce_top is
 		BRM_DO 		: in  std_logic_vector(7 downto 0);
 		BRM_WE 		: out std_logic;
 
-		AUD_LDATA	: out std_logic_vector(23 downto 0);
-		AUD_RDATA	: out std_logic_vector(23 downto 0);
-
-		GG_EN		: in std_logic;
-		GG_CODE		: in std_logic_vector(128 downto 0);
-		GG_RESET	: in std_logic;
-		GG_AVAIL	: out std_logic;
+		GG_EN			: in  std_logic;
+		GG_CODE		: in  std_logic_vector(128 downto 0);
+		GG_RESET		: in  std_logic;
+		GG_AVAIL		: out std_logic;
 
 		SP64			: in  std_logic;
 		SGX			: in  std_logic;
-		JOY_IN      : in std_logic_vector(7 downto 0);
-		JOY_OUT     : out std_logic_vector(7 downto 0);
+
+		JOY_OUT     : out std_logic_vector(1 downto 0);
+		JOY_IN      : in  std_logic_vector(3 downto 0);
+
+		CD_EN			: in  std_logic;
+		CD_RAM_A 	: out std_logic_vector(21 downto 0);
+		CD_RAM_DO 	: out std_logic_vector(7 downto 0);
+		CD_RAM_DI 	: in  std_logic_vector(7 downto 0);
+		CD_RAM_RD	: out std_logic;
+		CD_RAM_WR	: out std_logic;
+		AC_EN			: in  std_logic;
+
+		CD_STAT		: in  std_logic_vector(7 downto 0);
+		CD_MSG		: in  std_logic_vector(7 downto 0);
+		CD_STAT_GET	: in  std_logic;
+
+		CD_COMM		: out std_logic_vector(95 downto 0);
+		CD_COMM_SEND: out std_logic;
+
+		CD_DOUT_REQ	: in  std_logic;
+		CD_DOUT		: out std_logic_vector(79 downto 0);
+		CD_DOUT_SEND: out std_logic;
+
+		CD_RESET		: out std_logic;
+
+		CD_DATA		: in  std_logic_vector(7 downto 0);
+		CD_WR			: in  std_logic;
+		CD_DATA_END	: out std_logic;
+		CD_DM			: in  std_logic;
+
+		CDDA_SL		: out signed(15 downto 0);
+		CDDA_SR		: out signed(15 downto 0);
+		ADPCM_S		: out signed(15 downto 0);
+		PSG_SL		: out signed(15 downto 0);
+		PSG_SR		: out signed(15 downto 0);
+
+		BG_EN			: in  std_logic;
+		SPR_EN		: in  std_logic;
+		GRID_EN		: in  std_logic;
+		CPU_PAUSE_EN: in  std_logic;
 
 		ReducedVBL	: in  std_logic;
 		VIDEO_R		: out std_logic_vector(2 downto 0);
@@ -60,6 +95,8 @@ architecture rtl of pce_top is
 signal RESET_N			: std_logic := '0';
 
 -- CPU signals
+signal CPU_CE			: std_logic;
+signal CPU_CE2			: std_logic;
 signal CPU_RD_N		: std_logic;
 signal CPU_WR_N		: std_logic;
 signal CPU_DI			: std_logic_vector(7 downto 0);
@@ -70,10 +107,13 @@ signal CPU_VCE_SEL_N	: std_logic;
 signal CPU_VDC_SEL_N	: std_logic;
 signal CPU_RAM_SEL_N	: std_logic;
 signal CPU_BRM_SEL_N	: std_logic;
+signal CPU_IO_DO		: std_logic_vector(7 downto 0);
 
 signal CPU_VDC0_SEL_N: std_logic;
 signal CPU_VDC1_SEL_N: std_logic;
 signal CPU_VPC_SEL_N	: std_logic;
+
+signal CPU_ROM_SEL_N	: std_logic;
 
 -- RAM signals
 signal RAM_DO			: std_logic_vector(7 downto 0);
@@ -84,8 +124,6 @@ signal CPU_PRAM_SEL_N: std_logic;
 
 -- VCE signals
 signal VCE_DO			: std_logic_vector(7 downto 0);
-signal HSIZE			: std_logic_vector(9 downto 0);
-signal HSTART			: std_logic_vector(9 downto 0);
 
 -- VDC signals
 signal VDC0_DO			: std_logic_vector(7 downto 0);
@@ -101,12 +139,19 @@ signal VPC_DO			: std_logic_vector(7 downto 0);
 signal VDCNUM    		: std_logic;
 signal VDC_COLNO		: std_logic_vector(8 downto 0);
 
+-- CD signals
+signal CD_SEL_N		: std_logic;
+signal CD_DO			: std_logic_vector(7 downto 0);
+signal CD_IRQ_N    	: std_logic;
+
 -- NTSC/RGB Video Output
 signal VS_N				: std_logic;
 signal HS_N				: std_logic;
 
+signal PCE_SL			: std_logic_vector(23 downto 0);
+signal PCE_SR			: std_logic_vector(23 downto 0);
+
 signal rombank			: std_logic_vector(1 downto 0);
-signal CLKEN7			: std_logic;
 
 signal gamepad_out	: std_logic_vector(1 downto 0);
 signal gamepad_port	: unsigned(2 downto 0);
@@ -134,11 +179,53 @@ component CODES is
 	);
 end component;
 
+signal VCE_HS_F, VCE_HS_R, VCE_VS_F, VCE_VS_R: std_logic;
+signal VRAM0_A	   : std_logic_vector(15 downto 0);
+signal VRAM0_DI	: std_logic_vector(15 downto 0);
+signal VRAM0_DO	: std_logic_vector(15 downto 0);
+signal VRAM0_WE	: std_logic;
+signal VRAM1_A	   : std_logic_vector(15 downto 0);
+signal VRAM1_DI	: std_logic_vector(15 downto 0);
+signal VRAM1_DO	: std_logic_vector(15 downto 0);
+signal VRAM1_WE	: std_logic;
+signal VCE_DCC		: std_logic_vector(1 downto 0);
+signal VDC0_GRID	: std_logic;
+signal CPU_PRE_RD	: std_logic;
+signal CPU_PRE_WR	: std_logic;
+signal CD_RAM_CS_N: std_logic;
+signal CD_BRAM_EN	: std_logic;
+
+signal AC_SEL_N   : std_logic;
+signal AC_RAM_CS_N: std_logic;
+signal AC_RAM_A   : std_logic_vector(20 downto 0);
+signal AC_DO      : std_logic_vector(7 downto 0);
+
+component ARCADE_CARD is
+	port(
+		CLK     : in  std_logic;
+		RST_N   : in  std_logic;
+
+		EN      : in  std_logic;
+		WR_N    : in  std_logic;
+		RD_N    : in  std_logic;
+		A       : in  std_logic_vector(20 downto 0);
+		DI      : in  std_logic_vector(7 downto 0);
+		DO      : out std_logic_vector(7 downto 0);
+
+		SEL_N   : out std_logic;
+
+		RAM_CS_N: out std_logic;
+		RAM_A   : out std_logic_vector(20 downto 0)
+	);
+end component;
+
 begin
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+
+generate_CHEAT: if (LITE = 0) generate begin
 
 -- Game Genie
 GAMEGENIE : component CODES
@@ -160,37 +247,51 @@ port map(
 
 GENIE_DI <= GENIE_DO when GENIE else CPU_DI;
 
-CPU : entity work.huc6280
+end generate;
+
+generate_NOCHEAT: if (LITE /= 0) generate begin
+	GENIE_DI <= CPU_DI;
+	GG_AVAIL <= '0';
+end generate;
+
+CPU : entity work.HUC6280
 port map(
 	CLK 		=> CLK,
-	RESET_N	=> RESET_N,
-	
+	RST_N		=> RESET_N,
+	WAIT_N	=> ROM_RDY and not CPU_PAUSE_EN,
+
 	IRQ1_N	=> VDC0_IRQ_N and VDC1_IRQ_N,
+	IRQ2_N	=> CD_IRQ_N,
+	NMI_N		=> '1',
 
 	DI			=> GENIE_DI,
 	DO 		=> CPU_DO,
-	
+
 	A 			=> CPU_A,
 	WR_N 		=> CPU_WR_N,
 	RD_N		=> CPU_RD_N,
-	
-	CLKEN		=> CPU_CLKEN,
-	RDY		=> VDC0_BUSY_N and VDC1_BUSY_N and ROM_RDY,
 
-	CLKEN7	=> CLKEN7,
-	
+	RDY		=> VDC0_BUSY_N and VDC1_BUSY_N,
+
+	CE			=> CPU_CE,
 	CEK_N		=> CPU_VCE_SEL_N,
 	CE7_N		=> CPU_VDC_SEL_N,
 	CER_N		=> CPU_RAM_SEL_N,
-	CEB_N		=> CPU_BRM_SEL_N,
+	PRE_RD   => CPU_PRE_RD,
+	PRE_WR   => CPU_PRE_WR,
+
+	K			=> not CD_EN & "011" & JOY_IN,
+	O			=> CPU_IO_DO,
+
 	VDCNUM   => VDCNUM,
 
-	K			=> JOY_IN,
-	O			=> JOY_OUT,
-	
-	AUD_LDATA=> AUD_LDATA,
-	AUD_RDATA=> AUD_RDATA
+	AUD_LDATA=> PCE_SL,
+	AUD_RDATA=> PCE_SR
 );
+
+JOY_OUT <= CPU_IO_DO(1 downto 0);
+
+CPU_CLKEN <= CPU_CE when rising_edge( CLK );
 
 VIDEO_CE <= VDC_CLKEN;
 VIDEO_VS <= not VS_N;
@@ -200,8 +301,6 @@ VCE : entity work.huc6260
 port map(
 	CLK 		=> CLK,
 	RESET_N	=> RESET_N,
-	HSIZE		=> HSIZE,
-	HSTART	=> HSTART,
 
 	-- CPU Interface
 	A			=> CPU_A(2 downto 0),
@@ -216,6 +315,9 @@ port map(
 	CLKEN		=> VDC_CLKEN,
 	CLKEN_FS => VIDEO_CE_FS,
 	RVBL		=> ReducedVBL,
+	DCC		=> VCE_DCC,
+	
+	GRID		=> VDC0_GRID,
 		
 	-- NTSC/RGB Video Output
 	R			=> VIDEO_R,
@@ -225,21 +327,23 @@ port map(
 	VS_N		=> VS_N,
 	HS_N		=> HS_N,
 	HBL		=> VIDEO_HBL,
-	VBL		=> VIDEO_VBL
+	VBL		=> VIDEO_VBL,
+	
+	HS_F		=> VCE_HS_F,
+	HS_R		=> VCE_HS_R,
+	VS_F		=> VCE_VS_F,
+	VS_R		=> VCE_VS_R
 );
 
-VDC0 : entity work.huc6270
-generic map (MAX_SPPL)
+VDC0 : entity work.HUC6270
 port map(
 	CLK 		=> CLK,
-	RESET_N	=> RESET_N,
-	HSIZE		=> HSIZE,
-	HSTART	=> HSTART,
-	SP64     => SP64,
+	RST_N		=> RESET_N,
 
 	-- CPU Interface
+	CPU_CE	=> CPU_CE,
 	A			=> CPU_A(1 downto 0),
-	CE_N		=> CPU_VDC0_SEL_N,
+	CS_N		=> CPU_VDC0_SEL_N,
 	WR_N		=> CPU_WR_N,
 	RD_N		=> CPU_RD_N,
 	DI			=> CPU_DO,
@@ -248,74 +352,144 @@ port map(
 	IRQ_N		=> VDC0_IRQ_N,
 
 	-- VCE Interface
-	COLNO		=> VDC0_COLNO,
-	CLKEN		=> VDC_CLKEN,
-	HS_N		=> HS_N,
-	VS_N		=> VS_N
-);
-
-VDC1 : entity work.huc6270
-generic map (MAX_SPPL)
-port map(
-	CLK 		=> CLK,
-	RESET_N	=> RESET_N,
-	HSIZE		=> HSIZE,
-	HSTART	=> HSTART,
-	SP64     => SP64,
-
-	-- CPU Interface
-	A			=> CPU_A(1 downto 0),
-	CE_N		=> CPU_VDC1_SEL_N,
-	WR_N		=> CPU_WR_N,
-	RD_N		=> CPU_RD_N,
-	DI			=> CPU_DO,
-	DO 		=> VDC1_DO,
-	BUSY_N	=> VDC1_BUSY_N,
-	IRQ_N		=> VDC1_IRQ_N,
+	DCK_CE	=> VDC_CLKEN,
+	DCC		=> VCE_DCC,
+	HS_F		=> VCE_HS_F,
+	HS_R		=> VCE_HS_R,
+	VS_F		=> VCE_VS_F,
+	VS_R		=> VCE_VS_R,
+	VD			=> VDC0_COLNO,
+	GRID		=> VDC0_GRID,
 	
-	-- VCE Interface
-	COLNO		=> VDC1_COLNO,
-	CLKEN		=> VDC_CLKEN,
-	HS_N		=> HS_N,
-	VS_N		=> VS_N
-);
-
-VPC : entity work.huc6202
-port map(
-	CLK 		=> CLK,
-	CLKEN		=> VDC_CLKEN,
-	RESET_N	=> RESET_N,
-
-	-- CPU Interface
-	A			=> CPU_A(2 downto 0),
-	CE_N		=> CPU_VPC_SEL_N,
-	WR_N		=> CPU_WR_N,
-	RD_N		=> CPU_RD_N,
-	DI			=> CPU_DO,
-	DO 		=> VPC_DO,
+	RAM_A		=> VRAM0_A,
+	RAM_DI	=> VRAM0_DI,
+	RAM_DO	=> VRAM0_DO,
+	RAM_WE	=> VRAM0_WE,
 	
-	HS_N		=> HS_N,
-	VDC0_IN  => VDC0_COLNO,
-	VDC1_IN  => VDC1_COLNO,
-	VDC_OUT  => VDC_COLNO,
-
-	VDCNUM   => VDCNUM
+	BG_EN		=> BG_EN,
+	SPR_EN	=> SPR_EN,
+	GRID_EN	=> GRID_EN
+	 
 );
 
-CPU_VDC0_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or     CPU_A(4) when SGX = '1' else CPU_VDC_SEL_N;
-CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4) when SGX = '1' else '1';
-CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' else '1';
+VRAM0 : entity work.dpram generic map (15,16)
+port map (
+	clock		=> CLK,
+	address_a=> VRAM0_A(14 downto 0),
+	data_a	=> VRAM0_DO,
+	cs_a		=> not VRAM0_A(15),
+	wren_a	=> VRAM0_WE,
+	q_a		=> VRAM0_DI
+);
+
+generate_SGX: if (LITE = 0) generate begin
+
+	VDC1 : entity work.HUC6270
+	port map(
+		CLK 		=> CLK,
+		RST_N		=> RESET_N,
+
+		-- CPU Interface
+		CPU_CE	=> CPU_CE,
+		A			=> CPU_A(1 downto 0),
+		CS_N		=> CPU_VDC1_SEL_N,
+		WR_N		=> CPU_WR_N,
+		RD_N		=> CPU_RD_N,
+		DI			=> CPU_DO,
+		DO 		=> VDC1_DO,
+		BUSY_N	=> VDC1_BUSY_N,
+		IRQ_N		=> VDC1_IRQ_N,
+
+		-- VCE Interface
+		DCK_CE	=> VDC_CLKEN,
+		DCC		=> VCE_DCC,
+		HS_F		=> VCE_HS_F,
+		HS_R		=> VCE_HS_R,
+		VS_F		=> VCE_VS_F,
+		VS_R		=> VCE_VS_R,
+		VD			=> VDC1_COLNO,
+		--GRID		=> VDC1_GRID,
+		
+		RAM_A		=> VRAM1_A,
+		RAM_DI	=> VRAM1_DI,
+		RAM_DO	=> VRAM1_DO,
+		RAM_WE	=> VRAM1_WE,
+		
+		BG_EN		=> BG_EN,
+		SPR_EN	=> SPR_EN,
+		GRID_EN	=> GRID_EN
+		 
+	);
+
+	VRAM1 : entity work.dpram generic map (15,16)
+	port map (
+		clock		=> CLK,
+		address_a=> VRAM1_A(14 downto 0),
+		data_a	=> VRAM1_DO,
+		cs_a		=> not VRAM1_A(15),
+		wren_a	=> VRAM1_WE and not VRAM1_A(15),
+		q_a		=> VRAM1_DI
+	);
+
+	VPC : entity work.huc6202
+	port map(
+		CLK 		=> CLK,
+		CLKEN		=> VDC_CLKEN,
+		RESET_N	=> RESET_N,
+
+		-- CPU Interface
+		A			=> CPU_A(2 downto 0),
+		WR_N		=> CPU_WR_N or CPU_VPC_SEL_N or not CPU_CE,
+		DI			=> CPU_DO,
+		DO 		=> VPC_DO,
+		
+		HS_F		=> VCE_HS_F,
+		VDC0_IN  => VDC0_COLNO,
+		VDC1_IN  => VDC1_COLNO,
+		VDC_OUT  => VDC_COLNO,
+
+		VDCNUM   => VDCNUM
+	);
+
+	CPU_VDC0_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or     CPU_A(4) when SGX = '1' else CPU_VDC_SEL_N;
+	CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4) when SGX = '1' else '1';
+	CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' else '1';
+
+end generate;
+
+generate_NOSGX: if (LITE /= 0) generate begin
+
+	CPU_VDC0_SEL_N <= CPU_VDC_SEL_N;
+	CPU_VDC1_SEL_N <= '1';
+	CPU_VPC_SEL_N  <= '1';
+	VDC1_BUSY_N <= '1';
+	VDC1_IRQ_N <= '1';
+
+	VDCNUM <= '0';
+	VDC1_DO <= (others => '1');
+	VPC_DO <= (others => '1');
+	VDC_COLNO <= VDC0_COLNO;
+
+end generate;
+
+--TODO: check address mirroring for HuCard games
+CPU_BRM_SEL_N <= '0' when CPU_A(20 downto 11) = x"F7"&"00" and CD_BRAM_EN = '1' else '1'; -- BRM : Page $F7
+
+CPU_ROM_SEL_N <= CPU_A(20);
 
 -- CPU data bus
-CPU_DI <= RAM_DO  when CPU_RD_N = '0' and CPU_RAM_SEL_N  = '0' 
-	  else BRM_DO  when CPU_RD_N = '0' and CPU_BRM_SEL_N  = '0'
-	  else PRAM_DO when CPU_RD_N = '0' and CPU_PRAM_SEL_N = '0'
-	  else ROM_DO  when CPU_RD_N = '0' and CPU_A(20)      = '0'
-	  else VCE_DO  when CPU_RD_N = '0' and CPU_VCE_SEL_N  = '0'
-	  else VDC0_DO when CPU_RD_N = '0' and CPU_VDC0_SEL_N = '0'
-	  else VDC1_DO when CPU_RD_N = '0' and CPU_VDC1_SEL_N = '0'
-	  else VPC_DO  when CPU_RD_N = '0' and CPU_VPC_SEL_N  = '0'
-	  else X"FF";
+CPU_DI <= RAM_DO        when CPU_RAM_SEL_N  = '0'
+			else CD_DO     when CD_SEL_N       = '0'
+			else CD_RAM_DI when CD_RAM_CS_N    = '0' or AC_RAM_CS_N = '0'
+			else AC_DO     when AC_SEL_N       = '0'
+			else BRM_DO    when CPU_BRM_SEL_N  = '0'
+			else PRAM_DO   when CPU_PRAM_SEL_N = '0'
+			else ROM_DO    when CPU_ROM_SEL_N  = '0'
+			else VCE_DO    when CPU_VCE_SEL_N  = '0'
+			else VDC0_DO   when CPU_VDC0_SEL_N = '0'
+			else VDC1_DO   when CPU_VDC1_SEL_N = '0'
+			else VPC_DO    when CPU_VPC_SEL_N  = '0'
+			else X"FF";
 
 -- Perform address mangling to mimic HuCard chip mapping.
 -- 384K ROM, split in 3, mapped ABABCCCC
@@ -363,25 +537,20 @@ ROM_A <=   "00000"&CPU_A(16 downto 0)                                       when
           &(CPU_A(19) and not rombank(0))&CPU_A(18 downto 0)                when rom_sz = X"28" -- SF2
       else "00"&CPU_A(19 downto 0);                                                             -- 1MB and others
 
-ROM_RD    <= CPU_CLKEN and not CPU_A(20) and not CPU_RD_N and not RESET and CPU_PRAM_SEL_N;
-ROM_CLKEN <= CLKEN7;
+ROM_RD    <= CPU_PRE_RD and not CPU_ROM_SEL_N and CPU_PRAM_SEL_N and ((AC_RAM_CS_N and CD_RAM_CS_N) or not CD_EN);
+ROM_CLKEN <= CPU_CLKEN;
 
 process( CLK ) begin
 	if rising_edge( CLK ) then
-
 		if RESET = '1' then
-			RESET_N <= '0';
 			rombank <= "00";
-		elsif CPU_CLKEN = '1' then
-
-			RESET_N <= '1';
-
+		elsif CPU_CE = '1' then
 			-- CPU_A(12 downto 2) = X"7FC" means CPU_A & 0x1FFC = 0x1FF0
 			if CPU_A(20) = '0' and ('0' & CPU_A(12 downto 2)) = X"7FC" and CPU_WR_N = '0' then
 				rombank <= CPU_A(1 downto 0);
 			end if;
-
 		end if;
+		RESET_N <= not RESET;
 	end if;
 end process;
 
@@ -390,7 +559,7 @@ port map (
 	clock		=> CLK,
 	address_a=> CPU_A(14 downto 0),
 	data_a	=> CPU_DO,
-	wren_a	=> CPU_CLKEN and not CPU_PRAM_SEL_N and not CPU_WR_N,
+	wren_a	=> CPU_CE and not CPU_PRAM_SEL_N and not CPU_WR_N,
 	q_a		=> PRAM_DO
 );
 
@@ -400,9 +569,9 @@ CPU_PRAM_SEL_N <= CPU_A(20) or not CPU_A(19) or not ROM_POP;
 RAM : entity work.dpram generic map (15,8)
 port map (
 	clock		=> CLK,
-	address_a=> RAM_A,
+	address_a=> RAM_A(14 downto 0),
 	data_a	=> CPU_DO,
-	wren_a	=> CPU_CLKEN and not CPU_RAM_SEL_N and not CPU_WR_N,
+	wren_a	=> CPU_CE and not CPU_RAM_SEL_N and not CPU_WR_N,
 	q_a		=> RAM_DO
 );
 
@@ -412,6 +581,73 @@ RAM_A(14 downto 13) <= CPU_A(14 downto 13) when SGX = '1' else "00";
 -- Backup RAM
 BRM_A <= CPU_A(10 downto 0);
 BRM_DI <= CPU_DO;
-BRM_WE <= CPU_CLKEN and not CPU_BRM_SEL_N and not CPU_WR_N;
+BRM_WE <= CPU_CE and not CPU_BRM_SEL_N and not CPU_WR_N;
+
+
+CD : entity work.cd
+port map(
+	CLK 			=> CLK,
+	RST_N			=> RESET_N,
+	EN				=> '1',
+
+	EXT_A			=> CPU_A,
+	EXT_DI		=> CPU_DO,
+	EXT_DO		=> CD_DO,
+	EXT_WR_N		=> CPU_WR_N,
+	EXT_RD_N		=> CPU_RD_N,
+	CPU_CE		=> CPU_CE,
+	
+	RAM_CS_N		=> CD_RAM_CS_N,
+	BRAM_EN		=> CD_BRAM_EN,
+	
+	SEL_N			=> CD_SEL_N,
+	IRQ_N			=> CD_IRQ_N,
+	
+	CD_STAT		=> CD_STAT,
+	CD_MSG		=> CD_MSG,
+	CD_STAT_GET	=> CD_STAT_GET,
+	CD_COMM		=> CD_COMM,
+	CD_COMM_SEND=> CD_COMM_SEND,
+	CD_DOUT_REQ	=> CD_DOUT_REQ,
+	CD_DOUT		=> CD_DOUT,
+	CD_DOUT_SEND=> CD_DOUT_SEND,
+	
+	CD_DATA		=> CD_DATA,
+	CD_WR			=> CD_WR,
+	CD_DATA_END	=> CD_DATA_END,
+	
+	CD_RESET		=> CD_RESET,
+	
+	DM				=> CD_DM,
+	
+	CD_SL			=> CDDA_SL,
+	CD_SR			=> CDDA_SR,
+	AD_S			=> ADPCM_S
+);
+
+CD_RAM_A  <= '0' & AC_RAM_A when AC_RAM_CS_N = '0' else "1000" & CPU_A(17 downto 0);
+CD_RAM_DO <= CPU_DO;
+CD_RAM_RD <= CPU_PRE_RD and not (CD_RAM_CS_N and AC_RAM_CS_N);
+CD_RAM_WR <= CPU_PRE_WR and not (CD_RAM_CS_N and AC_RAM_CS_N);
+
+AC : ARCADE_CARD
+port map(
+	CLK     => CLK,
+	RST_N   => RESET_N,
+
+	EN      => CD_EN and AC_EN,
+	WR_N    => CPU_WR_N,
+	RD_N    => CPU_RD_N,
+	A       => CPU_A,
+	DI      => CPU_DO,
+	DO      => AC_DO,
+	SEL_N   => AC_SEL_N,
+
+	RAM_CS_N=> AC_RAM_CS_N,
+	RAM_A   => AC_RAM_A
+);
+
+PSG_SR <= signed(PCE_SR(23 downto 8));
+PSG_SL <= signed(PCE_SL(23 downto 8));
 
 end rtl;

@@ -29,13 +29,11 @@ entity huc6202 is
 		RESET_N	: in std_logic;
 
 		A			: in std_logic_vector(2 downto 0);
-		CE_N		: in std_logic;
 		WR_N		: in std_logic;
-		RD_N		: in std_logic;		
 		DI			: in std_logic_vector(7 downto 0);
 		DO 		: out std_logic_vector(7 downto 0);
 		
-		HS_N		: in std_logic;
+		HS_F		: in std_logic;
 		VDC0_IN	: in std_logic_vector(8 downto 0);
 		VDC1_IN	: in std_logic_vector(8 downto 0);
 		VDC_OUT	: out std_logic_vector(8 downto 0);
@@ -54,7 +52,6 @@ signal X    : std_logic_vector(9 downto 0);
 signal PRIN : std_logic_vector(1 downto 0);
 signal PRI  : std_logic_vector(3 downto 0);
 
-signal HS_N_PREV	: std_logic;
 signal VDC_PRI		: std_logic_vector(8 downto 0);
 signal INMIX		: std_logic;
 
@@ -74,9 +71,8 @@ process( CLK )
 begin
 	if rising_edge(CLK) then
 		if CLKEN = '1' then
-			HS_N_PREV <= HS_N;
 			X <= X + 1;
-			if HS_N_PREV = '1' and HS_N = '0' then
+			if HS_F = '1' then
 				X <= (others => '0');
 			end if;
 
@@ -114,8 +110,6 @@ end process;
 
 process( CLK ) begin
 	if rising_edge(CLK) then
-
-		DO <= X"FF";
 		if RESET_N = '0' then
 			PRI0 <= "00010001";
 			PRI1 <= "00010001";
@@ -123,8 +117,9 @@ process( CLK ) begin
 			WIN2 <= (others => '0');
 			VDCNUM <= '0';
 			INMIX <= '0';
+			DO <= X"FF";
 		else
-			if CE_N = '0' and WR_N = '0' then
+			if WR_N = '0' then
 				case A is
 					when "000" => PRI0 <= DI; INMIX <= '1';
 					when "001" => PRI1 <= DI; INMIX <= '1';
@@ -135,17 +130,16 @@ process( CLK ) begin
 					when "110" => VDCNUM <= DI(0);
 					when others => null;
 				end case;
-			elsif CE_N = '0' and RD_N = '0' then
-				case A is
-					when "000" => DO <= PRI0;
-					when "001" => DO <= PRI1;
-					when "010" => DO <= WIN1(7 downto 0);
-					when "011" => DO <= "000000" & WIN1(9 downto 8);
-					when "100" => DO <= WIN2(7 downto 0);
-					when "101" => DO <= "000000" & WIN2(9 downto 8);
-					when others => DO <= X"00";
-				end case;
 			end if;
+			case A is
+				when "000" => DO <= PRI0;
+				when "001" => DO <= PRI1;
+				when "010" => DO <= WIN1(7 downto 0);
+				when "011" => DO <= "000000" & WIN1(9 downto 8);
+				when "100" => DO <= WIN2(7 downto 0);
+				when "101" => DO <= "000000" & WIN2(9 downto 8);
+				when others => DO <= X"00";
+			end case;
 		end if;
 	end if;
 end process;

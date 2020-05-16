@@ -1,6 +1,6 @@
 # TurboGrafx 16 / PC Engine for [MiSTer Board](https://github.com/MiSTer-devel/Main_MiSTer/wiki) 
 
-### This is the port of Gregory Estrade's [FPGAPCE](https://github.com/Torlus/FPGAPCE) with some tweaks from MiST's port.
+### This is the port of Gregory Estrade's [FPGAPCE](https://github.com/Torlus/FPGAPCE)
 
 ## Features
  * SuperGrafx mode
@@ -10,18 +10,26 @@
  * 6(8)-buttons joystick support
  * Turbotap(multiple joysticks)
  * Support for Street Fighter II and Populous mappers
- * Option of 64 sprites per line (reduces the flickering in some games)
+ * Support CD-ROM games
+ * Support Arcade Card games
+ * Cheat engine
 
 ## Installation:
 Copy the *.rbf file at the root of the SD card. Copy roms (*PCE,*BIN) to **TGFX16** folder. You may rename ROM of your favorite game to **boot.rom** - it will be automatically loaded upon core loading.
 Use SGX file extension for SuperGrafx games.
 
+## CD-ROM games
+CD-ROM dumps must be placed into **TGFX16-CD** folder. Each CD-ROM must have its own folder.
+
 ## Save file
 Some games support saves. Place an empty file with size 2048 bytes and name the same as ROM file with extension .sav
 It will be automatically loaded with ROM.
 
+## Cheat engine
+Standard cheats location is supported for HuCard games. For CD-ROM game all cheats must be zipped into a single zip file and placed inside game's CD-ROM folder.
+
 ## Joystick
-Both Turbotap and 6-button are for games explicitly supporting these features.
+Both Turbotap and 6-button joysticks are supported.
 Do not enable these features for games not supporting it, otherwise game will work incorrectly.
 
 ## Reset
@@ -30,7 +38,6 @@ Tap the Start + Select buttons together quickly to reset.  The PC Engine/Turbogr
 ### Notes:
 * Do not forget to assign joystick buttons on keyboard in order to play on keyboard.
 * Both headerless ROMs and ROMs with header (512b) are supported and automatically distinguished by file size.
-* 64 sprites per line may improve the game look by reducing the flickering, but may introduce glitches in some games.
 
 ## Download precompiled binaries
 Go to [releases](https://github.com/MiSTer-devel/TurboGrafx16_MiSTer/tree/master/releases) folder. 

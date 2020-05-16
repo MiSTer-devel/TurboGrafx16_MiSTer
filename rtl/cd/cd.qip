@@ -1,0 +1,5 @@
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) cd.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) CDDA_FIFO.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) SCSI.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) SCSI_FIFO.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) MSM5205.vhd ]
