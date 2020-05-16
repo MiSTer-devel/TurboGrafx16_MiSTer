@@ -802,22 +802,28 @@ wire snac = status[13];
 // 4   = RX+   = 6  = CLR
 // 5   = RX-   = 3  = d2/down/sel
 
-reg [2:0] d0sr, d1sr, d2sr, d3sr;
-reg [20:0] sesr, clsr;
-
+reg [3:0] snac_dat;
+reg       snac_sel, snac_clr;
 always @(posedge clk_sys) begin
-	d0sr <= {d0sr[1:0], USER_IN[1]};
-	d1sr <= {d1sr[1:0], USER_IN[0]};
-	d2sr <= {d2sr[1:0], USER_IN[5]};
-	d3sr <= {d3sr[1:0], USER_IN[3]};
-	sesr <= {sesr[8:0], joy_out[0]};
+	reg [2:0] d0sr, d1sr, d2sr, d3sr;
+	reg [20:0] sesr, clsr;
+
+	d0sr <= {d0sr[1:0],  USER_IN[1]};
+	d1sr <= {d1sr[1:0],  USER_IN[0]};
+	d2sr <= {d2sr[1:0],  USER_IN[5]};
+	d3sr <= {d3sr[1:0],  USER_IN[3]};
+	sesr <= {sesr[8:0],  joy_out[0]};
 	clsr <= {clsr[19:0], joy_out[1]};
+
+	snac_dat <= {|d3sr, |d2sr, |d1sr, |d0sr};
+	snac_sel <= |sesr;
+	snac_clr <= |clsr;	
 end
 
 wire [1:0] joy_out;
-wire [3:0] joy_in = {snac ? {|d3sr, |d2sr, |d1sr, |d0sr} : joy_latch};
+wire [3:0] joy_in = snac ? snac_dat : joy_latch;
 
-assign USER_OUT = snac ? {2'b11, |clsr, 1'b1, |sesr, 2'b11} : '1;
+assign USER_OUT = snac ? {2'b11, snac_clr, 1'b1, snac_sel, 2'b11} : '1;
 
 
 /////////////////////////  STATE SAVE/LOAD  /////////////////////////////
