@@ -26,6 +26,9 @@ entity huc6260 is
 		RVBL		: in std_logic;
 		DCC		: out std_logic_vector(1 downto 0);
 		
+		GRID_EN	: in std_logic;
+		BORDER_EN: in std_logic;
+		BORDER	: in std_logic;
 		GRID		: in std_logic;
 
 		-- NTSC/RGB Video Output
@@ -291,14 +294,18 @@ begin
 			VBL <= VBL_FF2;
 			HBL <= HBL_FF2;
 
-			if(GRID = '0') then
-				G <= COLOR(8 downto 6);
-				R <= COLOR(5 downto 3);
-				B <= COLOR(2 downto 0);
-			else
+			if BORDER = '1' and BORDER_EN = '0' then
+				G <= (others => '0');
+				R <= (others => '0');
+				B <= (others => '0');
+			elsif GRID = '1' and GRID_EN = '1' then
 				G <= (others => '1');
 				R <= (others => '1');
 				B <= (others => '1');
+			else
+				G <= COLOR(8 downto 6);
+				R <= COLOR(5 downto 3);
+				B <= COLOR(2 downto 0);
 			end if;
 		end if;
 	end if;
