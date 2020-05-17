@@ -10,8 +10,6 @@ entity huc6260 is
 	port (
 		CLK 		: in std_logic;
 		RESET_N	: in std_logic;
-		HSIZE		: out std_logic_vector(9 downto 0);
-		HSTART	: out std_logic_vector(9 downto 0);
 
 		-- CPU Interface
 		A			: in std_logic_vector(2 downto 0);
@@ -26,6 +24,9 @@ entity huc6260 is
 		CLKEN		: out std_logic;
 		CLKEN_FS	: out std_logic;
 		RVBL		: in std_logic;
+		DCC		: out std_logic_vector(1 downto 0);
+		
+		GRID		: in std_logic;
 
 		-- NTSC/RGB Video Output
 		R			: out std_logic_vector(2 downto 0);
@@ -36,7 +37,12 @@ entity huc6260 is
 		VS_N		: out std_logic;
 		HS_N		: out std_logic;
 		HBL		: out std_logic;
-		VBL		: out std_logic
+		VBL		: out std_logic;
+		
+		HS_F		: out std_logic;
+		HS_R		: out std_logic;
+		VS_F		: out std_logic;
+		VS_R		: out std_logic
 	);
 end huc6260;
 
@@ -62,8 +68,7 @@ signal RAM_DO	: std_logic_vector(8 downto 0);
 -- Color RAM Output
 signal COLOR	: std_logic_vector(8 downto 0);
 
--- Video Counting. All horizontal constants should be divisible by 24! (LCM of 4, 6 and 8)
-constant LEFT_BL_CLOCKS	: integer := 432;
+constant LEFT_BL_CLOCKS	: integer := 456;
 constant DISP_CLOCKS	   : integer := 2160;
 constant LINE_CLOCKS	   : integer := 2730;
 constant HS_CLOCKS		: integer := 192;
@@ -75,14 +80,6 @@ constant DISP_LINES_E	: integer := 242;	 -- same as in mednafen
 signal TOP_BL_LINES		: integer;
 signal DISP_LINES			: integer;
 
-constant HSIZE0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/8,10));
-constant HSIZE1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/6,10));
-constant HSIZE2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(DISP_CLOCKS/4,10));
-
-constant HSTART0 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/8,10));
-constant HSTART1 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/6,10));
-constant HSTART2 : std_logic_vector(9 downto 0) := std_logic_vector(to_unsigned(LEFT_BL_CLOCKS/4,10));
-
 signal H_CNT	: std_logic_vector(11 downto 0);
 signal V_CNT	: std_logic_vector(9 downto 0);
 
@@ -90,14 +87,14 @@ signal HBL_FF, HBL_FF2	: std_logic;
 signal VBL_FF, VBL_FF2	: std_logic;
 
 -- Clock generation
-signal CLKEN_CNT	: std_logic_vector(2 downto 0);
-signal CLKEN_FS_CNT: std_logic_vector(2 downto 0);
+signal CLKEN_CNT	: std_logic_vector(3 downto 0);
+signal CLKEN_FS_CNT: std_logic_vector(3 downto 0);
 signal CLKEN_FF	: std_logic;
 
 begin
 
 TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+3;
-DISP_LINES   <= DISP_LINES_E   when RVBL = '1' else DISP_LINES_E-10;
+DISP_LINES   <= DISP_LINES_E   when RVBL = '1' else DISP_LINES_E-11;
 
 -- Color RAM
 ram : entity work.dpram generic map (9,9)
@@ -197,20 +194,20 @@ begin
 
 		CLKEN_FF <= '0';
 		CLKEN_CNT <= CLKEN_CNT + 1;
-		if DOTCLOCK = "00" and CLKEN_CNT = "111" then
+		if DOTCLOCK = "00" and CLKEN_CNT = "0111" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';
-		elsif DOTCLOCK = "01" and CLKEN_CNT = "101" then
+		elsif DOTCLOCK = "01" and CLKEN_CNT = "0101" then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
-		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "011" then
+		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "0011" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
 		end if;
 
 		if H_CNT = LINE_CLOCKS-1 then
 			CLKEN_CNT <= (others => '0');
-		--	CLKEN_FF <= '1';							-- remove excess cycle from scanline as per paulbni
+			CLKEN_FF <= '1';				
 			H_CNT <= (others => '0');
 			V_CNT <= V_CNT + 1;
 			if V_CNT = TOTAL_LINES-1 then
@@ -228,20 +225,20 @@ begin
 	if rising_edge( CLK ) then
 		CLKEN_FS <= '0';
 		CLKEN_FS_CNT <= CLKEN_FS_CNT + 1;
-		if DOTCLOCK_FS = "00" and CLKEN_FS_CNT = "111" then
+		if DOTCLOCK_FS = "00" and CLKEN_FS_CNT = "0111" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_FS_CNT <= (others => '0');
 			CLKEN_FS <= '1';
-		elsif DOTCLOCK_FS = "01" and CLKEN_FS_CNT = "101" then
+		elsif DOTCLOCK_FS = "01" and CLKEN_FS_CNT = "0101" then
 			CLKEN_FS_CNT <= (others => '0');
 			CLKEN_FS <= '1';				
-		elsif DOTCLOCK_FS(1) = '1' and CLKEN_FS_CNT = "011" then
+		elsif DOTCLOCK_FS(1) = '1' and CLKEN_FS_CNT = "0011" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_FS_CNT <= (others => '0');
 			CLKEN_FS <= '1';				
 		end if;
 
 		if H_CNT = LINE_CLOCKS-1 then
 			 CLKEN_FS_CNT <= (others => '0');
-		--	 CLKEN_FS <= '1';							--  remove excess cycle from scanline as per paulbni
+			 CLKEN_FS <= '1';
 		end if;
 
 		if H_CNT = LEFT_BL_CLOCKS and V_CNT = TOP_BL_LINES then
@@ -254,10 +251,19 @@ end process;
 process( CLK )
 begin
 	if rising_edge( CLK ) then
-		if H_CNT = 0           then HS_N <= '0'; end if;
-		if H_CNT = HS_CLOCKS-1 then HS_N <= '1'; end if;
-		if V_CNT = 0           then VS_N <= '0'; end if;
-		if V_CNT = VS_LINES    then VS_N <= '1'; end if;
+		if H_CNT = 0             then HS_N <= '0'; end if;
+		if H_CNT = HS_CLOCKS-1   then HS_N <= '1'; end if;
+		if V_CNT = 0             then VS_N <= '0'; end if;
+		if V_CNT = VS_LINES      then VS_N <= '1'; end if;
+		
+		HS_F <= '0';
+		HS_R <= '0';
+		VS_F <= '0';
+		VS_R <= '0';
+		if H_CNT = LINE_CLOCKS-1 then HS_F <= '1'; end if;
+		if H_CNT = HS_CLOCKS-1   then HS_R <= '1'; end if;
+		if V_CNT = TOTAL_LINES-1 and H_CNT = HS_CLOCKS-1 then VS_F <= '1'; end if;
+		if V_CNT = VS_LINES-1 and H_CNT = HS_CLOCKS-1    then VS_R <= '1'; end if;
 	end if;
 end process;
 
@@ -285,15 +291,20 @@ begin
 			VBL <= VBL_FF2;
 			HBL <= HBL_FF2;
 
-			G <= COLOR(8 downto 6);
-			R <= COLOR(5 downto 3);
-			B <= COLOR(2 downto 0);
+			if(GRID = '0') then
+				G <= COLOR(8 downto 6);
+				R <= COLOR(5 downto 3);
+				B <= COLOR(2 downto 0);
+			else
+				G <= (others => '1');
+				R <= (others => '1');
+				B <= (others => '1');
+			end if;
 		end if;
 	end if;
 end process;
 
-CLKEN  <= CLKEN_FF;
-HSIZE  <= HSIZE0  when DOTCLOCK = "00" else HSIZE1  when DOTCLOCK = "01" else HSIZE2;
-HSTART <= HSTART0 when DOTCLOCK = "00" else HSTART1 when DOTCLOCK = "01" else HSTART2;
+CLKEN <= CLKEN_FF;
+DCC <= DOTCLOCK;
 
 end rtl;

@@ -48,7 +48,8 @@ module sdram
 
 	input      [24:0] waddr,      // 25 bit byte address
 	input      [15:0] din,			// data input from chipset/cpu
-	input             we,         // cpu/chipset requests write
+	input             we,         // cpu/chipset write
+	input             we_req,     // cpu/chipset requests write
 	output reg        we_ack = 0
 );
 
@@ -78,6 +79,7 @@ reg [22:0] a;
 reg  [1:0] bank;
 reg [15:0] data;
 reg        wr;
+reg        b;
 reg        ram_req=0;
 
 // access manager
@@ -91,11 +93,12 @@ always @(posedge clk) begin
 		ram_req <= 0;
 		wr <= 0;
 
-		if(we_ack != we) begin
+		if(we_ack != we_req || we) begin
 			ram_req <= 1;
 			wr <= 1;
 			{bank,a} <= waddr;
 			data <= din;
+			b <= we;
 		end
 		else
 		if(rd) begin
@@ -103,11 +106,12 @@ always @(posedge clk) begin
 			ram_req <= 1;
 			wr <= 0;
 			{bank,a} <= raddr;
+			b <= 0;
 		end
 	end
 
 	if (q == STATE_READY && ram_req) begin
-		if(wr) we_ack <= we;
+		if(wr) we_ack <= we_req;
 		else   rd_rdy <= 1;
 	end
 
@@ -169,7 +173,7 @@ always @(posedge clk) begin
 	if(mode == MODE_NORMAL) begin
 		casex(q)
 			STATE_START: SDRAM_A <= a[21:9];
-			STATE_CONT:  SDRAM_A <= {4'b0010, a[22], a[8:1]};
+			STATE_CONT:  SDRAM_A <= {~a[0]&wr&b,a[0]&wr&b,2'b10, a[22], a[8:1]};
 		endcase;
 	end
 	else if(mode == MODE_LDM && q == STATE_START) SDRAM_A <= MODE;
