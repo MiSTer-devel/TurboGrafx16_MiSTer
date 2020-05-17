@@ -137,12 +137,9 @@ module emu
 `endif
 
 `ifdef USE_SP64
-	localparam MAX_SPPL = 63;
-	localparam SP64     = 1'b1;
-	localparam 
+	localparam SP64 = 1;
 `else
-	localparam MAX_SPPL = 15;
-	localparam SP64     = 1'b0;
+	localparam SP64 = 0;
 `endif
 
 assign ADC_BUS  = 'Z;

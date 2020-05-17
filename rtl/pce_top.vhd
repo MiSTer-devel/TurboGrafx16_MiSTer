@@ -372,7 +372,7 @@ port map(
 	 
 );
 
-VRAM0 : entity work.dpram generic map (15,16,"",'0')
+VRAM0 : entity work.dpram generic map (addr_width => 15, data_width => 16, disable_value => '0')
 port map (
 	clock		=> CLK,
 	address_a=> VRAM0_A(14 downto 0),
@@ -421,7 +421,7 @@ generate_SGX: if (LITE = 0) generate begin
 		 
 	);
 
-	VRAM1 : entity work.dpram generic map (15,16,"",'0')
+	VRAM1 : entity work.dpram generic map (addr_width => 15, data_width => 16, disable_value => '0')
 	port map (
 		clock		=> CLK,
 		address_a=> VRAM1_A(14 downto 0),
