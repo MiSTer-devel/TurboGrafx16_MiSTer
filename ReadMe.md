@@ -37,6 +37,9 @@ Do not enable these features for games not supporting it, otherwise game will wo
 ## Reset
 Tap the Start + Select buttons together quickly to reset. The PC Engine/Turbografx-16 did not have a hardware reset button, and instead relies on this button combination.  The timing needs to be exact to trigger this, and sometimes it will take a couple tries.  With this method, in-game options will remain if you have changed them, whereas the MiSTer OSD reset will revert them.
 
+## SDRAM
+This core may work without SDRAM (using on-board DDR3), but it may have different kinds of issues/glitches due to high latency of DDR3 memory. Thus SDRAM module is highly recommended for maximum accuracy.
+
 ### Notes:
 * Both headerless ROMs and ROMs with header (512b) are supported and automatically distinguished by file size.
 
