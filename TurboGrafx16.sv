@@ -152,9 +152,8 @@ assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = osd_btn;
 
-assign VIDEO_ARX = status[1] ? 8'd16 : overscan ? 8'd53 : 8'd47;
-assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd40 : 8'd37;
-
+assign VIDEO_ARX = status[1] ? 8'd16 : overscan ? 8'd4 : 8'd47;
+assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 
 // Status Bit Map:
 // 0         1         2         3 
