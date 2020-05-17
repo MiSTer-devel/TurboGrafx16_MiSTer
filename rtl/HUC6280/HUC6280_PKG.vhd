@@ -14,7 +14,7 @@ package HUC6280_PKG is
 		LOAD_PC       	: std_logic_vector(2 downto 0);
 		LOAD_SP       	: std_logic_vector(2 downto 0);
 		AXY_CTRL      	: std_logic_vector(2 downto 0); 
-		ALUBUS_CTRL		: std_logic_vector(5 downto 0); 
+		ALUBUS_CTRL		: std_logic_vector(3 downto 0); 
 		ALUCtrl      	: std_logic_vector(4 downto 0); 
 		OUT_BUS       	: std_logic_vector(3 downto 0);
 		MEM_CYCLE      : std_logic;
