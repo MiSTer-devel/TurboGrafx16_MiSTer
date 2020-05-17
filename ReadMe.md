@@ -23,6 +23,8 @@ CD-ROM images must be in BIN/CUE format, and must be located in the **TGFX16-CD*
 **cd_bios.rom** must be placed in the same TGFX16-CD folder as the images mentioned above. **Japanese Super CD-ROM v3.00 is recomended for maximum compatibility**. 
 Additionally you can use a different bios for specific games (for example from Games Express) by placing cd_bios.rom inside the game image's folder.
 
+**Do not zip CD-ROM images! It won't work correctly.**
+
 ## Cheat engine
 Standard cheats location is supported for HuCard games. For CD-ROM game all cheats must be zipped into a single zip file and placed inside game's CD-ROM folder.
 
