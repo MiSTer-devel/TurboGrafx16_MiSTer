@@ -25,6 +25,7 @@ entity HUC6270 is
 		VS_F		: in std_logic;
 		VS_R		: in std_logic;
 		VD			: out std_logic_vector(8 downto 0);
+		BORDER	: out std_logic;
 		GRID		: out std_logic;
 		
 		-- master mode signals
@@ -42,7 +43,6 @@ entity HUC6270 is
 		
 		BG_EN		: in std_logic;
 		SPR_EN	: in std_logic;
-		GRID_EN	: in std_logic;
 		
 		IW_DBG 				: out std_logic_vector(1 downto 0);
 		VM_DBG 				: out std_logic_vector(1 downto 0);
@@ -180,6 +180,8 @@ architecture rtl of HUC6270 is
 	type slot_t is ( CPU, BAT, CG0, CG1, SG0, SG1, SG2, SG3, NOP );
 	signal SLOT				: slot_t;	
 	signal DISP 			: std_logic_vector(7 downto 0);
+	signal BORD 			: std_logic_vector(7 downto 0);
+	signal GRD 				: std_logic_vector(7 downto 0);
 	signal BG_X				: unsigned(9 downto 0);
 	signal OFS_X			: unsigned(9 downto 0);
 	signal OFS_Y			: unsigned(8 downto 0);
@@ -931,12 +933,15 @@ begin
 			BG_COLOR <= (others=>(others=>'0'));
 			SPR_COLOR <= (others=>(others=>'0'));
 			DISP <= (others=>'0');
+			BORD <= (others=>'1');
+			GRD <= (others=>'0');
 		elsif rising_edge(CLK) then
 			if DCK_CE = '1' then
 				BG_COLOR(7) <= (others=>'0');
 				SPR_COLOR(7) <= (others=>'0');
 				DISP(7) <= '0';
-				GRID <= '0';
+				BORD(7) <= '1';
+				GRD(7) <= '0';
 				if HS_F = '1' then
 					BG_OUT_X <= (others=>'0');
 				elsif BG_OUT = '1' and VDISP = '1' then
@@ -948,11 +953,12 @@ begin
 										BG_SR0(to_integer(PX(3 downto 0)));
 					SPR_COLOR(7) <= SPR_LINE_Q;
 					DISP(7) <= not BURST;
+					BORD(7) <= '0';
 					
 					GX := BG_OUT_X(2 downto 0) + unsigned(OFS_X(2 downto 0));
 					GY := OFS_Y(2 downto 0);
 					if GX = 7 or GY = 7 then
-						GRID <= GRID_EN;
+						GRD(7) <= '1';
 					end if; 
 					
 					BG_OUT_X <= BG_OUT_X + 1;
@@ -962,11 +968,15 @@ begin
 					BG_COLOR(i) <= BG_COLOR(i+1);
 					SPR_COLOR(i) <= SPR_COLOR(i+1);
 					DISP(i) <= DISP(i+1);
+					BORD(i) <= BORD(i+1);
+					GRD(i) <= GRD(i+1);
 				end loop;
 			end if; 
 		end if;
 	end process;
 	
+	BORDER <= BORD(0);
+	GRID <= GRD(0);
 
 	process(BG_OUT, DISP, BG_COLOR, SPR_COLOR, BB, SB, BG_EN, SPR_EN)
 	begin
@@ -982,7 +992,7 @@ begin
 			VD <= "0"&x"00";
 		end if; 
 	end process;
-	
+		
 	
 	process(CLK, RST_N)
 	begin

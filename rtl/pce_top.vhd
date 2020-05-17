@@ -189,6 +189,7 @@ signal VRAM1_DI	: std_logic_vector(15 downto 0);
 signal VRAM1_DO	: std_logic_vector(15 downto 0);
 signal VRAM1_WE	: std_logic;
 signal VCE_DCC		: std_logic_vector(1 downto 0);
+signal VDC0_BORDER: std_logic;
 signal VDC0_GRID	: std_logic;
 signal CPU_PRE_RD	: std_logic;
 signal CPU_PRE_WR	: std_logic;
@@ -317,6 +318,9 @@ port map(
 	RVBL		=> ReducedVBL,
 	DCC		=> VCE_DCC,
 	
+	GRID_EN	=> GRID_EN,
+	BORDER_EN=> '0',
+	BORDER	=> VDC0_BORDER,
 	GRID		=> VDC0_GRID,
 		
 	-- NTSC/RGB Video Output
@@ -359,6 +363,8 @@ port map(
 	VS_F		=> VCE_VS_F,
 	VS_R		=> VCE_VS_R,
 	VD			=> VDC0_COLNO,
+	
+	BORDER	=> VDC0_BORDER,
 	GRID		=> VDC0_GRID,
 	
 	RAM_A		=> VRAM0_A,
@@ -367,9 +373,7 @@ port map(
 	RAM_WE	=> VRAM0_WE,
 	
 	BG_EN		=> BG_EN,
-	SPR_EN	=> SPR_EN,
-	GRID_EN	=> GRID_EN
-	 
+	SPR_EN	=> SPR_EN
 );
 
 VRAM0 : entity work.dpram generic map (addr_width => 15, data_width => 16, disable_value => '0')
@@ -416,9 +420,7 @@ generate_SGX: if (LITE = 0) generate begin
 		RAM_WE	=> VRAM1_WE,
 		
 		BG_EN		=> BG_EN,
-		SPR_EN	=> SPR_EN,
-		GRID_EN	=> GRID_EN
-		 
+		SPR_EN	=> SPR_EN
 	);
 
 	VRAM1 : entity work.dpram generic map (addr_width => 15, data_width => 16, disable_value => '0')
