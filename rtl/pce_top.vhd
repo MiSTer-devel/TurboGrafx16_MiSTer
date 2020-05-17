@@ -319,7 +319,7 @@ port map(
 	DCC		=> VCE_DCC,
 	
 	GRID_EN	=> GRID_EN,
-	BORDER_EN=> '0',
+	BORDER_EN=> ReducedVBL,
 	BORDER	=> VDC0_BORDER,
 	GRID		=> VDC0_GRID,
 		
