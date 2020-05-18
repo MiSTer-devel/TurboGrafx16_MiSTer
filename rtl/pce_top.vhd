@@ -76,6 +76,7 @@ entity pce_top is
 		GRID_EN		: in  std_logic;
 		CPU_PAUSE_EN: in  std_logic;
 
+		BORDER_EN	: in  std_logic;
 		ReducedVBL	: in  std_logic;
 		VIDEO_R		: out std_logic_vector(2 downto 0);
 		VIDEO_G		: out std_logic_vector(2 downto 0);
@@ -322,7 +323,7 @@ port map(
 	DCC		=> VCE_DCC,
 	
 	GRID_EN	=> GRID_EN,
-	BORDER_EN=> ReducedVBL,
+	BORDER_EN=> BORDER_EN,
 	BORDER	=> BORDER,
 	GRID		=> GRID,
 		

@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3 
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXX XX
+// XXXXXXXXXXXXXXXXXX
 
 `include "build_id.v" 
 parameter CONF_STR = {
@@ -183,7 +183,9 @@ parameter CONF_STR = {
 	"P1-;",
 	"P1O1,Aspect ratio,4:3,16:9;",
 	"P1O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"P1-;",
 	"P1OH,Overscan,Hidden,Visible;",
+	"P1OF,Border Color,Original,Black;",
 	"H6P1OB,Sprites per line,Normal,Extra;",
 	"P2,Hardware;",
 	"P2-;",
@@ -434,6 +436,7 @@ pce_top #(LITE) pce_top
 	.CPU_PAUSE_EN(CPU_PAUSE_EN),
 
 	.ReducedVBL(~overscan),
+	.BORDER_EN(~status[15]),
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
