@@ -198,7 +198,7 @@ parameter CONF_STR = {
 	"P2OF,Arcade Card,Disabled,Enabled;",
 	"P2OP,CD Seek,Normal,Fast;",
 	"P2-;",
-	"P2ODE,USER I/O,Off,LLAPI,SNAC;",
+	"P2ODE,USER I/O,Off,SNAC,LLAPI;",
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
@@ -705,7 +705,7 @@ wire [71:0] llapi_analog, llapi_analog2;
 wire [7:0]  llapi_type, llapi_type2;
 wire llapi_en, llapi_en2;
 
-wire llapi_select = status[13];
+wire llapi_select = status[14];
 
 wire llapi_latch_o, llapi_latch_o2, llapi_data_o, llapi_data_o2;
 
@@ -717,7 +717,7 @@ always_comb begin
 		USER_OUT[2] = ~(llapi_select & ~OSD_STATUS);
 		USER_OUT[4] = llapi_latch_o2;
 		USER_OUT[5] = llapi_data_o2;
-	end else if (snac) begin
+	end else if (snac & ~OSD_STATUS) begin
 		USER_OUT = {2'b11, snac_clr, 1'b1, snac_sel, 2'b11};
 	end
 end
@@ -1000,7 +1000,7 @@ always @(posedge clk_sys) begin : input_block
 	end
 end
 
-wire snac = status[14];
+wire snac = status[13];
 
 // Index Name    HDMI System
 // 0   = D+    = 2  = d1/right/2
