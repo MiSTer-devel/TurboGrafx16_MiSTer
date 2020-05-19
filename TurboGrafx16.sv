@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -187,6 +187,8 @@ parameter CONF_STR = {
 	"P1OH,Overscan,Hidden,Visible;",
 	"P1OF,Border Color,Original,Black;",
 	"H6P1OB,Sprites per line,Normal,Extra;",
+	"P1-;",
+	"P1OIJ,Audio Boost,No,2x,4x;",
 	"P2,Hardware;",
 	"P2-;",
 	"P2O3,ROM Data Swap,No,Yes;",
@@ -213,10 +215,26 @@ parameter CONF_STR = {
 	"V,v",`BUILD_DATE
 };
 
-wire code_index = &ioctl_index;
-wire code_download = ioctl_download & code_index;
-wire cart_download = ioctl_download & (ioctl_index[5:0] <= 6'h01);
-wire cd_dat_download = ioctl_download & (ioctl_index[5:0] == 6'h02);
+
+reg osd_btn = 0;
+always @(posedge clk_sys) begin
+	integer timeout = 0;
+	reg	has_bootrom = 0;
+	reg	last_rst = 0;
+
+	if (reset) last_rst = 0;
+	if (status[0]) last_rst = 1;
+
+	if (cart_download & ioctl_wr & status[0]) has_bootrom <= 1;
+
+	if (last_rst & ~status[0]) begin
+		osd_btn <= 0;
+		if (timeout < 24000000) begin
+			timeout <= timeout + 1;
+			osd_btn <= ~has_bootrom;
+		end
+	end
+end
 
 ////////////////////   CLOCKS   ///////////////////
 
@@ -312,50 +330,12 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.EXT_BUS(EXT_BUS)
 );
 
-wire [35:0] EXT_BUS;
-reg  [112:0] cd_in = 0;
-wire [112:0] cd_out;
-hps_ext hps_ext
-(
-	.clk_sys(clk_sys),
-	.EXT_BUS(EXT_BUS),
-	.cd_in(cd_in),
-	.cd_out(cd_out)
-);
-
-reg cd_en = 0;
-always @(posedge clk_sys) begin
-	if(img_mounted && img_size) cd_en <= 1;
-	if(cart_download) cd_en <= 0;
-end
-
-wire signed [15:0] PSG_SL_RED, PSG_SR_RED, ADPCM_S_RED;
-
-assign PSG_SL_RED = ($signed(PSG_SL) >>> 1) + ($signed(PSG_SL) >>> 2) + ($signed(PSG_SL) >>> 4);
-assign PSG_SR_RED = ($signed(PSG_SR) >>> 1) + ($signed(PSG_SR) >>> 2) + ($signed(PSG_SR) >>> 4);
-assign ADPCM_S_RED = ($signed(ADPCM_S) >>> 1) + ($signed(ADPCM_S) >>> 2) + ($signed(ADPCM_S) >>> 3);
-
-reg [17:0] audio_l, audio_r;
-always @(posedge clk_sys) begin
-	reg [17:0] pre_l, pre_r;
-	pre_l <= (CDDA_EN ? {{2{CDDA_SL[15]}}, CDDA_SL} : 18'd0) + (PSG_EN ? {{2{PSG_SL_RED[15]}}, PSG_SL_RED} : 18'd0) + (ADPCM_EN ? {{2{ADPCM_S_RED[15]}}, ADPCM_S_RED} : 18'd0);
-	pre_r <= (CDDA_EN ? {{2{CDDA_SR[15]}}, CDDA_SR} : 18'd0) + (PSG_EN ? {{2{PSG_SR_RED[15]}}, PSG_SR_RED} : 18'd0) + (ADPCM_EN ? {{2{ADPCM_S_RED[15]}}, ADPCM_S_RED} : 18'd0);
-
-	// 3/4 + 1/4 to cover the whole volume range.
-	audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
-	audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
-end
-
-assign AUDIO_L = audio_l[17:2];
-assign AUDIO_R = audio_r[17:2];
-assign AUDIO_S = 1;
-assign AUDIO_MIX = 0;
-
 wire reset = (RESET | status[0] | buttons[1] | bk_loading);
-wire ce_rom;
 
-reg use_sdr = 0;
-always @(posedge clk_ram) if(~rom_rd) use_sdr <= LITE ? ~status[6] : |sdram_sz[14:0];
+wire code_index      = &ioctl_index;
+wire code_download   = ioctl_download & code_index;
+wire cart_download   = ioctl_download & (ioctl_index[5:0] <= 6'h01);
+wire cd_dat_download = ioctl_download & (ioctl_index[5:0] == 6'h02);
 
 wire overscan = ~status[17];
 
@@ -370,8 +350,11 @@ wire        cd_reset_req;
 
 wire [21:0] cd_ram_a;
 wire        cd_ram_rd, cd_ram_wr;
+wire  [7:0] cd_ram_do;
 
-wire signed [15:0] CDDA_SL,CDDA_SR,ADPCM_S,PSG_SL,PSG_SR;
+wire        ce_rom;
+
+wire [15:0] cdda_sl, cdda_sr, adpcm_s, psg_sl, psg_sr;
 
 pce_top #(LITE) pce_top
 (
@@ -430,11 +413,11 @@ pce_top #(LITE) pce_top
 	.CD_DATA_END(cd_dat_req),
 	.CD_DM(cd_dm),
 
-	.CDDA_SL(CDDA_SL),
-	.CDDA_SR(CDDA_SR),
-	.ADPCM_S(ADPCM_S),
-	.PSG_SL(PSG_SL),
-	.PSG_SR(PSG_SR),
+	.CDDA_SL(cdda_sl),
+	.CDDA_SR(cdda_sr),
+	.ADPCM_S(adpcm_s),
+	.PSG_SL(psg_sl),
+	.PSG_SR(psg_sr),
 
 	.BG_EN(VDC_BG_EN),
 	.SPR_EN(VDC_SPR_EN),
@@ -455,7 +438,26 @@ pce_top #(LITE) pce_top
 	.VIDEO_VBL(vbl)
 );
 
+
 //CD communication
+
+wire  [35:0] EXT_BUS;
+reg  [112:0] cd_in = 0;
+wire [112:0] cd_out;
+hps_ext hps_ext
+(
+	.clk_sys(clk_sys),
+	.EXT_BUS(EXT_BUS),
+	.cd_in(cd_in),
+	.cd_out(cd_out)
+);
+
+reg cd_en = 0;
+always @(posedge clk_sys) begin
+	if(img_mounted && img_size) cd_en <= 1;
+	if(cart_download) cd_en <= 0;
+end
+
 reg        cd_dat_req;
 always @(posedge clk_sys) begin
 	reg cd_out112_last = 1;
@@ -552,6 +554,7 @@ always @(posedge clk_sys) begin
 end
 
 
+////////////////////////////  VIDEO  ///////////////////////////////////
 
 wire [2:0] r,g,b;
 wire hs,vs;
@@ -621,10 +624,70 @@ video_mixer #(.LINE_LENGTH(560), .GAMMA(1)) video_mixer
 	.mono(0)
 );
 
+
+////////////////////////////  AUDIO  ///////////////////////////////////
+
+localparam [3:0] comp_f1 = 4;
+localparam [3:0] comp_a1 = 2;
+localparam       comp_x1 = ((32767 * (comp_f1 - 1)) / ((comp_f1 * comp_a1) - 1)) + 1; // +1 to make sure it won't overflow
+localparam       comp_b1 = comp_x1 * comp_a1;
+
+localparam [3:0] comp_f2 = 8;
+localparam [3:0] comp_a2 = 4;
+localparam       comp_x2 = ((32767 * (comp_f2 - 1)) / ((comp_f2 * comp_a2) - 1)) + 1; // +1 to make sure it won't overflow
+localparam       comp_b2 = comp_x2 * comp_a2;
+
+function [15:0] compr; input [15:0] inp;
+	reg [15:0] v, v1, v2;
+	begin
+		v  = inp[15] ? (~inp) + 1'd1 : inp;
+		v1 = (v < comp_x1[15:0]) ? (v * comp_a1) : (((v - comp_x1[15:0])/comp_f1) + comp_b1[15:0]);
+		v2 = (v < comp_x2[15:0]) ? (v * comp_a2) : (((v - comp_x2[15:0])/comp_f2) + comp_b2[15:0]);
+		v  = status[19] ? v2 : v1;
+		compr = inp[15] ? ~(v-1'd1) : v;
+	end
+endfunction
+
+reg [17:0] audio_l, audio_r;
+reg [15:0] cmp_l, cmp_r;
+always @(posedge clk_sys) begin
+	reg [17:0] pre_l, pre_r;
+	reg [15:0] psg_sl_red, psg_sr_red, adpcm_s_red;
+
+	psg_sl_red  <=  ($signed(psg_sl) >>> 1) +  ($signed(psg_sl) >>> 2) +  ($signed(psg_sl) >>> 4);
+	psg_sr_red  <=  ($signed(psg_sr) >>> 1) +  ($signed(psg_sr) >>> 2) +  ($signed(psg_sr) >>> 4);
+	adpcm_s_red <= ($signed(adpcm_s) >>> 1) + ($signed(adpcm_s) >>> 2) + ($signed(adpcm_s) >>> 3);
+
+	pre_l <= (CDDA_EN  ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
+			 + (PSG_EN   ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
+			 + (ADPCM_EN ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+
+	pre_r <= (CDDA_EN  ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
+			 + (PSG_EN   ? {{2{psg_sr_red[15]}},   psg_sr_red} : 18'd0)
+			 + (ADPCM_EN ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+
+	// 3/4 + 1/4 to cover the whole range.
+	audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
+	audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
+
+	cmp_l <= compr(audio_l[17:2]);
+	cmp_r <= compr(audio_r[17:2]);
+end
+
+assign AUDIO_L = status[19:18] ? cmp_l : audio_l[17:2];
+assign AUDIO_R = status[19:18] ? cmp_r : audio_r[17:2];
+assign AUDIO_S = 1;
+assign AUDIO_MIX = 0;
+
+
+////////////////////////////  MEMORY  //////////////////////////////////
+
+reg use_sdr = 0;
+always @(posedge clk_ram) if(~rom_rd) use_sdr <= LITE ? ~status[6] : |sdram_sz[14:0];
+
 wire [21:0] rom_rdaddr;
-wire [7:0] rom_ddata, rom_sdata;
-wire rom_rd, rom_sdrdy, rom_ddrdy;
-wire [7:0] cd_ram_do;
+wire  [7:0] rom_ddata, rom_sdata;
+wire        rom_rd, rom_sdrdy, rom_ddrdy;
 
 assign DDRAM_CLK = clk_ram;
 ddram ddram
@@ -707,25 +770,6 @@ always @(posedge clk_sys) begin
 	end
 end
 
-reg osd_btn = 0;
-always @(posedge clk_sys) begin
-	integer timeout = 0;
-	reg	has_bootrom = 0;
-	reg	last_rst = 0;
-
-	if (reset) last_rst = 0;
-	if (status[0]) last_rst = 1;
-
-	if (cart_download & ioctl_wr & status[0]) has_bootrom <= 1;
-
-	if (last_rst & ~status[0]) begin
-		osd_btn <= 0;
-		if (timeout < 24000000) begin
-			timeout <= timeout + 1;
-			osd_btn <= ~has_bootrom;
-		end
-	end
-end
 
 ////////////////////////////  CODES  ///////////////////////////////////
 
@@ -758,7 +802,8 @@ always_ff @(posedge clk_sys) begin
 	end
 end
 
-////////////////////////////  Input  ///////////////////////////////////
+
+////////////////////////////  INPUT  ///////////////////////////////////
 
 wire [15:0] joy_data;
 always_comb begin
@@ -982,6 +1027,8 @@ always @(posedge clk_sys) begin
 	end
 end
 
+
+/////////////////////////////////////////////////////////////////////////
 
 //reg dbg_menu = 0;
 //always @(posedge clk_sys) begin
