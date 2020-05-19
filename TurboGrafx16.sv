@@ -121,7 +121,7 @@ module emu
 	output  [6:0] USER_OUT,
 
 	input         OSD_STATUS,
-	
+
 	output reg  [7:0] stat_cnt, comm_cnt
 );
 
@@ -156,12 +156,12 @@ assign VIDEO_ARX = status[1] ? 8'd16 : overscan ? 8'd4 : 8'd47;
 assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 
 // Status Bit Map:
-// 0         1         2         3 
+// 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
 // XXXXXXXXXXXXXXXXXX
 
-`include "build_id.v" 
+`include "build_id.v"
 parameter CONF_STR = {
 	"TGFX16;;",
 	"FS0,PCEBIN,Load TurboGrafx;",
@@ -222,7 +222,7 @@ wire cd_dat_download = ioctl_download & (ioctl_index[5:0] == 6'h02);
 
 wire clk_sys, clk_ram;
 wire pll_locked;
-		
+
 pll pll
 (
 	.refclk(CLK_50M),
@@ -275,12 +275,12 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.status(status),
 	.status_menumask({!SP64, snac, 1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
-	
+
 	.sdram_sz(sdram_sz),
 
 	.new_vmode(0),
 	.gamma_bus(gamma_bus),
-	
+
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
@@ -329,15 +329,21 @@ always @(posedge clk_sys) begin
 	if(cart_download) cd_en <= 0;
 end
 
+wire signed [15:0] PSG_SL_RED, PSG_SR_RED, ADPCM_S_RED;
+
+assign PSG_SL_RED = ($signed(PSG_SL) >>> 1) + ($signed(PSG_SL) >>> 2) + ($signed(PSG_SL) >>> 4);
+assign PSG_SR_RED = ($signed(PSG_SR) >>> 1) + ($signed(PSG_SR) >>> 2) + ($signed(PSG_SR) >>> 4);
+assign ADPCM_S_RED = ($signed(ADPCM_S) >>> 1) + ($signed(ADPCM_S) >>> 2) + ($signed(ADPCM_S) >>> 3);
+
 reg [17:0] audio_l, audio_r;
 always @(posedge clk_sys) begin
 	reg [17:0] pre_l, pre_r;
-	pre_l <= (CDDA_EN ? {{2{CDDA_SL[15]}}, CDDA_SL} : 18'd0) + (PSG_EN ? {{2{PSG_SL[15]}}, PSG_SL} : 18'd0) + (ADPCM_EN ? {{2{ADPCM_S[15]}}, ADPCM_S} : 18'd0);
-	pre_r <= (CDDA_EN ? {{2{CDDA_SR[15]}}, CDDA_SR} : 18'd0) + (PSG_EN ? {{2{PSG_SR[15]}}, PSG_SR} : 18'd0) + (ADPCM_EN ? {{2{ADPCM_S[15]}}, ADPCM_S} : 18'd0);
-	
+	pre_l <= (CDDA_EN ? {{2{CDDA_SL[15]}}, CDDA_SL} : 18'd0) + (PSG_EN ? {{2{PSG_SL_RED[15]}}, PSG_SL_RED} : 18'd0) + (ADPCM_EN ? {{2{ADPCM_S_RED[15]}}, ADPCM_S_RED} : 18'd0);
+	pre_r <= (CDDA_EN ? {{2{CDDA_SR[15]}}, CDDA_SR} : 18'd0) + (PSG_EN ? {{2{PSG_SR_RED[15]}}, PSG_SR_RED} : 18'd0) + (ADPCM_EN ? {{2{ADPCM_S_RED[15]}}, ADPCM_S_RED} : 18'd0);
+
 	// 3/4 + 1/4 to cover the whole volume range.
-	audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2); 
-	audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2); 
+	audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
+	audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
 end
 
 assign AUDIO_L = audio_l[17:2];
@@ -365,7 +371,7 @@ wire        cd_reset_req;
 wire [21:0] cd_ram_a;
 wire        cd_ram_rd, cd_ram_wr;
 
-wire [15:0] CDDA_SL,CDDA_SR,ADPCM_S,PSG_SL,PSG_SR;
+wire signed [15:0] CDDA_SL,CDDA_SR,ADPCM_S,PSG_SL,PSG_SR;
 
 pce_top #(LITE) pce_top
 (
@@ -385,7 +391,7 @@ pce_top #(LITE) pce_top
 	.BRM_DO(bram_q),
 	.BRM_DI(bram_data),
 	.BRM_WE(bram_wr),
-	
+
 	.GG_EN(status[24]),
 	.GG_CODE(gg_code),
 	.GG_RESET((cart_download | code_download) & ioctl_wr & !ioctl_addr),
@@ -405,22 +411,22 @@ pce_top #(LITE) pce_top
 	.CD_RAM_DI(use_sdr ? rom_sdata : rom_ddata),
 	.CD_RAM_RD(cd_ram_rd),
 	.CD_RAM_WR(cd_ram_wr),
-		
+
 	.CD_STAT(cd_stat[7:0]),
 	.CD_MSG(cd_stat[15:8]),
 	.CD_STAT_GET(cd_stat_rec),
-	
+
 	.CD_COMM(cd_comm),
 	.CD_COMM_SEND(cd_comm_send),
-	
+
 	.CD_DOUT_REQ(cd_dataout_req),
 	.CD_DOUT(cd_dataout),
 	.CD_DOUT_SEND(cd_dataout_send),
-		
+
 	.CD_RESET(cd_reset_req),
 
 	.CD_DATA(!cd_dat_byte ? cd_dat[7:0] : cd_dat[15:8]),
-	.CD_WR(cd_wr),	
+	.CD_WR(cd_wr),
 	.CD_DATA_END(cd_dat_req),
 	.CD_DM(cd_dm),
 
@@ -454,7 +460,7 @@ reg        cd_dat_req;
 always @(posedge clk_sys) begin
 	reg cd_out112_last = 1;
 	reg cd_comm_send_old = 0, cd_dataout_send_old = 0, cd_dat_req_old = 0, cd_reset_req_old = 0;
-	
+
 	cd_stat_rec <= 0;
 	cd_dataout_req <= 0;
 	if (reset || cart_download) begin
@@ -469,10 +475,10 @@ always @(posedge clk_sys) begin
 			cd_stat_rec <= ~cd_out[16];
 
 			cd_dataout_req <= cd_out[16];
-			
+
 			stat_cnt <= stat_cnt + 8'd1;
 		end
-		
+
 		cd_comm_send_old <= cd_comm_send;
 		cd_dataout_send_old <= cd_dataout_send;
 		cd_dat_req_old <= cd_dat_req;
@@ -481,14 +487,14 @@ always @(posedge clk_sys) begin
 			cd_in[95:0] <= cd_comm;
 			cd_in[111:96] <= {status[25],15'd0};
 			cd_in[112] <= ~cd_in[112];
-			
+
 			comm_cnt <= comm_cnt + 8'd1;
 		end
 		else if (cd_dataout_send && !cd_dataout_send_old) begin
 			cd_in[79:0] <= cd_dataout;
 			cd_in[111:96] <= 16'h0001;
 			cd_in[112] <= ~cd_in[112];
-			
+
 //			comm_cnt <= comm_cnt + 8'd1;
 		end
 		else if (cd_dat_req && !cd_dat_req_old) begin
@@ -529,7 +535,7 @@ always @(posedge clk_sys) begin
 			cd_dat <= ioctl_dout;
 		end
 	end
-	
+
 	if (cd_dat_write) begin
 		if (!cd_wr) begin
 			cd_wr <= 1;
@@ -558,7 +564,7 @@ assign CLK_VIDEO = clk_ram;
 reg ce_pix;
 always @(posedge CLK_VIDEO) begin
 	reg old_ce;
-	
+
 	old_ce <= ce_vid;
 	ce_pix <= ~old_ce & ce_vid;
 end
@@ -660,7 +666,7 @@ sdram sdram
 
 wire        romwr_ack;
 reg  [23:0] romwr_a;
-wire [15:0] romwr_d = status[3] ? 
+wire [15:0] romwr_d = status[3] ?
 		{ ioctl_dout[8], ioctl_dout[9], ioctl_dout[10],ioctl_dout[11],ioctl_dout[12],ioctl_dout[13],ioctl_dout[14],ioctl_dout[15],
 		  ioctl_dout[0], ioctl_dout[1], ioctl_dout[2], ioctl_dout[3], ioctl_dout[4], ioctl_dout[5], ioctl_dout[6], ioctl_dout[7] }
 		: ioctl_dout;
@@ -849,7 +855,7 @@ always @(posedge clk_sys) begin
 
 	snac_dat <= {|d3sr, |d2sr, |d1sr, |d0sr};
 	snac_sel <= |sesr;
-	snac_clr <= |clsr;	
+	snac_clr <= |clsr;
 end
 
 wire [1:0] joy_out;
@@ -916,10 +922,10 @@ reg old_downloading = 0;
 
 reg bk_ena = 0;
 always @(posedge clk_sys) begin
-	
+
 	old_downloading <= downloading;
 	if(~old_downloading & downloading) bk_ena <= 0;
-	
+
 	//Save file always mounted in the end of downloading state.
 	if(downloading && img_mounted && !img_readonly) bk_ena <= 1;
 end
@@ -936,9 +942,9 @@ always @(posedge clk_sys) begin
 	old_load <= bk_load;
 	old_save <= bk_save;
 	old_ack  <= sd_ack;
-	
+
 	if(~old_ack & sd_ack) {sd_rd, sd_wr} <= 0;
-	
+
 	if(!bk_state) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
@@ -966,7 +972,7 @@ always @(posedge clk_sys) begin
 			end
 		end
 	end
-	
+
 	old_format <= format;
 	if(~old_format && format) begin
 		defbram <= 0;
@@ -982,13 +988,13 @@ end
 //	reg old_stb;
 //	reg enter = 0;
 //	reg esc = 0;
-//	
+//
 //	old_stb <= ps2_key[10];
 //	if(old_stb ^ ps2_key[10]) begin
 //		if(ps2_key[7:0] == 'h5A) enter <= ps2_key[9];
 //		if(ps2_key[7:0] == 'h76) esc   <= ps2_key[9];
 //	end
-//	
+//
 //	if(enter & esc) begin
 //		dbg_menu <= ~dbg_menu;
 //		enter <= 0;
@@ -1010,7 +1016,7 @@ wire       pressed = ps2_key[9];
 wire [8:0] code    = ps2_key[8:0];
 always @(posedge clk_sys) begin
 	reg old_state = 0;
-	
+
 	old_state <= ps2_key[10];
 
 	if((ps2_key[10] != old_state) && pressed) begin
