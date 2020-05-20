@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -189,6 +189,7 @@ parameter CONF_STR = {
 	"H6P1OB,Sprites per line,Normal,Extra;",
 	"P1-;",
 	"P1OIJ,Audio Boost,No,2x,4x;",
+	"P1OKL,CDDA Balance,Normal,+25%,+50%;",
 	"P2,Hardware;",
 	"P2-;",
 	"P2O3,ROM Data Swap,No,Yes;",
@@ -654,9 +655,12 @@ always @(posedge clk_sys) begin
 	reg [17:0] pre_l, pre_r;
 	reg [15:0] psg_sl_red, psg_sr_red, adpcm_s_red;
 
-	psg_sl_red  <=  ($signed(psg_sl) >>> 1) +  ($signed(psg_sl) >>> 2) +  ($signed(psg_sl) >>> 4);
-	psg_sr_red  <=  ($signed(psg_sr) >>> 1) +  ($signed(psg_sr) >>> 2) +  ($signed(psg_sr) >>> 4);
-	adpcm_s_red <= ($signed(adpcm_s) >>> 1) + ($signed(adpcm_s) >>> 2) + ($signed(adpcm_s) >>> 3);
+	psg_sl_red  <=  $signed($signed(psg_sl) >>> 1) +  ($signed(psg_sl) >>> (status[20] ? 1 : 2)) + ($signed(psg_sl) >>> 4)
+		>>> (|status[21:20] ? 1 : 0);
+	psg_sr_red  <=  $signed($signed(psg_sr) >>> 1) +  ($signed(psg_sr) >>> (status[20] ? 1 : 2)) +  ($signed(psg_sr) >>> 4)
+		>>> (|status[21:20] ? 1 : 0);
+	adpcm_s_red <= $signed($signed(adpcm_s) >>> 1) + ($signed(adpcm_s) >>> (status[20] ? 1 : 2)) + ($signed(adpcm_s) >>> 3)
+		>>> (|status[21:20] ? 1 : 0);
 
 	pre_l <= (CDDA_EN  ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
 			 + (PSG_EN   ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
