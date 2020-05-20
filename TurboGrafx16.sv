@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -208,6 +208,9 @@ parameter CONF_STR = {
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
 	"H5O5,Mouse,No,Yes;",
+`ifdef DEBUG_BUILD
+	"H5OL,MB128,Disabled,Enabled;",
+`endif
 	"H5-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -814,6 +817,30 @@ end
 
 ////////////////////////////  INPUT  ///////////////////////////////////
 
+MB128 MB128
+(
+	.reset_n(~RESET),
+	.clk_sys(clk_sys),
+
+	.i_Clk(status[21] & joy_out[1]),	// send only if MB128 enabled
+	.i_Data(joy_out[0]),
+	
+   .o_Active(o_Active),	// high if MB128 asserts itself instead of joypad inputs
+
+//   .mb_Data_Out(mb_Data)
+	.o_Data(o_Data),
+	.o_D1(o_D1),
+	.o_Ident(o_Ident),
+	.o_D3(o_D3)
+);
+
+wire o_Active;
+wire o_Data;
+wire o_D1;
+wire o_Ident;
+wire o_D3;
+
+
 wire [15:0] joy_data;
 always_comb begin
 	case (joy_port)
@@ -913,7 +940,7 @@ always @(posedge clk_sys) begin
 end
 
 wire [1:0] joy_out;
-wire [3:0] joy_in = snac ? snac_dat : joy_latch;
+wire [3:0] joy_in = snac ? snac_dat : (status[21] & o_Active) ? {o_D3, o_Ident, o_D1, o_Data } : joy_latch;
 
 assign USER_OUT = snac ? {2'b11, snac_clr, 1'b1, snac_sel, 2'b11} : '1;
 
