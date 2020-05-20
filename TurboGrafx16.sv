@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -188,7 +188,8 @@ parameter CONF_STR = {
 	"P1OF,Border Color,Original,Black;",
 	"H6P1OB,Sprites per line,Normal,Extra;",
 	"P1-;",
-	"P1OIJ,Audio Boost,No,2x,4x;",
+	"P1OK,CD Audio Boost,No,2x;",
+	"P1OIJ,Master Audio Boost,No,2x,4x;",
 	"P2,Hardware;",
 	"P2-;",
 	"P2O3,ROM Data Swap,No,Yes;",
@@ -658,17 +659,25 @@ always @(posedge clk_sys) begin
 	psg_sr_red  <=  ($signed(psg_sr) >>> 1) +  ($signed(psg_sr) >>> 2) +  ($signed(psg_sr) >>> 4);
 	adpcm_s_red <= ($signed(adpcm_s) >>> 1) + ($signed(adpcm_s) >>> 2) + ($signed(adpcm_s) >>> 3);
 
-	pre_l <= (CDDA_EN  ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
-			 + (PSG_EN   ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
-			 + (ADPCM_EN ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+	pre_l <= ( CDDA_EN                ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
+			 + ((CDDA_EN && status[20]) ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
+			 + ( PSG_EN                 ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
+			 + ( ADPCM_EN               ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
 
-	pre_r <= (CDDA_EN  ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
-			 + (PSG_EN   ? {{2{psg_sr_red[15]}},   psg_sr_red} : 18'd0)
-			 + (ADPCM_EN ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+	pre_r <= ( CDDA_EN                ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
+			 + ((CDDA_EN && status[20]) ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
+			 + ( PSG_EN                 ? {{2{psg_sr_red[15]}},   psg_sr_red} : 18'd0)
+			 + ( ADPCM_EN               ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
 
-	// 3/4 + 1/4 to cover the whole range.
-	audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
-	audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
+	if(~status[20]) begin
+		// 3/4 + 1/4 to cover the whole range.
+		audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
+		audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
+	end
+	else begin
+		audio_l <= pre_l;
+		audio_r <= pre_r;
+	end
 
 	cmp_l <= compr(audio_l[17:2]);
 	cmp_r <= compr(audio_r[17:2]);
