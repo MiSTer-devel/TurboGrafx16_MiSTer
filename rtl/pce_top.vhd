@@ -76,6 +76,7 @@ entity pce_top is
 		GRID_EN		: in  std_logic;
 		CPU_PAUSE_EN: in  std_logic;
 
+		BORDER_EN	: in  std_logic;
 		ReducedVBL	: in  std_logic;
 		VIDEO_R		: out std_logic_vector(2 downto 0);
 		VIDEO_G		: out std_logic_vector(2 downto 0);
@@ -195,6 +196,9 @@ signal CPU_PRE_RD	: std_logic;
 signal CPU_PRE_WR	: std_logic;
 signal CD_RAM_CS_N: std_logic;
 signal CD_BRAM_EN	: std_logic;
+
+signal BORDER		: std_logic;
+signal GRID			: std_logic;
 
 signal AC_SEL_N   : std_logic;
 signal AC_RAM_CS_N: std_logic;
@@ -319,9 +323,9 @@ port map(
 	DCC		=> VCE_DCC,
 	
 	GRID_EN	=> GRID_EN,
-	BORDER_EN=> ReducedVBL,
-	BORDER	=> VDC0_BORDER,
-	GRID		=> VDC0_GRID,
+	BORDER_EN=> BORDER_EN,
+	BORDER	=> BORDER,
+	GRID		=> GRID,
 		
 	-- NTSC/RGB Video Output
 	R			=> VIDEO_R,
@@ -456,6 +460,16 @@ generate_SGX: if (LITE = 0) generate begin
 	CPU_VDC0_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or     CPU_A(4) when SGX = '1' else CPU_VDC_SEL_N;
 	CPU_VDC1_SEL_N <= CPU_VDC_SEL_N or     CPU_A(3) or not CPU_A(4) when SGX = '1' else '1';
 	CPU_VPC_SEL_N  <= CPU_VDC_SEL_N or not CPU_A(3) or     CPU_A(4) when SGX = '1' else '1';
+	
+	process( CLK )
+	begin
+		if rising_edge( CLK ) then
+			if VDC_CLKEN = '1' then
+				BORDER <= VDC0_BORDER;
+				GRID <= VDC0_GRID;
+			end if;
+		end if;
+	end process;
 
 end generate;
 
@@ -471,6 +485,9 @@ generate_NOSGX: if (LITE /= 0) generate begin
 	VDC1_DO <= (others => '1');
 	VPC_DO <= (others => '1');
 	VDC_COLNO <= VDC0_COLNO;
+	
+	BORDER <= VDC0_BORDER;
+	GRID <= VDC0_GRID;
 
 end generate;
 

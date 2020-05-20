@@ -230,7 +230,7 @@ process( CLK ) begin
 				end if;
 
 				if CH(i).NE = '0' then
-				   if CH(i).NG_FREQ = "11111" then
+				if CH(i).NG_FREQ = "11111" then
 						CH(i).NG_CNT <= "000000111111";
 					else
 						CH(i).NG_CNT <= ( not(CH(i).NG_FREQ) - 1) & "1111111";
@@ -239,7 +239,7 @@ process( CLK ) begin
 					if CH(i).LFSR(0) = '0' then
 						CH(i).NG_OUT <= "00000";
 					else
-						CH(i).NG_OUT <= "11111";
+						CH(i).NG_OUT <= "10011";
 					end if;
 
 					if CLKEN = '1' then

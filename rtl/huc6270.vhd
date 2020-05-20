@@ -342,8 +342,6 @@ begin
 			BURST <= '1';
 			BG_FETCH <= '0';
 			BG_OUT <= '0';
-			SPR_FETCH <= '0';
-			SPR_EVAL <= '0';
 			RC_CNT <= "00"&x"40";
 			
 			BB <= '0';
@@ -412,19 +410,6 @@ begin
 						BG_OUT <= '1';
 					elsif TILE_CNT = HDISP_END_POS then
 						BG_OUT <= '0';
-					end if;
-					
-					if TILE_CNT = HDS_END_POS and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
-						SPR_EVAL <= '1';
-					elsif TILE_CNT = HDISP_END_POS then
-						SPR_EVAL <= '0';
-					end if;
-					
-					if TILE_CNT = HDISP_END_POS and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
-						SPR_FETCH <= '1';
-						SPR_FETCH_EN <= CR_SB;
-					elsif TILE_CNT = HDS_END_POS - 2 then
-						SPR_FETCH <= '0';
 					end if;
 	
 					if TILE_CNT = HDISP_END_POS and DISP_CNT = VDS_END_POS - 1 then
@@ -721,6 +706,7 @@ begin
 		end case;
 		
 		if RST_N = '0' then
+			SPR_EVAL <= '0';
 			SPR_EVAL_X <= (others=>'0');
 			SPR_EVAL_DONE <= '0';
 			SPR_EVAL_FULL <= '0';
@@ -731,6 +717,8 @@ begin
 			SPR_X <= (others=>'0');
 			SPR_PC <= (others=>'0');
 			SPR_CG <= '0';
+			SPR_FETCH <= '0';
+			SPR_FETCH_EN <= '0';
 			SPR_FETCH_W <= '0';
 			SPR_FETCH_DONE <= '0';
 			SPR_CH0 <= (others=>'0');
@@ -751,6 +739,27 @@ begin
 		elsif rising_edge(CLK) then
 			SPR_TILE_SAVE <= '0';
 			if DCK_CE = '1' then
+				if TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
+					SPR_EVAL <= '1';
+					SPR_EVAL_X <= (others=>'0');
+					SPR_EVAL_CNT <= (others=>'0');
+					SPR_EVAL_DONE <= '0';
+					SPR_EVAL_FULL <= '0';
+					SPR_FIND <= '0';
+				elsif TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
+					SPR_EVAL <= '0';
+				end if;
+				
+				if TILE_CNT = HDISP_END_POS and DOT_CNT = 7 and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
+					SPR_FETCH <= '1';
+					SPR_FETCH_EN <= CR_SB;
+					SPR_FETCH_CNT <= (others=>'0');
+					SPR_FETCH_W <= '0';
+					SPR_FETCH_DONE <= '0';
+				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 then
+					SPR_FETCH <= '0';
+				end if;
+					
 				if SPR_EVAL = '1' then
 					if SPR_EVAL_DONE = '0' then
 						case SPR_EVAL_X(1 downto 0) is
@@ -799,7 +808,9 @@ begin
 							SPR_EVAL_DONE <= '1';
 						end if; 
 					end if; 
-				elsif SPR_FETCH = '1' then
+				end if; 
+				
+				if SPR_FETCH = '1' then
 					if SPR_FETCH_DONE = '0' and SPR_FIND = '1' then
 						case SLOT is
 							when SG0 =>
@@ -848,15 +859,6 @@ begin
 							SPR_TILE_SAVE <= '1';
 						end if;
 					end if;
-				else
-					SPR_EVAL_X <= (others=>'0');
-					SPR_EVAL_CNT <= (others=>'0');
-					SPR_EVAL_DONE <= '0';
-					SPR_EVAL_FULL <= '0';
-					SPR_FIND <= '0';
-					SPR_FETCH_CNT <= (others=>'0');
-					SPR_FETCH_W <= '0';
-					SPR_FETCH_DONE <= '0';
 				end if; 
 			end if; 
 			
