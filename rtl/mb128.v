@@ -8,18 +8,22 @@
 //
 
 module MB128 
-( 	input	clk_sys,				// system clock
-	input	reset_n,				// reset - active low
+(
+	input	        clk_sys,     // system clock
+	input	        reset_n,     // reset - active low
 
-	input  i_Clk,				// Joypad Clr/Reset line, clocks the SPI-like MB128 protocol 
-	input  i_Data,				// Joypad Sel line, provides data to the SPI-like MB128 protocol
+	input         i_Clk,       // Joypad Clr/Reset line, clocks the SPI-like MB128 protocol 
+	input         i_Data,      // Joypad Sel line, provides data to the SPI-like MB128 protocol
 
-	output reg o_Active = 1'b0,
+	output        o_Active,
+	output  [3:0] o_Data,
 
-	output reg o_Data   = 1'b0,
-	output reg o_D1     = 1'b0,
-	output reg o_Ident  = 1'b0,
-	output reg o_D3     = 1'b0
+	input	        bk_clk,
+	input  [15:0] bk_address,
+	input  [15:0] bk_din,
+	output [15:0] bk_dout,
+	input         bk_we,
+	output        bk_written
 );
 
 // constants - STATEs
@@ -75,15 +79,13 @@ reg        trigger_write		= 1'b0;
 reg        wren_a         	   = 1'b0;
 
 wire [7:0] q_a;
-wire [7:0] q_b;
-
 
 //
 // master storage - should be backed by permanent storage like SDCard
 //
-dpram #(17) back128_l
+dpram_difclk #(17,8,16,16) back128_l
 (
-	.clock(clk_sys),
+	.clock0(clk_sys),
 
 	// Port A for MB128 access
 	//
@@ -92,18 +94,20 @@ dpram #(17) back128_l
 	.wren_a(wren_a),						// active high
 	.q_a(q_a),								// data from memory
 
-	// Port B is not used
-	//
-   .address_b(17'b1),
-	.data_b(8'b0),
-	.enable_b(1'b0),
-	.wren_b(1'b0),
-	.q_b(q_b)
-);
 
+	// Port B save/load
+	//
+	.clock1(bk_clk),
+	.address_b(bk_address),
+	.data_b(bk_din),
+	.wren_b(bk_we),
+	.q_b(bk_dout)
+);
   
 
 always @(posedge clk_sys) begin
+
+	if(bk_address[15:10] == 2) bk_written <= 0;
 
 	if (~reset_n) begin
 		r_State           <= STATE_IDLE;
@@ -141,6 +145,7 @@ always @(posedge clk_sys) begin
 	if (trigger_write == 1'b1) begin
 		trigger_write <= 1'b0;
 		wren_a <= 1'b1;
+		bk_written <= 1;
 	end
 
 	// transfer byte from internal register to memory on interstitial cycle
@@ -487,14 +492,10 @@ always @(posedge clk_sys) begin
    end
   end
 
-  always @(*)
-    begin
-      o_Active = i_Clk ? r_Pos_Active  : r_Neg_Active;
-      
-      o_Data   = i_Clk ? r_Pos_Edge[0] : r_Neg_Edge[0];
-      o_D1     = 1'b0;
-      o_Ident  = i_Clk ? r_Pos_Edge[2] : r_Neg_Edge[2];
-      o_D3     = 1'b0;
-    end
+assign o_Active  = i_Clk ? r_Pos_Active  : r_Neg_Active;
+assign o_Data[0] = i_Clk ? r_Pos_Edge[0] : r_Neg_Edge[0];
+assign o_Data[1] = 1'b0;
+assign o_Data[2] = i_Clk ? r_Pos_Edge[2] : r_Neg_Edge[2];
+assign o_Data[3] = 1'b0;
 
 endmodule

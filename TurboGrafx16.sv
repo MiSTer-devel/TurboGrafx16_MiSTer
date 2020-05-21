@@ -147,7 +147,7 @@ assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = cart_download | bk_state | (status[23] & bk_pending);
+assign LED_USER  = cart_download | bk_state | bk_pending;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = osd_btn;
@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXX X
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -177,7 +177,6 @@ parameter CONF_STR = {
 	"D0RG,Load Backup RAM;",
 	"D0R7,Save Backup RAM;",
 	"D0ON,Autosave,OFF,ON;",
-	"D0RC,Format Save;",
 	"-;",
 	"P1,Audio & Video;",
 	"P1-;",
@@ -204,13 +203,13 @@ parameter CONF_STR = {
 	"P2OP,CD Seek,Normal,Fast;",
 	"P2-;",
 	"P2OD,USER I/O,Off,SNAC;",
+	"H5P2OL,MB128,Disabled,Enabled;",
+	"P2-;",
+	"D0P2RC,Format Backup RAM;",
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
 	"H5O5,Mouse,No,Yes;",
-`ifdef DEBUG_BUILD
-	"H5OL,MB128,Disabled,Enabled;",
-`endif
 	"H5-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -817,30 +816,6 @@ end
 
 ////////////////////////////  INPUT  ///////////////////////////////////
 
-MB128 MB128
-(
-	.reset_n(~RESET),
-	.clk_sys(clk_sys),
-
-	.i_Clk(status[21] & joy_out[1]),	// send only if MB128 enabled
-	.i_Data(joy_out[0]),
-	
-   .o_Active(o_Active),	// high if MB128 asserts itself instead of joypad inputs
-
-//   .mb_Data_Out(mb_Data)
-	.o_Data(o_Data),
-	.o_D1(o_D1),
-	.o_Ident(o_Ident),
-	.o_D3(o_D3)
-);
-
-wire o_Active;
-wire o_Data;
-wire o_D1;
-wire o_Ident;
-wire o_D3;
-
-
 wire [15:0] joy_data;
 always_comb begin
 	case (joy_port)
@@ -940,63 +915,75 @@ always @(posedge clk_sys) begin
 end
 
 wire [1:0] joy_out;
-wire [3:0] joy_in = snac ? snac_dat : (status[21] & o_Active) ? {o_D3, o_Ident, o_D1, o_Data } : joy_latch;
+wire [3:0] joy_in = snac ? snac_dat : (mb128_ena & mb128_Active) ? mb128_Data : joy_latch;
 
 assign USER_OUT = snac ? {2'b11, snac_clr, 1'b1, snac_sel, 2'b11} : '1;
 
 
-/////////////////////////  STATE SAVE/LOAD  /////////////////////////////
+/////////////////////////  BACKUP RAM SAVE/LOAD  /////////////////////////////
 
-wire bk_save_write = bram_wr;
+wire [15:0] mb128_dout;
+wire        mb128_dirty;
+wire        mb128_ena = status[21];
+wire        mb128_Active;
+wire  [3:0] mb128_Data;
+
+MB128 MB128
+(
+	.reset_n(~RESET),
+	.clk_sys(clk_sys),
+
+	.i_Clk(mb128_ena & joy_out[1]),	// send only if MB128 enabled
+	.i_Data(joy_out[0]),
+	
+   .o_Active(mb128_Active),	// high if MB128 asserts itself instead of joypad inputs
+	.o_Data(mb128_Data),
+
+	.bk_clk(clk_sys),
+	.bk_address({sd_lba[7:0] - 3'd4,sd_buff_addr}),
+	.bk_din(sd_buff_dout),
+	.bk_dout(mb128_dout),
+	.bk_we(~bk_int & sd_buff_wr & sd_ack),
+	.bk_written(mb128_dirty)
+);
+
 reg bk_pending;
 
 always @(posedge clk_sys) begin
-	if (bk_ena && ~OSD_STATUS && bk_save_write)
+	if (bk_ena && ~OSD_STATUS && (bram_wr || mb128_dirty))
 		bk_pending <= 1'b1;
 	else if (bk_state)
 		bk_pending <= 1'b0;
 end
 
 wire [10:0] bram_addr;
-wire [7:0] bram_data;
-wire [7:0] bram_q = bram_addr[0] ? bram_qh : bram_ql;
-wire [7:0] bram_ql,bram_qh;
-wire bram_wr;
+wire  [7:0] bram_data;
+wire  [7:0] bram_q;
+wire        bram_wr;
 
-wire format = status[12];
-reg [3:0] defbram = 4'hF;
-reg[15:0] defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
+wire        format = status[12];
+reg   [3:0] defbram = 4'hF;
+reg  [15:0] defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
 
-dpram #(12) backram_l
+wire        bk_int = !sd_lba[31:2];
+wire [15:0] bk_int_dout;
+
+assign      sd_buff_din = bk_int ? bk_int_dout : mb128_dout;
+
+dpram_difclk #(11,8,10,16) backram
 (
-	.clock(clk_sys),
-
-   .address_a({2'b00,bram_addr[10:1]}),
+	.clock0(clk_sys),
+   .address_a(bram_addr),
 	.data_a(bram_data),
-	.wren_a(bram_wr & ~bram_addr[0]),
-	.q_a(bram_ql),
+	.wren_a(bram_wr),
+	.q_a(bram_q),
 
-   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
-	.data_b(defbram[3] ? sd_buff_dout[7:0] : defval[defbram[2:1]][7:0]),
-	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
-	.q_b(sd_buff_din[7:0])
+	.clock1(clk_sys),
+	.address_b(defbram[3] ? {sd_lba[1:0],sd_buff_addr} : defbram[2:1]),
+	.data_b(defbram[3] ? sd_buff_dout : defval[defbram[2:1]]),
+	.wren_b(defbram[3] ? bk_int & sd_buff_wr & sd_ack : 1'b1),
+	.q_b(bk_int_dout)
 );
-
-dpram #(12) backram_h
-(
-	.clock(clk_sys),
-
-   .address_a({2'b00,bram_addr[10:1]}),
-	.data_a(bram_data),
-	.wren_a(bram_wr & bram_addr[0]),
-	.q_a(bram_qh),
-
-   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
-	.data_b(defbram[3] ? sd_buff_dout[15:8] : defval[defbram[2:1]][15:8]),
-	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
-	.q_b(sd_buff_din[15:8])
-);
-
 
 wire downloading = cart_download;
 reg old_downloading = 0;
@@ -1019,6 +1006,7 @@ reg  bk_state   = 0;
 always @(posedge clk_sys) begin
 	reg old_format;
 	reg old_load = 0, old_save = 0, old_ack;
+	reg mb128sz;
 
 	old_load <= bk_load;
 	old_save <= bk_save;
@@ -1030,6 +1018,7 @@ always @(posedge clk_sys) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
+			mb128sz <= bk_load || (mb128_ena && mb128_dirty);
 			sd_lba <= 0;
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
@@ -1037,15 +1026,17 @@ always @(posedge clk_sys) begin
 		if(old_downloading & ~downloading & bk_ena) begin
 			bk_state <= 1;
 			bk_loading <= 1;
+			mb128sz <= 1;
 			sd_lba <= 0;
 			sd_rd <= 1;
 			sd_wr <= 0;
 		end
 	end else begin
 		if(old_ack & ~sd_ack) begin
-			if(&sd_lba[3:0]) begin
+			if(sd_lba[8] == mb128sz && &sd_lba[1:0]) begin
 				bk_loading <= 0;
 				bk_state <= 0;
+				sd_lba <= 0;
 			end else begin
 				sd_lba <= sd_lba + 1'd1;
 				sd_rd  <=  bk_loading;
