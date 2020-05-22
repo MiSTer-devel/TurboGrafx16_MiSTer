@@ -132,6 +132,7 @@ architecture rtl of HUC6270 is
 	signal IRQ_DMAS		: std_logic;
 	signal IRQ_VBL			: std_logic;
 	signal CPU_BUSY		: std_logic;
+	signal CPU_BUSY_CLEAR: std_logic;
 	signal CPURD_PEND 	: std_logic;
 	signal CPUWR_PEND		: std_logic;
 	signal CPURD_PEND2 	: std_logic;
@@ -156,6 +157,7 @@ architecture rtl of HUC6270 is
 	signal DOT_CNT			: unsigned(2 downto 0);
 	signal TILE_CNT		: unsigned(6 downto 0);
 	signal DISP_CNT		: unsigned(9 downto 0);
+	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
 	signal HSW_END_POS 	: unsigned(6 downto 0);
@@ -270,6 +272,7 @@ begin
 		if RST_N = '0' then
 			DOT_CNT <= (others=>'0');
 			TILE_CNT <= (others=>'0');
+			DOTS_REMAIN <= (others=>'0');
 			HDW <= (others=>'0');
 			HDS <= (others=>'0');
 			VSW <= (others=>'0');
@@ -290,6 +293,8 @@ begin
 				if HS_F = '1' then
 					DOT_CNT <= (others=>'0');
 					TILE_CNT <= (others=>'0');
+					
+					DOTS_REMAIN <= DOT_CNT;
 
 					case DCC is
 						when "00" => HSW <= "00011";
@@ -427,9 +432,12 @@ begin
 		end if;
 	end process;
 	
-	process(DOT_CNT, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, VM, CM, SM, SPR_FETCH_EN, SPR )
+	process(DOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR )
 	begin
-		if BURST = '1' then
+		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN then
+			--first several cycles in HSYNC are empty, i.e. without access the memory, N=dots%8
+			SLOT <= NOP;
+		elsif BURST = '1' then
 			if DMAS_EXEC = '1' then
 				case DOT_CNT(1 downto 0) is
 					when "00" => SLOT <= NOP;
@@ -487,74 +495,80 @@ begin
 					end case;
 			end case;
 		elsif SPR_FETCH = '1' then
-			if TILE_CNT = 0 and DOT_CNT <= 4 then	--while only for 5MHZ, TODO for 7/10MHz
-				SLOT <= NOP;
+			if SPR_FETCH_EN = '0' then
+				--if there are no partially or fully sprites in the row for fetching, 
+				--then the cycles are replaced by CPU slots
+				--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+				--|  CPU  |  CPU  |  CPU  |  CPU  |
+				case DOT_CNT(1 downto 0) is
+					when "00" => SLOT <= CPU;
+					when "01" => SLOT <= NOP;
+					when "10" => SLOT <= CPU;
+					when others => SLOT <= NOP;
+				end case;
 			else
-				if SPR_FETCH_EN = '0' then
-					case DOT_CNT(1 downto 0) is
-						when "00" => SLOT <= CPU;
-						when "01" => SLOT <= NOP;
-						when "10" => SLOT <= CPU;
-						when others => SLOT <= NOP;
-					end case;
-				else
-					case SM is
-						when "00" => 
-							case DOT_CNT(1 downto 0) is
-								when "00" => SLOT <= SG0;
-								when "01" => SLOT <= SG1;
-								when "10" => SLOT <= SG2;
-								when others => SLOT <= SG3;
-							end case;
-						when "01" => 
-							case DOT_CNT(1 downto 0) is
-								when "01" => 
-									if SPR.CG = '0' then
-										SLOT <= SG0;
-									else
-										SLOT <= SG2;
-									end if; 
-								when "11" => 
-									if SPR.CG = '0' then
-										SLOT <= SG1;
-									else
-										SLOT <= SG3;
-									end if; 
-								when others => 
-									SLOT <= NOP;
-							end case;
-						when "10" => 
-							case DOT_CNT(1 downto 0) is
-								when "01" => 
-									if DOT_CNT(2) = '0' then
-										SLOT <= SG0;
-									else
-										SLOT <= SG2;
-									end if; 
-								when "11" => 
-									if DOT_CNT(2) = '0' then
-										SLOT <= SG1;
-									else
-										SLOT <= SG3;
-									end if; 
-								when others => 
-									SLOT <= NOP;
-							end case;
-						when others =>
-							case DOT_CNT(1 downto 0) is
-								when "11" => 
-									
-									case unsigned(TILE_CNT(0 downto 0)&DOT_CNT(2 downto 2)) is
-										when "00" => SLOT <= SG0;
-										when "01" => SLOT <= SG1;
-										when "10" => SLOT <= SG2;
-										when others => SLOT <= SG3;
-									end case;
-								when others => 
-									SLOT <= NOP;
-							end case;
-					end case;
-				end if; 
+				case SM is
+					when "00" => 
+						--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+						--|SG0|SG1|SG2|SG3|SG0|SG1|SG2|SG3|
+						case DOT_CNT(1 downto 0) is
+							when "00" => SLOT <= SG0;
+							when "01" => SLOT <= SG1;
+							when "10" => SLOT <= SG2;
+							when others => SLOT <= SG3;
+						end case;
+					when "01" => 
+						--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+						--|  SG0  |  SG1  |  SG0  |  SG1  |
+						--| (SG2) | (SG3) | (SG2) | (SG3) |
+						case DOT_CNT(1 downto 0) is
+							when "01" => 
+								if SPR.CG = '0' then
+									SLOT <= SG0;
+								else
+									SLOT <= SG2;
+								end if; 
+							when "11" => 
+								if SPR.CG = '0' then
+									SLOT <= SG1;
+								else
+									SLOT <= SG3;
+								end if; 
+							when others => 
+								SLOT <= NOP;
+						end case;
+					when "10" => 
+						--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+						--|  SG0  |  SG1  |  SG2  |  SG3  |
+						case DOT_CNT(1 downto 0) is
+							when "01" => 
+								if DOT_CNT(2) = '0' then
+									SLOT <= SG0;
+								else
+									SLOT <= SG2;
+								end if; 
+							when "11" => 
+								if DOT_CNT(2) = '0' then
+									SLOT <= SG1;
+								else
+									SLOT <= SG3;
+								end if; 
+							when others => 
+								SLOT <= NOP;
+						end case;
+					when others =>
+						case DOT_CNT(1 downto 0) is
+							when "11" => 
+								case unsigned(TILE_CNT(0 downto 0)&DOT_CNT(2 downto 2)) is
+									when "00" => SLOT <= SG0;
+									when "01" => SLOT <= SG1;
+									when "10" => SLOT <= SG2;
+									when others => SLOT <= SG3;
+								end case;
+							when others => 
+								SLOT <= NOP;
+						end case;
+				end case;
 			end if; 
 		else
 			SLOT <= NOP;
@@ -752,7 +766,7 @@ begin
 				
 				if TILE_CNT = HDISP_END_POS and DOT_CNT = 7 and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
 					SPR_FETCH <= '1';
-					SPR_FETCH_EN <= CR_SB;
+					SPR_FETCH_EN <= CR_SB and SPR_FIND;
 					SPR_FETCH_CNT <= (others=>'0');
 					SPR_FETCH_W <= '0';
 					SPR_FETCH_DONE <= '0';
@@ -830,6 +844,7 @@ begin
 								SPR_FETCH_W <= '0';
 								if SPR_FETCH_CNT = SPR_EVAL_CNT - 1 then
 									SPR_FETCH_DONE <= '1';
+									SPR_FETCH_EN <= '0';
 								else
 									SPR_FETCH_CNT <= SPR_FETCH_CNT + 1;
 								end if; 
@@ -1110,7 +1125,7 @@ begin
 			end if; 
 			
 			if DCK_CE = '1' then
-				if SLOT = CPU then
+				if DOT_CNT(0) = '1' then
 					if CPUWR_PEND = '1' then
 						CPUWR_PEND <= '0';
 						CPUWR_PEND2 <= '1';
@@ -1143,7 +1158,7 @@ begin
 					end if; 
 				end if; 
 				
-				if DMA_PEND = '1' and (BURST = '1') then-- or VDISP = '0'
+				if DMA_PEND = '1' and BURST = '1' then
 					DMA_PEND <= '0';
 					DMA_EXEC <= '1';
 				end if; 
@@ -1184,12 +1199,17 @@ begin
 						end if;
 					elsif CPUWR_EXEC = '1' then
 						CPUWR_EXEC <= '0';
-						CPU_BUSY <= '0';
+						CPU_BUSY_CLEAR <= '1';
 					elsif CPURD_EXEC = '1' then
 						CPURD_EXEC <= '0';
 						VRR <= RAM_DI;
-						CPU_BUSY <= '0';
+						CPU_BUSY_CLEAR <= '1';
 					end if;
+				end if;
+				
+				if CPU_BUSY_CLEAR = '1' then
+					CPU_BUSY_CLEAR <= '0';
+					CPU_BUSY <= '0';
 				end if;
 				
 				if TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 then
