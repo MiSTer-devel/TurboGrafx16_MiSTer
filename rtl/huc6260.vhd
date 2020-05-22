@@ -78,7 +78,7 @@ constant HS_CLOCKS		: integer := 192;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
-constant TOP_BL_LINES_E	: integer := 18;   -- pcetech.txt (must include VS_LINES in current implementation)
+constant TOP_BL_LINES_E	: integer := 19;   -- pcetech.txt (must include VS_LINES in current implementation)
 constant DISP_LINES_E	: integer := 242;	 -- same as in mednafen
 signal TOP_BL_LINES		: integer;
 signal DISP_LINES			: integer;
@@ -266,7 +266,7 @@ begin
 		if H_CNT = LINE_CLOCKS-1 then HS_F <= '1'; end if;
 		if H_CNT = HS_CLOCKS-1   then HS_R <= '1'; end if;
 		if V_CNT = TOTAL_LINES-1 and H_CNT = LINE_CLOCKS-1 then VS_F <= '1'; end if;
-		if V_CNT = VS_LINES-1 and H_CNT = LINE_CLOCKS-1    then VS_R <= '1'; end if;
+		if V_CNT = VS_LINES-1    and H_CNT = LINE_CLOCKS-1 then VS_R <= '1'; end if;
 	end if;
 end process;
 
