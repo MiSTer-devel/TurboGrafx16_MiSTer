@@ -149,6 +149,7 @@ architecture rtl of HUC6270 is
 	signal DOT_CNT			: unsigned(2 downto 0);
 	signal TILE_CNT		: unsigned(6 downto 0);
 	signal DISP_CNT		: unsigned(9 downto 0);
+	signal DISP_CNT_INC	: std_logic;
 	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
