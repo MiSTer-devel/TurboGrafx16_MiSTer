@@ -149,7 +149,7 @@ architecture rtl of HUC6270 is
 	signal DOT_CNT			: unsigned(2 downto 0);
 	signal TILE_CNT		: unsigned(6 downto 0);
 	signal DISP_CNT		: unsigned(9 downto 0);
-	signal DISP_CNT_INC	: std_logic;
+	signal DISP_CNT_INC 	: std_logic;
 	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
@@ -342,7 +342,6 @@ begin
 			if DCK_CE = '1' then
 				if VS_F = '1' then
 					VDISP <= '0';
-					BURST <= '1';
 					DISP_CNT <= (others=>'0');
 				else
 					if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
@@ -352,20 +351,18 @@ begin
 						DISP_CNT <= DISP_CNT + 1;
 						DISP_CNT_INC <= '0';
 						if DISP_CNT = VSW_END_POS then
-							BURST <= '1';
+							BURST <= not (CR_SB or CR_BB);
 						end if;
 						if DISP_CNT = VDS_END_POS then
 							VDISP <= '1';
-							BURST <= not (CR_SB or CR_BB);
 						end if;
 						if DISP_CNT = VDISP_END_POS then
 							VDISP <= '0';
-							BURST <= '1';
 						end if;
 						if DISP_CNT = VDE_END_POS then
-							BURST <= '1';
 							DISP_CNT <= (others=>'0');
 						end if;
+						
 					end if;
 				end if;
 				
@@ -402,23 +399,31 @@ begin
 		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN then
 			--first several cycles in HSYNC are empty, i.e. without access the memory, N=dots%8
 			SLOT <= NOP;
-		elsif BURST = '1' then
-			if DMAS_EXEC = '1' then
-				case DOT_CNT(1 downto 0) is
-					when "00" => SLOT <= NOP;
-					when "01" => SLOT <= NOP;
-					when "10" => SLOT <= NOP;
-					when others => SLOT <= CPU;
-				end case;
-			else
+		elsif DMAS_EXEC = '1' then
+			case DOT_CNT(1 downto 0) is
+				when "00" => SLOT <= NOP;
+				when "01" => SLOT <= NOP;
+				when "10" => SLOT <= NOP;
+				when others => SLOT <= CPU;
+			end case;
+		elsif DMA_EXEC = '1' then
+			case DOT_CNT(1 downto 0) is
+				when "00" => SLOT <= CPU;
+				when "01" => SLOT <= NOP;
+				when "10" => SLOT <= CPU;
+				when others => SLOT <= NOP;
+			end case;
+		elsif BG_FETCH = '1' then
+			if BB = '0' then
+				--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+				--|  CPU  |  CPU  |  CPU  |  CPU  |
 				case DOT_CNT(1 downto 0) is
 					when "00" => SLOT <= CPU;
 					when "01" => SLOT <= NOP;
 					when "10" => SLOT <= CPU;
 					when others => SLOT <= NOP;
 				end case;
-			end if; 
-		elsif BG_FETCH = '1' then
+			else
 			case VM is
 				when "00" => 
 					case DOT_CNT(2 downto 0) is
@@ -459,6 +464,7 @@ begin
 							end if; 
 					end case;
 			end case;
+			end if; 
 		elsif SPR_FETCH = '1' then
 			if SPR_FETCH_EN = '0' then
 				--if there are no partially or fully sprites in the row for fetching, 
@@ -536,7 +542,12 @@ begin
 				end case;
 			end if; 
 		else
-			SLOT <= NOP;
+			case DOT_CNT(1 downto 0) is
+				when "00" => SLOT <= CPU;
+				when "01" => SLOT <= NOP;
+				when "10" => SLOT <= CPU;
+				when others => SLOT <= NOP;
+			end case;
 		end if; 
 	end process;
 	
@@ -1123,9 +1134,11 @@ begin
 					end if; 
 				end if; 
 				
-				if DMA_PEND = '1' and BURST = '1' then
+				if DMA_PEND = '1' and (BURST = '1' or VDISP = '0') then
 					DMA_PEND <= '0';
 					DMA_EXEC <= '1';
+				elsif DMA_EXEC = '1' and BURST = '0' and VDISP = '1' then
+					DMA_EXEC <= '0';
 				end if; 
 			
 				if SLOT = CPU then
@@ -1189,8 +1202,8 @@ begin
 							DMAS_SAT_ADDR <= (others=>'0');
 							DMAS_EXEC <= '1';
 						end if;
-					elsif VDISP = '1' and VDISP_OLD = '0' and BURST = '0' then
-						DMA_EXEC <= '0';
+--					elsif VDISP = '1' and VDISP_OLD = '0' and BURST = '0' then
+--						DMA_EXEC <= '0';
 					end if;
 				end if;
 				
