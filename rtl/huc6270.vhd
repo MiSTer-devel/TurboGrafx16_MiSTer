@@ -394,7 +394,7 @@ begin
 		end if;
 	end process;
 	
-	process(DOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR )
+	process(DOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB )
 	begin
 		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN then
 			--first several cycles in HSYNC are empty, i.e. without access the memory, N=dots%8

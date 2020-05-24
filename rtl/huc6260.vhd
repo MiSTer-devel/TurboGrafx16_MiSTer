@@ -96,7 +96,7 @@ signal CLKEN_FF	: std_logic;
 
 begin
 
-TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+6;
+TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+4;
 DISP_LINES   <= DISP_LINES_E   when RVBL = '1' else DISP_LINES_E-11;
 
 -- Color RAM
