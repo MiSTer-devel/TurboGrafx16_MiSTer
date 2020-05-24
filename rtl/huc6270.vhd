@@ -27,14 +27,6 @@ entity HUC6270 is
 		VD			: out std_logic_vector(8 downto 0);
 		BORDER	: out std_logic;
 		GRID		: out std_logic;
-		
-		-- master mode signals
-		HFP		: out std_logic;
-		HBP		: out std_logic;
-		HSP		: out std_logic;
-		VBP		: out std_logic;
-		VFP		: out std_logic;
-		VSP		: out std_logic;
 
 		RAM_A		: out std_logic_vector(15 downto 0);
 		RAM_DI	: in std_logic_vector(15 downto 0);
@@ -157,6 +149,7 @@ architecture rtl of HUC6270 is
 	signal DOT_CNT			: unsigned(2 downto 0);
 	signal TILE_CNT		: unsigned(6 downto 0);
 	signal DISP_CNT		: unsigned(9 downto 0);
+	signal DISP_CNT_INC 	: std_logic;
 	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
@@ -335,15 +328,9 @@ begin
 	process(CLK, RST_N)
 	begin
 		if RST_N = '0' then
-			HBP <= '0';
-			HDISP <= '0';
-			HFP <= '0';
-			HSP <= '0';
 			DISP_CNT <= (others=>'0');
-			VBP <= '0';
+			DISP_CNT_INC <= '0';
 			VDISP <= '0';
-			VFP <= '0';
-			VSP <= '0';
 			BURST <= '1';
 			BG_FETCH <= '0';
 			BG_OUT <= '0';
@@ -353,54 +340,32 @@ begin
 			SB <= '0';
 		elsif rising_edge(CLK) then
 			if DCK_CE = '1' then
-				if HS_F = '1' then
-					HSP <= '1';
-				end if;
-				if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
-					HBP <= '1';
-					HSP <= '0';
-				end if;
-				if TILE_CNT = HDS_END_POS and DOT_CNT = 7 then
-					HBP <= '0';
-					HDISP <= '1';
-				end if;
-				if TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
-					HDISP <= '0';
-					HFP <= '1';
-				end if;
-				if HS_F = '1' then
-					HFP <= '0';
-					HDISP <= '0';
-				end if;
-				
 				if VS_F = '1' then
-					VFP <= '0';
 					VDISP <= '0';
-					VSP <= '1';
 					BURST <= '1';
 					DISP_CNT <= (others=>'0');
-				elsif (TILE_CNT = HDISP_END_POS and DOT_CNT = 7 and HDISP = '1') or (HS_F = '1' and HDISP = '1') then
-					DISP_CNT <= DISP_CNT + 1;
-					if DISP_CNT = VSW_END_POS then
-						VSP <= '0';
-						VBP <= '1';
-						BURST <= '1';
+				else
+					if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
+						DISP_CNT_INC <= '1';
 					end if;
-					if DISP_CNT = VDS_END_POS then
-						VBP <= '0';
-						VDISP <= '1';
-						BURST <= not (CR_SB or CR_BB);
-					end if;
-					if DISP_CNT = VDISP_END_POS then
-						VDISP <= '0';
-						VFP <= '1';
-						BURST <= '1';
-					end if;
-					if DISP_CNT = VDE_END_POS then
-						VFP <= '0';
-						VSP <= '1';
-						BURST <= '1';
-						DISP_CNT <= (others=>'0');
+					if (TILE_CNT = HDISP_END_POS and DOT_CNT = 7 and DISP_CNT_INC = '1') or (HS_F = '1' and DISP_CNT_INC = '1') then
+						DISP_CNT <= DISP_CNT + 1;
+						DISP_CNT_INC <= '0';
+						if DISP_CNT = VSW_END_POS then
+							BURST <= '1';
+						end if;
+						if DISP_CNT = VDS_END_POS then
+							VDISP <= '1';
+							BURST <= not (CR_SB or CR_BB);
+						end if;
+						if DISP_CNT = VDISP_END_POS then
+							VDISP <= '0';
+							BURST <= '1';
+						end if;
+						if DISP_CNT = VDE_END_POS then
+							BURST <= '1';
+							DISP_CNT <= (others=>'0');
+						end if;
 					end if;
 				end if;
 				
