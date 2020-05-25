@@ -672,7 +672,6 @@ begin
 	SPR <= SPR_CACHE(to_integer(SPR_FETCH_CNT(3 downto 0)));
 	process(CLK, RST_N, SLOT, RC_CNT, SPR, SPR_FETCH_W)
 	variable SPR_H : std_logic_vector(5 downto 0);
-	variable SPR_W : std_logic_vector(4 downto 0);
 	variable SPR_OFS_Y : unsigned(5 downto 0);
 	variable SPR_LINE : unsigned(5 downto 0);
 	variable SPR_TILE_N : std_logic_vector(2 downto 0);
@@ -770,9 +769,7 @@ begin
 								SPR_PC <= SAT_Q(10 downto 1);
 							when others =>
 								SPR_H := SAT_Q(13)&(SAT_Q(13) or SAT_Q(12))&"1111";
-								SPR_W := SAT_Q(8)&"1111";
-								if RC_CNT >= unsigned(SPR_Y) and RC_CNT <= unsigned(SPR_Y) + unsigned(SPR_H) and
-									unsigned(SPR_X) + unsigned(SPR_W) >= 32 and unsigned(SPR_X) <= (unsigned(HDW)&"111") + 32 then
+								if RC_CNT >= unsigned(SPR_Y) and RC_CNT <= unsigned(SPR_Y) + unsigned(SPR_H) then
 									SPR_FIND <= '1';
 									if SPR_EVAL_FULL = '0' then
 										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).X <= SPR_X;
