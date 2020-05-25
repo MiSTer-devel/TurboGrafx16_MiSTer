@@ -1080,7 +1080,7 @@ end
 
 reg VDC_BG_EN  = 1;
 reg VDC_SPR_EN = 1;
-reg VDC_GRID_EN = 0;
+reg [1:0] VDC_GRID_EN = 2'd0;
 reg CPU_PAUSE_EN = 0;
 reg PSG_EN  = 1;
 reg CDDA_EN = 1;
@@ -1095,13 +1095,13 @@ always @(posedge clk_sys) begin
 
 	if((ps2_key[10] != old_state) && pressed) begin
 		casex(code)
-			'h005: begin VDC_BG_EN <= ~VDC_BG_EN; end 		// F1
-			'h006: begin VDC_SPR_EN <= ~VDC_SPR_EN; end 		// F2
-			'h004: begin VDC_GRID_EN <= ~VDC_GRID_EN; end 	// F3
-			'h00C: begin PSG_EN <= ~PSG_EN; end 				// F4
-			'h003: begin CDDA_EN <= ~CDDA_EN; end 				// F5
-			'h00B: begin ADPCM_EN <= ~ADPCM_EN; end 			// F6
-			'h083: begin CPU_PAUSE_EN <= ~CPU_PAUSE_EN; end // F7
+			'h005: begin VDC_BG_EN <= ~VDC_BG_EN; end 			// F1
+			'h006: begin VDC_SPR_EN <= ~VDC_SPR_EN; end 			// F2
+			'h004: begin VDC_GRID_EN <= VDC_GRID_EN + 2'd1; end// F3
+			'h00C: begin PSG_EN <= ~PSG_EN; end 					// F4
+			'h003: begin CDDA_EN <= ~CDDA_EN; end 					// F5
+			'h00B: begin ADPCM_EN <= ~ADPCM_EN; end 				// F6
+			'h083: begin CPU_PAUSE_EN <= ~CPU_PAUSE_EN; end 	// F7
 		endcase
 	end
 end
@@ -1110,7 +1110,7 @@ end
 
 wire VDC_BG_EN  = 1;
 wire VDC_SPR_EN = 1;
-wire VDC_GRID_EN = 0;
+wire [1:0] VDC_GRID_EN = 2'd0;
 wire CPU_PAUSE_EN = 0;
 wire PSG_EN  = 1;
 wire CDDA_EN = 1;

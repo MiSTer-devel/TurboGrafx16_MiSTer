@@ -26,7 +26,7 @@ entity HUC6270 is
 		VS_R		: in std_logic;
 		VD			: out std_logic_vector(8 downto 0);
 		BORDER	: out std_logic;
-		GRID		: out std_logic;
+		GRID		: out std_logic_vector(1 downto 0);
 
 		RAM_A		: out std_logic_vector(15 downto 0);
 		RAM_DI	: in std_logic_vector(15 downto 0);
@@ -176,7 +176,8 @@ architecture rtl of HUC6270 is
 	signal SLOT				: slot_t;	
 	signal DISP 			: std_logic_vector(7 downto 0);
 	signal BORD 			: std_logic_vector(7 downto 0);
-	signal GRD 				: std_logic_vector(7 downto 0);
+	signal GRID_BG 		: std_logic_vector(7 downto 0);
+	signal GRID_SP 		: std_logic_vector(7 downto 0);
 	signal BG_X				: unsigned(9 downto 0);
 	signal OFS_X			: unsigned(9 downto 0);
 	signal OFS_Y			: unsigned(8 downto 0);
@@ -217,6 +218,8 @@ architecture rtl of HUC6270 is
 		HF     	: std_logic;
 		VF     	: std_logic;
 		SPR0    	: std_logic;
+		TOP    	: std_logic;
+		BOTTOM   : std_logic;
 	end record;
 	type SpriteCache_t is array (0 to 15) of Sprite_r;
 	signal SPR_CACHE		: SpriteCache_t;
@@ -244,10 +247,15 @@ architecture rtl of HUC6270 is
 	signal SPR_TILE_PAL	: std_logic_vector(3 downto 0); 
 	signal SPR_TILE_PRIO : std_logic;
 	signal SPR_TILE_SPR0 : std_logic;
+	signal SPR_TILE_LEFT : std_logic;
+	signal SPR_TILE_RIGTH: std_logic;
+	signal SPR_TILE_TOP 	: std_logic;
+	signal SPR_TILE_BOTTOM: std_logic;
 	signal SPR_TILE_SAVE : std_logic;
 	signal SPR_TILE_PIX	: unsigned(3 downto 0);
 	signal SPR_TILE_PIX_SET: std_logic_vector(1023 downto 0);
 	signal SPR_TILE_SPR0_SET: std_logic_vector(1023 downto 0);
+	signal SPR_TILE_FRAME: std_logic_vector(1023 downto 0);
 	signal SPR_LINE_ADDR	: std_logic_vector(9 downto 0); 
 	signal SPR_LINE_D		: std_logic_vector(8 downto 0); 
 	signal SPR_LINE_Q		: std_logic_vector(8 downto 0);
@@ -702,7 +710,7 @@ begin
 			SPR_EVAL_FULL <= '0';
 			SPR_EVAL_CNT <= (others=>'0');
 			SPR_FIND <= '0';
-			SPR_CACHE <= (others=>((others=>'0'),(others=>'0'),(others=>'0'),'0',"00",'0','0',"00",'0','0','0'));
+			SPR_CACHE <= (others=>((others=>'0'),(others=>'0'),(others=>'0'),'0',"00",'0','0',"00",'0','0','0','0','0'));
 			SPR_Y <= (others=>'0');
 			SPR_X <= (others=>'0');
 			SPR_PC <= (others=>'0');
@@ -782,6 +790,17 @@ begin
 										else
 											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).SPR0 <= '0';
 										end if;
+										if RC_CNT = unsigned(SPR_Y) then
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).TOP <= '1';
+										else
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).TOP <= '0';
+										end if;
+										if RC_CNT = unsigned(SPR_Y) + unsigned(SPR_H) then
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).BOTTOM <= '1';
+										else
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).BOTTOM <= '0';
+										end if;
+										
 										SPR_EVAL_CNT <= SPR_EVAL_CNT + 1;
 										if SPR_EVAL_CNT = 15 then
 											SPR_EVAL_FULL <= '1';
@@ -848,6 +867,11 @@ begin
 							SPR_TILE_PRIO <= SPR.PRIO;
 							SPR_TILE_SPR0 <= SPR.SPR0;
 							SPR_TILE_SAVE <= '1';
+							
+							SPR_TILE_LEFT <= not SPR.CGX or not SPR_FETCH_W;
+							SPR_TILE_RIGTH <= not SPR.CGX or SPR_FETCH_W;
+							SPR_TILE_TOP <= SPR.TOP;
+							SPR_TILE_BOTTOM <= SPR.BOTTOM;
 						end if;
 					end if;
 				end if; 
@@ -890,12 +914,17 @@ begin
 						end if;
 					end if; 
 				end if; 
+				if (SPR_TILE_PIX = 0 and SPR_TILE_LEFT = '1') or (SPR_TILE_PIX = 15 and SPR_TILE_RIGTH = '1') or 
+					SPR_TILE_TOP = '1' or SPR_TILE_BOTTOM = '1' then
+					SPR_TILE_FRAME(to_integer(unsigned(SPR_LINE_X))) <= '1';
+				end if; 
 				SPR_TILE_PIX <= SPR_TILE_PIX + 1;
 			end if; 
 			
 			if BG_OUT = '1' and DCK_CE = '1' then
 				SPR_TILE_PIX_SET(to_integer(unsigned(BG_OUT_X))) <= '0';
 				SPR_TILE_SPR0_SET(to_integer(unsigned(BG_OUT_X))) <= '0';
+				SPR_TILE_FRAME(to_integer(unsigned(BG_OUT_X))) <= '0';
 			end if;
 			
 			if A = "00" and CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
@@ -927,14 +956,16 @@ begin
 			SPR_COLOR <= (others=>(others=>'0'));
 			DISP <= (others=>'0');
 			BORD <= (others=>'1');
-			GRD <= (others=>'0');
+			GRID_BG <= (others=>'0');
+			GRID_SP <= (others=>'0');
 		elsif rising_edge(CLK) then
 			if DCK_CE = '1' then
 				BG_COLOR(7) <= (others=>'0');
 				SPR_COLOR(7) <= (others=>'0');
 				DISP(7) <= '0';
 				BORD(7) <= '1';
-				GRD(7) <= '0';
+				GRID_BG(7) <= '0';
+				GRID_SP(7) <= '0';
 				if HS_F = '1' then
 					BG_OUT_X <= (others=>'0');
 				elsif BG_OUT = '1' and VDISP = '1' then
@@ -951,7 +982,11 @@ begin
 					GX := BG_OUT_X(2 downto 0) + unsigned(OFS_X(2 downto 0));
 					GY := OFS_Y(2 downto 0);
 					if GX = 7 or GY = 7 then
-						GRD(7) <= '1';
+						GRID_BG(7) <= '1';
+					end if; 
+					
+					if SPR_TILE_FRAME(to_integer(unsigned(BG_OUT_X))) = '1' then
+						GRID_SP(7) <= '1';
 					end if; 
 					
 					BG_OUT_X <= BG_OUT_X + 1;
@@ -962,14 +997,16 @@ begin
 					SPR_COLOR(i) <= SPR_COLOR(i+1);
 					DISP(i) <= DISP(i+1);
 					BORD(i) <= BORD(i+1);
-					GRD(i) <= GRD(i+1);
+					GRID_BG(i) <= GRID_BG(i+1);
+					GRID_SP(i) <= GRID_SP(i+1);
 				end loop;
 			end if; 
 		end if;
 	end process;
 	
 	BORDER <= BORD(0);
-	GRID <= GRD(0);
+	GRID <= GRID_SP(0)&GRID_BG(0);
+	
 
 	process(BG_OUT, DISP, BG_COLOR, SPR_COLOR, BB, SB, BG_EN, SPR_EN)
 	begin

@@ -26,10 +26,10 @@ entity huc6260 is
 		RVBL		: in std_logic;
 		DCC		: out std_logic_vector(1 downto 0);
 		
-		GRID_EN	: in std_logic;
+		GRID_EN	: in std_logic_vector(1 downto 0);
 		BORDER_EN: in std_logic;
 		BORDER	: in std_logic;
-		GRID		: in std_logic;
+		GRID		: in std_logic_vector(1 downto 0);
 
 		-- NTSC/RGB Video Output
 		R			: out std_logic_vector(2 downto 0);
@@ -298,7 +298,7 @@ begin
 				G <= (others => '0');
 				R <= (others => '0');
 				B <= (others => '0');
-			elsif GRID = '1' and GRID_EN = '1' then
+			elsif (GRID(0) = '1' and GRID_EN(0) = '1') or (GRID(1) = '1' and GRID_EN(1) = '1') then
 				G <= (others => '1');
 				R <= (others => '1');
 				B <= (others => '1');
