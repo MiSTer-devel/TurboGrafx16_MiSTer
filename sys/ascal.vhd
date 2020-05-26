@@ -421,7 +421,7 @@ ARCHITECTURE rtl OF ascal IS
   ATTRIBUTE ramstyle OF o_line1 : SIGNAL IS "no_rw_check";
   ATTRIBUTE ramstyle OF o_line2 : SIGNAL IS "no_rw_check";
   ATTRIBUTE ramstyle OF o_line3 : SIGNAL IS "no_rw_check";
-  SIGNAL o_wadl,o_radl : natural RANGE 0 TO 4095;
+  SIGNAL o_wadl,o_radl : natural RANGE 0 TO OHRES-1;
   SIGNAL o_ldw,o_ldr0,o_ldr1,o_ldr2,o_ldr3 : type_pix;
   SIGNAL o_wr : unsigned(3 DOWNTO 0);
   SIGNAL o_hcpt,o_vcpt,o_vcpt_pre,o_vcpt_pre2,o_vcpt_pre3 : uint12;
@@ -2152,10 +2152,10 @@ BEGIN
       o_copyv(1 TO 8)<=o_copyv(0 TO 7);
       
       o_dcptv(1)<=o_dcpt;
-      IF o_dcptv(1)>o_hsize THEN
+      IF o_dcptv(1)>=o_hsize THEN
         o_copyv(2)<='0';
       END IF;
-      o_dcptv(2)<=o_dcptv(1);
+      o_dcptv(2)<=o_dcptv(1) MOD OHRES;
       o_dcptv(3 TO 8)<=o_dcptv(2 TO 7);
       
       o_hpixq<=(o_hpix3,o_hpix2,o_hpix1,o_hpix0);
@@ -2249,10 +2249,10 @@ BEGIN
   BEGIN
     IF rising_edge(o_clk) THEN
       -- WRITES
-      IF o_wr(0)='1' and o_wadl < OHRES THEN o_line0(o_wadl)<=o_ldw; END IF;
-      IF o_wr(1)='1' and o_wadl < OHRES THEN o_line1(o_wadl)<=o_ldw; END IF;
-      IF o_wr(2)='1' and o_wadl < OHRES THEN o_line2(o_wadl)<=o_ldw; END IF;
-      IF o_wr(3)='1' and o_wadl < OHRES THEN o_line3(o_wadl)<=o_ldw; END IF;
+      IF o_wr(0)='1' THEN o_line0(o_wadl)<=o_ldw; END IF;
+      IF o_wr(1)='1' THEN o_line1(o_wadl)<=o_ldw; END IF;
+      IF o_wr(2)='1' THEN o_line2(o_wadl)<=o_ldw; END IF;
+      IF o_wr(3)='1' THEN o_line3(o_wadl)<=o_ldw; END IF;
       
       -- READS
       o_ldr0<=o_line0(o_radl);
