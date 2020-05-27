@@ -930,7 +930,7 @@ wire  [3:0] mb128_Data;
 
 MB128 MB128
 (
-	.reset_n(~RESET),
+	.reset(reset|cart_download),
 	.clk_sys(clk_sys),
 
 	.i_Clk(mb128_ena & joy_out[1]),	// send only if MB128 enabled
