@@ -147,7 +147,7 @@ assign VGA_F1 = 0;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = cart_download | bk_state | (status[23] & bk_pending);
+assign LED_USER  = cart_download | bk_state | bk_pending;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = osd_btn | llapi_osd;
@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXX XXXXXXXX X      XX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -177,7 +177,6 @@ parameter CONF_STR = {
 	"D0RG,Load Backup RAM;",
 	"D0R7,Save Backup RAM;",
 	"D0ON,Autosave,OFF,ON;",
-	"D0RC,Format Save;",
 	"-;",
 	"P1,Audio & Video;",
 	"P1-;",
@@ -185,10 +184,11 @@ parameter CONF_STR = {
 	"P1O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"P1-;",
 	"P1OH,Overscan,Hidden,Visible;",
-	"P1OI,Border Color,Original,Black;",
+	"P1OF,Border Color,Original,Black;",
 	"H6P1OB,Sprites per line,Normal,Extra;",
 	"P1-;",
-	"P1OJK,Audio Boost,No,2x,4x;",
+	"P1OK,CD Audio Boost,No,2x;",
+	"P1OIJ,Master Audio Boost,No,2x,4x;",
 	"P2,Hardware;",
 	"P2-;",
 	"P2O3,ROM Data Swap,No,Yes;",
@@ -199,10 +199,13 @@ parameter CONF_STR = {
 	"D4H3P2O6,ROM Storage,DDR3,DDR3;",
 `endif
 	"P2-;",
-	"P2OF,Arcade Card,Disabled,Enabled;",
+	"P2OE,Arcade Card,Disabled,Enabled;",
 	"P2OP,CD Seek,Normal,Fast;",
 	"P2-;",
-	"P2ODE,USER I/O,Off,SNAC,LLAPI;",
+	"P2OUV,USER I/O,Off,SNAC,LLAPI;",
+	"H5P2OL,MB128,Disabled,Enabled;",
+	"P2-;",
+	"D0P2RC,Format Backup RAM;",
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
@@ -387,7 +390,7 @@ pce_top #(LITE) pce_top
 	.JOY_IN(joy_in),
 
 	.CD_EN(cd_en),
-	.AC_EN(status[15]),
+	.AC_EN(status[14]),
 
 	.CD_RAM_A(cd_ram_a),
 	.CD_RAM_DO(cd_ram_do),
@@ -425,7 +428,7 @@ pce_top #(LITE) pce_top
 	.CPU_PAUSE_EN(CPU_PAUSE_EN),
 
 	.ReducedVBL(~overscan),
-	.BORDER_EN(~status[18]),
+	.BORDER_EN(~status[15]),
 	.VIDEO_R(r),
 	.VIDEO_G(g),
 	.VIDEO_B(b),
@@ -643,7 +646,7 @@ function [15:0] compr; input [15:0] inp;
 		v  = inp[15] ? (~inp) + 1'd1 : inp;
 		v1 = (v < comp_x1[15:0]) ? (v * comp_a1) : (((v - comp_x1[15:0])/comp_f1) + comp_b1[15:0]);
 		v2 = (v < comp_x2[15:0]) ? (v * comp_a2) : (((v - comp_x2[15:0])/comp_f2) + comp_b2[15:0]);
-		v  = status[20] ? v2 : v1;
+		v  = status[19] ? v2 : v1;
 		compr = inp[15] ? ~(v-1'd1) : v;
 	end
 endfunction
@@ -658,24 +661,32 @@ always @(posedge clk_sys) begin
 	psg_sr_red  <=  ($signed(psg_sr) >>> 1) +  ($signed(psg_sr) >>> 2) +  ($signed(psg_sr) >>> 4);
 	adpcm_s_red <= ($signed(adpcm_s) >>> 1) + ($signed(adpcm_s) >>> 2) + ($signed(adpcm_s) >>> 3);
 
-	pre_l <= (CDDA_EN  ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
-			 + (PSG_EN   ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
-			 + (ADPCM_EN ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+	pre_l <= ( CDDA_EN                ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
+			 + ((CDDA_EN && status[20]) ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
+			 + ( PSG_EN                 ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
+			 + ( ADPCM_EN               ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
 
-	pre_r <= (CDDA_EN  ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
-			 + (PSG_EN   ? {{2{psg_sr_red[15]}},   psg_sr_red} : 18'd0)
-			 + (ADPCM_EN ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+	pre_r <= ( CDDA_EN                ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
+			 + ((CDDA_EN && status[20]) ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
+			 + ( PSG_EN                 ? {{2{psg_sr_red[15]}},   psg_sr_red} : 18'd0)
+			 + ( ADPCM_EN               ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
 
-	// 3/4 + 1/4 to cover the whole range.
-	audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
-	audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
+	if(~status[20]) begin
+		// 3/4 + 1/4 to cover the whole range.
+		audio_l <= $signed(pre_l) + ($signed(pre_l)>>>2);
+		audio_r <= $signed(pre_r) + ($signed(pre_r)>>>2);
+	end
+	else begin
+		audio_l <= pre_l;
+		audio_r <= pre_r;
+	end
 
 	cmp_l <= compr(audio_l[17:2]);
 	cmp_r <= compr(audio_r[17:2]);
 end
 
-assign AUDIO_L = status[20:19] ? cmp_l : audio_l[17:2];
-assign AUDIO_R = status[20:19] ? cmp_r : audio_r[17:2];
+assign AUDIO_L = status[19:18] ? cmp_l : audio_l[17:2];
+assign AUDIO_R = status[19:18] ? cmp_r : audio_r[17:2];
 assign AUDIO_S = 1;
 assign AUDIO_MIX = 0;
 
@@ -777,7 +788,7 @@ wire [71:0] llapi_analog, llapi_analog2;
 wire [7:0]  llapi_type, llapi_type2;
 wire llapi_en, llapi_en2;
 
-wire llapi_select = status[14];
+wire llapi_select = status[31];
 
 wire llapi_latch_o, llapi_latch_o2, llapi_data_o, llapi_data_o2;
 
@@ -1053,7 +1064,7 @@ always @(posedge clk_sys) begin : input_block
 	end
 end
 
-wire snac = status[13];
+wire snac = status[30];
 
 // Index Name    HDMI System
 // 0   = D+    = 2  = d1/right/2
@@ -1082,60 +1093,72 @@ always @(posedge clk_sys) begin
 end
 
 wire [1:0] joy_out;
-wire [3:0] joy_in = snac ? snac_dat : joy_latch;
+wire [3:0] joy_in = snac ? snac_dat : (mb128_ena & mb128_Active) ? mb128_Data : joy_latch;
 
-/////////////////////////  STATE SAVE/LOAD  /////////////////////////////
+/////////////////////////  BACKUP RAM SAVE/LOAD  /////////////////////////////
 
-wire bk_save_write = bram_wr;
+wire [15:0] mb128_dout;
+wire        mb128_dirty;
+wire        mb128_ena = status[21];
+wire        mb128_Active;
+wire  [3:0] mb128_Data;
+
+MB128 MB128
+(
+	.reset_n(~RESET),
+	.clk_sys(clk_sys),
+
+	.i_Clk(mb128_ena & joy_out[1]),	// send only if MB128 enabled
+	.i_Data(joy_out[0]),
+	
+   .o_Active(mb128_Active),	// high if MB128 asserts itself instead of joypad inputs
+	.o_Data(mb128_Data),
+
+	.bk_clk(clk_sys),
+	.bk_address({sd_lba[7:0] - 3'd4,sd_buff_addr}),
+	.bk_din(sd_buff_dout),
+	.bk_dout(mb128_dout),
+	.bk_we(~bk_int & sd_buff_wr & sd_ack),
+	.bk_written(mb128_dirty)
+);
+
 reg bk_pending;
 
 always @(posedge clk_sys) begin
-	if (bk_ena && ~OSD_STATUS && bk_save_write)
+	if (bk_ena && ~OSD_STATUS && (bram_wr || mb128_dirty))
 		bk_pending <= 1'b1;
 	else if (bk_state)
 		bk_pending <= 1'b0;
 end
 
 wire [10:0] bram_addr;
-wire [7:0] bram_data;
-wire [7:0] bram_q = bram_addr[0] ? bram_qh : bram_ql;
-wire [7:0] bram_ql,bram_qh;
-wire bram_wr;
+wire  [7:0] bram_data;
+wire  [7:0] bram_q;
+wire        bram_wr;
 
-wire format = status[12];
-reg [3:0] defbram = 4'hF;
-reg[15:0] defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
+wire        format = status[12];
+reg   [3:0] defbram = 4'hF;
+reg  [15:0] defval[4] = '{ 16'h5548, 16'h4D42, 16'h8800, 16'h8010 }; //{ HUBM,0x00881080 };
 
-dpram #(12) backram_l
+wire        bk_int = !sd_lba[31:2];
+wire [15:0] bk_int_dout;
+
+assign      sd_buff_din = bk_int ? bk_int_dout : mb128_dout;
+
+dpram_difclk #(11,8,10,16) backram
 (
-	.clock(clk_sys),
-
-   .address_a({2'b00,bram_addr[10:1]}),
+	.clock0(clk_sys),
+   .address_a(bram_addr),
 	.data_a(bram_data),
-	.wren_a(bram_wr & ~bram_addr[0]),
-	.q_a(bram_ql),
+	.wren_a(bram_wr),
+	.q_a(bram_q),
 
-   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
-	.data_b(defbram[3] ? sd_buff_dout[7:0] : defval[defbram[2:1]][7:0]),
-	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
-	.q_b(sd_buff_din[7:0])
+	.clock1(clk_sys),
+	.address_b(defbram[3] ? {sd_lba[1:0],sd_buff_addr} : defbram[2:1]),
+	.data_b(defbram[3] ? sd_buff_dout : defval[defbram[2:1]]),
+	.wren_b(defbram[3] ? bk_int & sd_buff_wr & sd_ack : 1'b1),
+	.q_b(bk_int_dout)
 );
-
-dpram #(12) backram_h
-(
-	.clock(clk_sys),
-
-   .address_a({2'b00,bram_addr[10:1]}),
-	.data_a(bram_data),
-	.wren_a(bram_wr & bram_addr[0]),
-	.q_a(bram_qh),
-
-   .address_b(defbram[3] ? {sd_lba[3:0],sd_buff_addr} : {12'h00,defbram[2:1]}),
-	.data_b(defbram[3] ? sd_buff_dout[15:8] : defval[defbram[2:1]][15:8]),
-	.wren_b(defbram[3] ? sd_buff_wr & sd_ack : defbram[0] & ~defbram[3]),
-	.q_b(sd_buff_din[15:8])
-);
-
 
 wire downloading = cart_download;
 reg old_downloading = 0;
@@ -1158,6 +1181,7 @@ reg  bk_state   = 0;
 always @(posedge clk_sys) begin
 	reg old_format;
 	reg old_load = 0, old_save = 0, old_ack;
+	reg mb128sz;
 
 	old_load <= bk_load;
 	old_save <= bk_save;
@@ -1169,6 +1193,7 @@ always @(posedge clk_sys) begin
 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
 			bk_state <= 1;
 			bk_loading <= bk_load;
+			mb128sz <= bk_load || (mb128_ena && mb128_dirty);
 			sd_lba <= 0;
 			sd_rd <=  bk_load;
 			sd_wr <= ~bk_load;
@@ -1176,15 +1201,17 @@ always @(posedge clk_sys) begin
 		if(old_downloading & ~downloading & bk_ena) begin
 			bk_state <= 1;
 			bk_loading <= 1;
+			mb128sz <= 1;
 			sd_lba <= 0;
 			sd_rd <= 1;
 			sd_wr <= 0;
 		end
 	end else begin
 		if(old_ack & ~sd_ack) begin
-			if(&sd_lba[3:0]) begin
+			if(sd_lba[8] == mb128sz && &sd_lba[1:0]) begin
 				bk_loading <= 0;
 				bk_state <= 0;
+				sd_lba <= 0;
 			end else begin
 				sd_lba <= sd_lba + 1'd1;
 				sd_rd  <=  bk_loading;
@@ -1228,7 +1255,7 @@ end
 
 reg VDC_BG_EN  = 1;
 reg VDC_SPR_EN = 1;
-reg VDC_GRID_EN = 0;
+reg [1:0] VDC_GRID_EN = 2'd0;
 reg CPU_PAUSE_EN = 0;
 reg PSG_EN  = 1;
 reg CDDA_EN = 1;
@@ -1243,13 +1270,13 @@ always @(posedge clk_sys) begin
 
 	if((ps2_key[10] != old_state) && pressed) begin
 		casex(code)
-			'h005: begin VDC_BG_EN <= ~VDC_BG_EN; end 		// F1
-			'h006: begin VDC_SPR_EN <= ~VDC_SPR_EN; end 		// F2
-			'h004: begin VDC_GRID_EN <= ~VDC_GRID_EN; end 	// F3
-			'h00C: begin PSG_EN <= ~PSG_EN; end 				// F4
-			'h003: begin CDDA_EN <= ~CDDA_EN; end 				// F5
-			'h00B: begin ADPCM_EN <= ~ADPCM_EN; end 			// F6
-			'h083: begin CPU_PAUSE_EN <= ~CPU_PAUSE_EN; end // F7
+			'h005: begin VDC_BG_EN <= ~VDC_BG_EN; end 			// F1
+			'h006: begin VDC_SPR_EN <= ~VDC_SPR_EN; end 			// F2
+			'h004: begin VDC_GRID_EN <= VDC_GRID_EN + 2'd1; end// F3
+			'h00C: begin PSG_EN <= ~PSG_EN; end 					// F4
+			'h003: begin CDDA_EN <= ~CDDA_EN; end 					// F5
+			'h00B: begin ADPCM_EN <= ~ADPCM_EN; end 				// F6
+			'h083: begin CPU_PAUSE_EN <= ~CPU_PAUSE_EN; end 	// F7
 		endcase
 	end
 end
@@ -1258,7 +1285,7 @@ end
 
 wire VDC_BG_EN  = 1;
 wire VDC_SPR_EN = 1;
-wire VDC_GRID_EN = 0;
+wire [1:0] VDC_GRID_EN = 2'd0;
 wire CPU_PAUSE_EN = 0;
 wire PSG_EN  = 1;
 wire CDDA_EN = 1;

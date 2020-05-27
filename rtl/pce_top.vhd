@@ -73,7 +73,7 @@ entity pce_top is
 
 		BG_EN			: in  std_logic;
 		SPR_EN		: in  std_logic;
-		GRID_EN		: in  std_logic;
+		GRID_EN		: in  std_logic_vector(1 downto 0);
 		CPU_PAUSE_EN: in  std_logic;
 
 		BORDER_EN	: in  std_logic;
@@ -191,14 +191,14 @@ signal VRAM1_DO	: std_logic_vector(15 downto 0);
 signal VRAM1_WE	: std_logic;
 signal VCE_DCC		: std_logic_vector(1 downto 0);
 signal VDC0_BORDER: std_logic;
-signal VDC0_GRID	: std_logic;
+signal VDC0_GRID	: std_logic_vector(1 downto 0);
 signal CPU_PRE_RD	: std_logic;
 signal CPU_PRE_WR	: std_logic;
 signal CD_RAM_CS_N: std_logic;
 signal CD_BRAM_EN	: std_logic;
 
 signal BORDER		: std_logic;
-signal GRID			: std_logic;
+signal GRID			: std_logic_vector(1 downto 0);
 
 signal AC_SEL_N   : std_logic;
 signal AC_RAM_CS_N: std_logic;

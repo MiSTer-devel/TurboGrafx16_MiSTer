@@ -507,14 +507,14 @@ begin
 	
 	SCSI : entity work.SCSI
 	port map (
-		RESET_N		=> RST_N,-- and EN
+		RESET_N		=> RST_N and SCSI_RST_N,-- and EN
 		CLK			=> CLK,
 		
 		DBI			=> SCSI_DBI,
 		DBO			=> SCSI_DBO,
 		SEL_N			=> SCSI_SEL_N,
 		ACK_N			=> SCSI_ACK_N,
-		RST_N			=> SCSI_RST_N,
+		RST_N			=> '1', --SCSI_RST_N,
 		BSY_N			=> SCSI_BSY_N,
 		REQ_N			=> SCSI_REQ_N,
 		MSG_N			=> SCSI_MSG_N,

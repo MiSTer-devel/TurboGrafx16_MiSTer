@@ -97,7 +97,7 @@ begin
 		if RESET_N = '0' then
 			FIFO_D <= (others => '0');
 			FIFO_WR_REQ <= '0';
-			CD_WR_OLD <= '0';
+			--CD_WR_OLD <= '0';
 		elsif rising_edge(CLK) then
 			FIFO_WR_REQ <= '0';
 --			if EN = '1' then
@@ -115,6 +115,8 @@ begin
 	
 	FIFO : entity work.SCSI_FIFO 
 	port map(
+		aclr     => not RESET_N,
+
 		wrclk		=> CLK,
 		data		=> FIFO_D,
 		wrreq		=> FIFO_WR_REQ,

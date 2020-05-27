@@ -26,10 +26,10 @@ entity huc6260 is
 		RVBL		: in std_logic;
 		DCC		: out std_logic_vector(1 downto 0);
 		
-		GRID_EN	: in std_logic;
+		GRID_EN	: in std_logic_vector(1 downto 0);
 		BORDER_EN: in std_logic;
 		BORDER	: in std_logic;
-		GRID		: in std_logic;
+		GRID		: in std_logic_vector(1 downto 0);
 
 		-- NTSC/RGB Video Output
 		R			: out std_logic_vector(2 downto 0);
@@ -78,7 +78,7 @@ constant HS_CLOCKS		: integer := 192;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
-constant TOP_BL_LINES_E	: integer := 18;   -- pcetech.txt (must include VS_LINES in current implementation)
+constant TOP_BL_LINES_E	: integer := 19;   -- pcetech.txt (must include VS_LINES in current implementation)
 constant DISP_LINES_E	: integer := 242;	 -- same as in mednafen
 signal TOP_BL_LINES		: integer;
 signal DISP_LINES			: integer;
@@ -96,7 +96,7 @@ signal CLKEN_FF	: std_logic;
 
 begin
 
-TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+6;
+TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+4;
 DISP_LINES   <= DISP_LINES_E   when RVBL = '1' else DISP_LINES_E-11;
 
 -- Color RAM
@@ -255,7 +255,7 @@ process( CLK )
 begin
 	if rising_edge( CLK ) then
 		if H_CNT = 0             then HS_N <= '0'; end if;
-		if H_CNT = HS_CLOCKS-1   then HS_N <= '1'; end if;
+		if H_CNT = HS_CLOCKS     then HS_N <= '1'; end if;
 		if V_CNT = 0             then VS_N <= '0'; end if;
 		if V_CNT = VS_LINES      then VS_N <= '1'; end if;
 		
@@ -265,8 +265,8 @@ begin
 		VS_R <= '0';
 		if H_CNT = LINE_CLOCKS-1 then HS_F <= '1'; end if;
 		if H_CNT = HS_CLOCKS-1   then HS_R <= '1'; end if;
-		if V_CNT = TOTAL_LINES-1 and H_CNT = HS_CLOCKS-1 then VS_F <= '1'; end if;
-		if V_CNT = VS_LINES-1 and H_CNT = HS_CLOCKS-1    then VS_R <= '1'; end if;
+		if V_CNT = TOTAL_LINES-1 and H_CNT = LINE_CLOCKS-1 then VS_F <= '1'; end if;
+		if V_CNT = VS_LINES-1    and H_CNT = LINE_CLOCKS-1 then VS_R <= '1'; end if;
 	end if;
 end process;
 
@@ -298,7 +298,7 @@ begin
 				G <= (others => '0');
 				R <= (others => '0');
 				B <= (others => '0');
-			elsif GRID = '1' and GRID_EN = '1' then
+			elsif (GRID(0) = '1' and GRID_EN(0) = '1') or (GRID(1) = '1' and GRID_EN(1) = '1') then
 				G <= (others => '1');
 				R <= (others => '1');
 				B <= (others => '1');
