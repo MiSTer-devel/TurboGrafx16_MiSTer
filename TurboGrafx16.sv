@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXX X
+// XXXXX XXXXXXXXXXXXXXXX X  XX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -209,7 +209,7 @@ parameter CONF_STR = {
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
-	"H5O5,Mouse,No,Yes;",
+	"H5OQR,Special,None,Mouse,Pachinko;",
 	"H5-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -259,6 +259,9 @@ wire [31:0] status;
 wire  [1:0] buttons;
 
 wire [11:0] joy_0, joy_1, joy_2, joy_3, joy_4;
+wire [15:0] joy_a;
+wire  [7:0] pd_0;
+
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
@@ -326,6 +329,8 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.joystick_2(joy_2),
 	.joystick_3(joy_3),
 	.joystick_4(joy_4),
+	.joystick_analog_0(joy_a),
+	.paddle_0(pd_0),
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
@@ -819,13 +824,37 @@ end
 wire [15:0] joy_data;
 always_comb begin
 	case (joy_port)
-		0: joy_data = status[5] ? {mouse_data, mouse_data} : ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
-		1: joy_data = ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
+		0: joy_data = status[26] ? {mouse_data, mouse_data} : ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
+		1: joy_data = status[27] ? pachinko                 : ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
 		2: joy_data = ~{4'hF, joy_2[11:8], joy_2[1], joy_2[2], joy_2[0], joy_2[3], joy_2[7:4]};
 		3: joy_data = ~{4'hF, joy_3[11:8], joy_3[1], joy_3[2], joy_3[0], joy_3[3], joy_3[7:4]};
 		4: joy_data = ~{4'hF, joy_4[11:8], joy_4[1], joy_4[2], joy_4[0], joy_4[3], joy_4[7:4]};
 		default: joy_data = 16'h0FFF;
 	endcase
+end
+
+reg [6:0] pachinko;
+always @(posedge clk_sys) begin
+	reg use_paddle = 0;
+	reg old_pd = 0;
+
+	old_pd <= pd_0[5];
+	if(old_pd ^ pd_0[5]) use_paddle <= 1;
+	if(reset | cart_download) use_paddle <= 0;
+
+	if(use_paddle) begin
+		// use only second half of paddle range
+		// Spring centering paddles then can simulate pachinko's spring
+
+		pachinko <= pd_0[6:0];
+		if(pd_0 < 8'h83) pachinko <= 7'h3;
+		else if(pd_0 > 8'hF4) pachinko <= 7'h74;
+	end
+	else begin
+		pachinko <= 7'd0 - joy_a[14:8];
+		if(joy_a[15:8] > 8'hFC || !joy_a[15]) pachinko <= 7'h3;
+		else if(joy_a[15:8] < 8'h8B) pachinko <= 7'h74;
+	end
 end
 
 wire [7:0] mouse_data;
@@ -881,7 +910,7 @@ always @(posedge clk_sys) begin : input_block
 		joy_latch <= 0;
 		if (~last_gp[1]) high_buttons <= ~high_buttons && status[4];
 	end
-	else if (joy_out[0] && ~last_gp[0] && status[2]) begin
+	else if (joy_out[0] && ~last_gp[0] && (status[2] | status[27])) begin
 		joy_port <= joy_port + 3'd1;
 	end
 end

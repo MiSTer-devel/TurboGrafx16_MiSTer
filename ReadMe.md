@@ -9,6 +9,8 @@
  * Uses DDR3 and SDRAM for cartridge's ROM (SDRAM is recommended for accuracy)
  * 6(8)-buttons joystick support
  * Turbotap(multiple joysticks)
+ * Mouse
+ * Pachinko controller
  * Support for Street Fighter II and Populous mappers
  * Support CD-ROM games
  * Support Arcade Card games
@@ -31,6 +33,9 @@ Standard cheats location is supported for HuCard games. For CD-ROM game all chea
 ## Joystick
 Both Turbotap and 6-button joysticks are supported.
 Do not enable these features for games not supporting it, otherwise game will work incorrectly.
+
+## Pachinko
+Pachinko controller is supported through either paddle or analog joystick Y axis.
 
 ## Reset
 Tap the Start + Select buttons together quickly to reset. The PC Engine/Turbografx-16 did not have a hardware reset button, and instead relies on this button combination.  The timing needs to be exact to trigger this, and sometimes it will take a couple tries.  With this method, in-game options will remain if you have changed them, whereas the MiSTer OSD reset will revert them.
