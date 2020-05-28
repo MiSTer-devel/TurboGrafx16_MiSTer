@@ -27,6 +27,10 @@ Additionally you can use a different bios for specific games (for example from G
 
 **Do not zip CD-ROM images! It won't work correctly.**
 
+**Attention about US BIOS:** MiSTer requires original dump of US BIOS to work properly. It needs to be of 262144 bytes.
+If you can read copyright string at the end of US BIOS file, then it's not correct dump! It's already pre-swapped for emulators.
+While it will work on MiSTer, some CD games will refuse to start. **Correct US BIOS file is when copyright string is not readable.**
+
 ## Cheat engine
 Standard cheats location is supported for HuCard games. For CD-ROM game all cheats must be zipped into a single zip file and placed inside game's CD-ROM folder.
 

@@ -355,6 +355,7 @@ reg         cd_dataout_req;
 wire [79:0] cd_dataout;
 wire        cd_dataout_send;
 wire        cd_reset_req;
+reg         cd_region;
 
 wire [21:0] cd_ram_a;
 wire        cd_ram_rd, cd_ram_wr;
@@ -414,6 +415,7 @@ pce_top #(LITE) pce_top
 	.CD_DOUT(cd_dataout),
 	.CD_DOUT_SEND(cd_dataout_send),
 
+	.CD_REGION(cd_region),
 	.CD_RESET(cd_reset_req),
 
 	.CD_DATA(!cd_dat_byte ? cd_dat[7:0] : cd_dat[15:8]),
@@ -476,6 +478,7 @@ always @(posedge clk_sys) begin
 	if (reset || cart_download) begin
 		comm_cnt <= 0;
 		stat_cnt <= 0;
+		cd_region <= 0;
 	end
 	else begin
 		if (cd_out[112] != cd_out112_last) begin
@@ -483,8 +486,8 @@ always @(posedge clk_sys) begin
 
 			cd_stat <= cd_out[15:0];
 			cd_stat_rec <= ~cd_out[16];
-
 			cd_dataout_req <= cd_out[16];
+			cd_region <= cd_out[17];
 
 			stat_cnt <= stat_cnt + 8'd1;
 		end
