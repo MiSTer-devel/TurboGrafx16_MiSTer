@@ -60,7 +60,6 @@ signal CR		: std_logic_vector(7 downto 0);
 
 -- VCE Registers
 signal DOTCLOCK	: std_logic_vector(1 downto 0);
-signal DOTCLOCK_FS: std_logic_vector(1 downto 0);
 
 -- CPU Color RAM Interface
 signal RAM_A	: std_logic_vector(8 downto 0);
@@ -90,9 +89,11 @@ signal HBL_FF, HBL_FF2	: std_logic;
 signal VBL_FF, VBL_FF2	: std_logic;
 
 -- Clock generation
-signal CLKEN_CNT	: std_logic_vector(3 downto 0);
-signal CLKEN_FS_CNT: std_logic_vector(3 downto 0);
+signal CLKEN_CNT	: std_logic_vector(2 downto 0);
+signal CLKEN_FS_CNT: std_logic_vector(2 downto 0);
 signal CLKEN_FF	: std_logic;
+signal MULTIRES_FF : std_logic;
+signal MULTIRES   : std_logic;
 
 begin
 
@@ -197,13 +198,13 @@ begin
 
 		CLKEN_FF <= '0';
 		CLKEN_CNT <= CLKEN_CNT + 1;
-		if DOTCLOCK = "00" and CLKEN_CNT = "0111" and H_CNT < LINE_CLOCKS-2-1 then
+		if DOTCLOCK = "00" and CLKEN_CNT = "111" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';
-		elsif DOTCLOCK = "01" and CLKEN_CNT = "0101" then
+		elsif DOTCLOCK = "01" and CLKEN_CNT = "101" then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
-		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "0011" and H_CNT < LINE_CLOCKS-2-1 then
+		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "011" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
 		end if;
@@ -219,6 +220,15 @@ begin
 			-- Reload registers
 			BW <= CR(7);
 			DOTCLOCK <= CR(1 downto 0);
+
+			if V_CNT >= TOP_BL_LINES and V_CNT < TOP_BL_LINES + DISP_LINES and DOTCLOCK /= CR(1 downto 0) then 
+				MULTIRES_FF <= '1';
+			end if;
+				
+			if V_CNT = TOP_BL_LINES + DISP_LINES then
+				MULTIRES <= MULTIRES_FF;
+				MULTIRES_FF <= '0';
+			end if;
 		end if;
 	end if;
 end process;
@@ -228,13 +238,13 @@ begin
 	if rising_edge( CLK ) then
 		CLKEN_FS <= '0';
 		CLKEN_FS_CNT <= CLKEN_FS_CNT + 1;
-		if DOTCLOCK_FS = "00" and CLKEN_FS_CNT = "0111" and H_CNT < LINE_CLOCKS-2-1 then
-			CLKEN_FS_CNT <= (others => '0');
-			CLKEN_FS <= '1';
-		elsif DOTCLOCK_FS = "01" and CLKEN_FS_CNT = "0101" then
+		if (MULTIRES = '1' or DOTCLOCK(1) = '1') and CLKEN_FS_CNT = "011" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_FS_CNT <= (others => '0');
 			CLKEN_FS <= '1';				
-		elsif DOTCLOCK_FS(1) = '1' and CLKEN_FS_CNT = "0011" and H_CNT < LINE_CLOCKS-2-1 then
+		elsif DOTCLOCK = "00" and CLKEN_FS_CNT = "111" and H_CNT < LINE_CLOCKS-2-1 then
+			CLKEN_FS_CNT <= (others => '0');
+			CLKEN_FS <= '1';
+		elsif DOTCLOCK = "01" and CLKEN_FS_CNT = "101" then
 			CLKEN_FS_CNT <= (others => '0');
 			CLKEN_FS <= '1';				
 		end if;
@@ -242,10 +252,6 @@ begin
 		if H_CNT = LINE_CLOCKS-1 then
 			 CLKEN_FS_CNT <= (others => '0');
 			 CLKEN_FS <= '1';
-		end if;
-
-		if H_CNT = LEFT_BL_CLOCKS and V_CNT = TOP_BL_LINES then
-			DOTCLOCK_FS <= CR(1 downto 0);
 		end if;
 	end if;
 end process;
