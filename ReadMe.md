@@ -9,6 +9,8 @@
  * Uses DDR3 and SDRAM for cartridge's ROM (SDRAM is recommended for accuracy)
  * 6(8)-buttons joystick support
  * Turbotap(multiple joysticks)
+ * Mouse
+ * Pachinko controller
  * Support for Street Fighter II and Populous mappers
  * Support CD-ROM games
  * Support Arcade Card games
@@ -25,12 +27,19 @@ Additionally you can use a different bios for specific games (for example from G
 
 **Do not zip CD-ROM images! It won't work correctly.**
 
+**Attention about US BIOS:** MiSTer requires original dump of US BIOS to work properly. It needs to be of 262144 bytes.
+If you can read copyright string at the end of US BIOS file, then it's not correct dump! It's already pre-swapped for emulators.
+While it will work on MiSTer, some CD games will refuse to start. **Correct US BIOS file is when copyright string is not readable.**
+
 ## Cheat engine
 Standard cheats location is supported for HuCard games. For CD-ROM game all cheats must be zipped into a single zip file and placed inside game's CD-ROM folder.
 
 ## Joystick
 Both Turbotap and 6-button joysticks are supported.
 Do not enable these features for games not supporting it, otherwise game will work incorrectly.
+
+## Pachinko
+Pachinko controller is supported through either paddle or analog joystick Y axis.
 
 ## Reset
 Tap the Start + Select buttons together quickly to reset. The PC Engine/Turbografx-16 did not have a hardware reset button, and instead relies on this button combination.  The timing needs to be exact to trigger this, and sometimes it will take a couple tries.  With this method, in-game options will remain if you have changed them, whereas the MiSTer OSD reset will revert them.

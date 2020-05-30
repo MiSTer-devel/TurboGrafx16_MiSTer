@@ -159,7 +159,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXX XXXXXXXX X      XX
+// XXXXX XXXXXXX XXXXXXXX X  XX  XX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -209,7 +209,7 @@ parameter CONF_STR = {
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
-	"H5O5,Mouse,No,Yes;",
+	"H5OQR,Special,None,Mouse,Pachinko;",
 	"H5-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -259,6 +259,9 @@ wire [31:0] status;
 wire  [1:0] buttons;
 
 wire [11:0] joystick_0, joystick_1, joystick_2, joystick_3, joystick_4;
+wire [15:0] joy_a;
+wire  [7:0] pd_0;
+
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
@@ -326,6 +329,8 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 	.joystick_2(joystick_2),
 	.joystick_3(joystick_3),
 	.joystick_4(joystick_4),
+	.joystick_analog_0(joy_a),
+	.paddle_0(pd_0),
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
@@ -350,6 +355,7 @@ reg         cd_dataout_req;
 wire [79:0] cd_dataout;
 wire        cd_dataout_send;
 wire        cd_reset_req;
+reg         cd_region;
 
 wire [21:0] cd_ram_a;
 wire        cd_ram_rd, cd_ram_wr;
@@ -409,6 +415,7 @@ pce_top #(LITE) pce_top
 	.CD_DOUT(cd_dataout),
 	.CD_DOUT_SEND(cd_dataout_send),
 
+	.CD_REGION(cd_region),
 	.CD_RESET(cd_reset_req),
 
 	.CD_DATA(!cd_dat_byte ? cd_dat[7:0] : cd_dat[15:8]),
@@ -471,6 +478,7 @@ always @(posedge clk_sys) begin
 	if (reset || cart_download) begin
 		comm_cnt <= 0;
 		stat_cnt <= 0;
+		cd_region <= 0;
 	end
 	else begin
 		if (cd_out[112] != cd_out112_last) begin
@@ -478,8 +486,8 @@ always @(posedge clk_sys) begin
 
 			cd_stat <= cd_out[15:0];
 			cd_stat_rec <= ~cd_out[16];
-
 			cd_dataout_req <= cd_out[16];
+			cd_region <= cd_out[17];
 
 			stat_cnt <= stat_cnt + 8'd1;
 		end
@@ -997,13 +1005,37 @@ end
 wire [15:0] joy_data;
 always_comb begin
 	case (joy_port)
-		0: joy_data = status[5] ? {mouse_data, mouse_data} : ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
-		1: joy_data = ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
+		0: joy_data = status[26] ? {mouse_data, mouse_data} : ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
+		1: joy_data = status[27] ? pachinko                 : ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
 		2: joy_data = ~{4'hF, joy_2[11:8], joy_2[1], joy_2[2], joy_2[0], joy_2[3], joy_2[7:4]};
 		3: joy_data = ~{4'hF, joy_3[11:8], joy_3[1], joy_3[2], joy_3[0], joy_3[3], joy_3[7:4]};
 		4: joy_data = ~{4'hF, joy_4[11:8], joy_4[1], joy_4[2], joy_4[0], joy_4[3], joy_4[7:4]};
 		default: joy_data = 16'h0FFF;
 	endcase
+end
+
+reg [6:0] pachinko;
+always @(posedge clk_sys) begin
+	reg use_paddle = 0;
+	reg old_pd = 0;
+
+	old_pd <= pd_0[5];
+	if(old_pd ^ pd_0[5]) use_paddle <= 1;
+	if(reset | cart_download) use_paddle <= 0;
+
+	if(use_paddle) begin
+		// use only second half of paddle range
+		// Spring centering paddles then can simulate pachinko's spring
+
+		pachinko <= pd_0[6:0];
+		if(pd_0 < 8'h83) pachinko <= 7'h3;
+		else if(pd_0 > 8'hF4) pachinko <= 7'h74;
+	end
+	else begin
+		pachinko <= 7'd0 - joy_a[14:8];
+		if(joy_a[15:8] > 8'hFC || !joy_a[15]) pachinko <= 7'h3;
+		else if(joy_a[15:8] < 8'h8B) pachinko <= 7'h74;
+	end
 end
 
 wire [7:0] mouse_data;
@@ -1059,7 +1091,7 @@ always @(posedge clk_sys) begin : input_block
 		joy_latch <= 0;
 		if (~last_gp[1]) high_buttons <= ~high_buttons && status[4];
 	end
-	else if (joy_out[0] && ~last_gp[0] && status[2]) begin
+	else if (joy_out[0] && ~last_gp[0] && (status[2] | status[27])) begin
 		joy_port <= joy_port + 3'd1;
 	end
 end
@@ -1105,7 +1137,7 @@ wire  [3:0] mb128_Data;
 
 MB128 MB128
 (
-	.reset_n(~RESET),
+	.reset(reset|cart_download),
 	.clk_sys(clk_sys),
 
 	.i_Clk(mb128_ena & joy_out[1]),	// send only if MB128 enabled

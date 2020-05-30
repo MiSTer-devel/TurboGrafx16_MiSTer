@@ -35,6 +35,7 @@ entity cd is
 		CD_DOUT		: out std_logic_vector(79 downto 0);
 		CD_DOUT_SEND: out std_logic;
 		
+		CD_REGION   : in  std_logic;
 		CD_RESET		: out std_logic;
 		
 		CD_DATA		: in std_logic_vector(7 downto 0);
@@ -434,7 +435,7 @@ begin
 	READ_PEND <= ADPCM_READ_PEND or PLAY_READ_PEND;
 	process( REG_SEL, EXT_A, SCSI_DBO, SCSI_BSY_N, SCSI_REQ_N, SCSI_MSG_N, SCSI_CD_N, SCSI_IO_N, SCSI_ACK_N, SCSI_RST_N, 
 				CD_DTR, CD_DTD, CD_DTR_EN, CD_DTD_EN, CH_SEL, ADPCM_RDDATA, ADPCM_DMA_EN, ADPCM_DMA_RUN, ADPCM_END, ADPCM_HALF, ADPCM_END_EN, ADPCM_HALF_EN, 
-				ADPCM_CTRL, ADPCM_FREQ, ADPCM_PLAY, ADPCM_FADER, READ_PEND, WRITE_PEND, CDDA_VOL_R, CDDA_VOL_L) 
+				ADPCM_CTRL, ADPCM_FREQ, ADPCM_PLAY, ADPCM_FADER, READ_PEND, WRITE_PEND, CDDA_VOL_R, CDDA_VOL_L, CD_REGION) 
 	begin
 		EXT_DO <= x"00";
 		if REG_SEL = '1' then
@@ -485,12 +486,25 @@ begin
 					EXT_DO <= x"55";
 				when x"C3" =>
 					EXT_DO <= x"00";
+
 				when x"C5" =>
-					EXT_DO <= x"AA";
+					if CD_REGION = '1' then
+						EXT_DO <= x"55";
+					else
+						EXT_DO <= x"AA";
+					end if;
 				when x"C6" =>
-					EXT_DO <= x"55";
+					if CD_REGION = '1' then
+						EXT_DO <= x"AA";
+					else
+						EXT_DO <= x"55";
+					end if;
 				when x"C7" =>
-					EXT_DO <= x"03";
+					if CD_REGION = '1' then
+						EXT_DO <= x"C0";
+					else
+						EXT_DO <= x"03";
+					end if;
 				when others => null;
 			end case;
 		end if;

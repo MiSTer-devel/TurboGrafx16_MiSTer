@@ -58,6 +58,7 @@ entity pce_top is
 		CD_DOUT		: out std_logic_vector(79 downto 0);
 		CD_DOUT_SEND: out std_logic;
 
+		CD_REGION   : in  std_logic;
 		CD_RESET		: out std_logic;
 
 		CD_DATA		: in  std_logic_vector(7 downto 0);
@@ -635,6 +636,7 @@ port map(
 	CD_WR			=> CD_WR,
 	CD_DATA_END	=> CD_DATA_END,
 	
+	CD_REGION   => CD_REGION,
 	CD_RESET		=> CD_RESET,
 	
 	DM				=> CD_DM,
