@@ -239,6 +239,7 @@ architecture rtl of HUC6270 is
 	signal SPR_FETCH_CNT	: unsigned(4 downto 0);
 	signal SPR_FETCH_DONE: std_logic; 
 	signal SPR_FETCH_W   : std_logic;
+	signal SPR_OUT_X		: unsigned(9 downto 0);
 
 	signal SPR_TILE_X    : std_logic_vector(9 downto 0);
 	signal SPR_TILE_P0	: std_logic_vector(15 downto 0);
@@ -262,6 +263,7 @@ architecture rtl of HUC6270 is
 	signal SPR_LINE_D		: std_logic_vector(8 downto 0); 
 	signal SPR_LINE_Q		: std_logic_vector(8 downto 0);
 	signal SPR_LINE_WE 	: std_logic;
+	signal SPR_LINE_CLR 	: std_logic;
 	type SPColorArray_t is array (0 to 7) of std_logic_vector(8 downto 0);
 	signal SPR_COLOR		: SPColorArray_t; 
 
@@ -759,7 +761,7 @@ begin
 					SPR_FETCH_CNT <= (others=>'0');
 					SPR_FETCH_W <= '0';
 					SPR_FETCH_DONE <= '0';
-				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 then
+				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
 					SPR_FETCH <= '0';
 				end if;
 					
@@ -896,6 +898,8 @@ begin
 			SPR_LINE_WE <= '0';
 			SPR_TILE_PIX_SET <= (others=>'0');
 			SPR_TILE_SPR0_SET <= (others=>'0');
+			SPR_OUT_X <= (others=>'0');
+			SPR_LINE_CLR <= '0';
 			IRQ_COL <= '0';
 		elsif rising_edge(CLK) then
 			SPR_LINE_WE <= '0';
@@ -924,10 +928,20 @@ begin
 				SPR_TILE_PIX <= SPR_TILE_PIX + 1;
 			end if; 
 			
-			if BG_OUT = '1' and DCK_CE = '1' then
-				SPR_TILE_PIX_SET(to_integer(unsigned(BG_OUT_X))) <= '0';
-				SPR_TILE_SPR0_SET(to_integer(unsigned(BG_OUT_X))) <= '0';
-				SPR_TILE_FRAME(to_integer(unsigned(BG_OUT_X))) <= '0';
+			if DCK_CE = '1' then
+				if TILE_CNT = HDS_END_POS and DOT_CNT = 7 then
+					SPR_OUT_X <= (others=>'0');
+					SPR_LINE_CLR <= '1';
+				elsif TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
+					SPR_LINE_CLR <= '0';
+				end if;
+				
+				if SPR_LINE_CLR = '1' then
+					SPR_TILE_PIX_SET(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_TILE_SPR0_SET(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_TILE_FRAME(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_OUT_X <= SPR_OUT_X + 1;
+				end if;
 			end if;
 			
 			if A = "00" and CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
@@ -944,8 +958,8 @@ begin
 		data_a	=> SPR_LINE_D,
 		wren_a	=> SPR_LINE_WE,
 		
-		address_b=> std_logic_vector(BG_OUT_X),
-		wren_b	=> BG_OUT and DCK_CE,
+		address_b=> std_logic_vector(SPR_OUT_X),
+		wren_b	=> SPR_LINE_CLR and DCK_CE,
 		q_b		=> SPR_LINE_Q
 	);
 	
