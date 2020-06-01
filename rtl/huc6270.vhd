@@ -123,6 +123,8 @@ architecture rtl of HUC6270 is
 	signal IRQ_RCR			: std_logic;
 	signal IRQ_DMAS		: std_logic;
 	signal IRQ_VBL			: std_logic;
+	signal IO_BYRL_SET	: std_logic;
+	signal IO_BYRH_SET	: std_logic;
 	signal CPU_BUSY		: std_logic;
 	signal CPU_BUSY_CLEAR: std_logic;
 	signal CPURD_PEND 	: std_logic;
@@ -142,7 +144,8 @@ architecture rtl of HUC6270 is
 	signal DMAS_SAT_ADDR	: std_logic_vector(7 downto 0);
 	signal DMAS_VRAM_ADDR: std_logic_vector(15 downto 0);
 	signal DMAS_SAT_WE	: std_logic;
-	signal BYR_SET			: std_logic;
+	signal BYRL_SET		: std_logic;
+	signal BYRH_SET		: std_logic;
 	signal VDISP_OLD		: std_logic;
 	
 	--H/V counters
@@ -563,6 +566,7 @@ begin
 	process(CLK, RST_N, SLOT, BG_X, OFS_Y, OFS_X, SCREEN, BG_BAT_CC)
 	variable BG_OFS_X : unsigned(9 downto 0);
 	variable BG_OFS_Y : unsigned(8 downto 0);
+	variable NEW_OFS_Y : unsigned(8 downto 0);
 	begin
 		BG_OFS_X := resize(BG_X + unsigned(OFS_X), BG_OFS_X'length);
 		if SCREEN(2) = '0' then
@@ -639,10 +643,13 @@ begin
 				
 				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and DISP_CNT = VDS_END_POS + 1 then
 					OFS_Y <= unsigned(BYR);
-				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and BYR_SET = '1' then
-					OFS_Y <= unsigned(BYR) + 1;
 				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
-					OFS_Y <= OFS_Y + 1;
+					if BYRL_SET = '1' or BYRH_SET = '1' then
+						NEW_OFS_Y := unsigned(BYR);
+					else
+						NEW_OFS_Y := OFS_Y;
+					end if;
+					OFS_Y <= NEW_OFS_Y + 1;
 				end if; 
 				
 				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
@@ -1040,13 +1047,16 @@ begin
 			IRQ_RCR <= '0';
 			IRQ_DMAS <= '0';
 			IRQ_VBL <= '0';
+			IO_BYRL_SET <= '0';
+			IO_BYRH_SET <= '0';
 						
 			CPURD_EXEC <= '0';
 			CPUWR_EXEC <= '0';
 			DMA_EXEC <= '0';
 			DMAS_EXEC <= '0';
 			DMA_WR <= '0';
-			BYR_SET <= '0';
+			BYRL_SET <= '0';
+			BYRH_SET <= '0';
 			VDISP_OLD <= '0';
 			WR_N_OLD <= '1';
 		elsif rising_edge(CLK) then
@@ -1059,7 +1069,7 @@ begin
 						end if;
 						case AR is
 							when "01000" =>
-								BYR_SET <= '1';
+								IO_BYRL_SET <= '1';
 							when others => null;
 						end case;
 						
@@ -1069,7 +1079,7 @@ begin
 						end if;
 						case AR is
 							when "01000" =>
-								BYR_SET <= '1';
+								IO_BYRH_SET <= '1';
 							when "10010" =>
 								DMA_PEND <= '1';
 							when "10011" =>
@@ -1245,8 +1255,19 @@ begin
 					IRQ_RCR <= '1';
 				end if;
 				
-				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and BYR_SET = '1' then
-					BYR_SET <= '0';
+				--sync BYRx latches to dot clock
+				if IO_BYRL_SET = '1' then
+					IO_BYRL_SET <= '0';
+					BYRL_SET <= '1';
+				end if;
+				if IO_BYRH_SET = '1' then
+					IO_BYRH_SET <= '0';
+					BYRH_SET <= '1';
+				end if;
+				
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+					BYRL_SET <= '0';
+					BYRH_SET <= '0';
 				end if; 
 			end if;
 		end if;
