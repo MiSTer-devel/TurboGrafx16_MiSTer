@@ -116,7 +116,6 @@ architecture rtl of HUC6270 is
 	signal SB				: std_logic;
 	
 	--I/O 
-	signal WR_N_OLD		: std_logic;
 	signal IRQ_DMA			: std_logic;
 	signal IRQ_COL			: std_logic;
 	signal IRQ_OVF			: std_logic;
@@ -1058,40 +1057,12 @@ begin
 			BYRL_SET <= '0';
 			BYRH_SET <= '0';
 			VDISP_OLD <= '0';
-			WR_N_OLD <= '1';
 		elsif rising_edge(CLK) then
-			WR_N_OLD <= WR_N;
-			if CS_N = '0' and WR_N = '0' and WR_N_OLD = '1' then
-				case A is
-					when "10" =>
-						if AR >= "00011" then
-							REGS(to_integer(unsigned(AR)))(7 downto 0) <= DI;
-						end if;
-						case AR is
-							when "01000" =>
-								IO_BYRL_SET <= '1';
-							when others => null;
-						end case;
-						
-					when "11" =>
-						if AR >= "00011" then
-							REGS(to_integer(unsigned(AR)))(15 downto 8) <= DI;
-						end if;
-						case AR is
-							when "01000" =>
-								IO_BYRH_SET <= '1';
-							when "10010" =>
-								DMA_PEND <= '1';
-							when "10011" =>
-								DMAS_PEND <= '1';
-							when others => null;
-						end case;
-					when others => null;
-				end case;
-			elsif CS_N = '0' and WR_N = '0' and CPU_CE = '1' then
+			if CS_N = '0' and WR_N = '0' and CPU_CE = '1' then
 				case A is
 					when "00" =>
 						AR <= DI(4 downto 0);
+						
 					when "10" =>
 						case AR is
 							when "00000" =>
@@ -1104,8 +1075,13 @@ begin
 								if CPU_BUSY = '0' then
 									REGS(2)(7 downto 0) <= DI;
 								end if;
+							when "01000" =>
+								IO_BYRL_SET <= '1';
 							when others => null;
 						end case;
+						if AR >= "00011" then
+							REGS(to_integer(unsigned(AR)))(7 downto 0) <= DI;
+						end if;
 						
 					when "11" =>
 						case AR is
@@ -1123,8 +1099,18 @@ begin
 									CPUWR_PEND <= '1';
 									CPU_BUSY <= '1';
 								end if;
+							when "01000" =>
+								IO_BYRH_SET <= '1';
+							when "10010" =>
+								DMA_PEND <= '1';
+							when "10011" =>
+								DMAS_PEND <= '1';
 							when others => null;
 						end case;
+						if AR >= "00011" then
+							REGS(to_integer(unsigned(AR)))(15 downto 8) <= DI;
+						end if;
+						
 					when others => null;
 				end case;
 			elsif CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
