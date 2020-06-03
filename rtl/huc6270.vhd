@@ -116,13 +116,14 @@ architecture rtl of HUC6270 is
 	signal SB				: std_logic;
 	
 	--I/O 
-	signal WR_N_OLD		: std_logic;
 	signal IRQ_DMA			: std_logic;
 	signal IRQ_COL			: std_logic;
 	signal IRQ_OVF			: std_logic;
 	signal IRQ_RCR			: std_logic;
 	signal IRQ_DMAS		: std_logic;
 	signal IRQ_VBL			: std_logic;
+	signal IO_BYRL_SET	: std_logic;
+	signal IO_BYRH_SET	: std_logic;
 	signal CPU_BUSY		: std_logic;
 	signal CPU_BUSY_CLEAR: std_logic;
 	signal CPURD_PEND 	: std_logic;
@@ -142,7 +143,8 @@ architecture rtl of HUC6270 is
 	signal DMAS_SAT_ADDR	: std_logic_vector(7 downto 0);
 	signal DMAS_VRAM_ADDR: std_logic_vector(15 downto 0);
 	signal DMAS_SAT_WE	: std_logic;
-	signal BYR_SET			: std_logic;
+	signal BYRL_SET		: std_logic;
+	signal BYRH_SET		: std_logic;
 	signal VDISP_OLD		: std_logic;
 	
 	--H/V counters
@@ -237,6 +239,7 @@ architecture rtl of HUC6270 is
 	signal SPR_FETCH_CNT	: unsigned(4 downto 0);
 	signal SPR_FETCH_DONE: std_logic; 
 	signal SPR_FETCH_W   : std_logic;
+	signal SPR_OUT_X		: unsigned(9 downto 0);
 
 	signal SPR_TILE_X    : std_logic_vector(9 downto 0);
 	signal SPR_TILE_P0	: std_logic_vector(15 downto 0);
@@ -260,6 +263,7 @@ architecture rtl of HUC6270 is
 	signal SPR_LINE_D		: std_logic_vector(8 downto 0); 
 	signal SPR_LINE_Q		: std_logic_vector(8 downto 0);
 	signal SPR_LINE_WE 	: std_logic;
+	signal SPR_LINE_CLR 	: std_logic;
 	type SPColorArray_t is array (0 to 7) of std_logic_vector(8 downto 0);
 	signal SPR_COLOR		: SPColorArray_t; 
 
@@ -563,6 +567,7 @@ begin
 	process(CLK, RST_N, SLOT, BG_X, OFS_Y, OFS_X, SCREEN, BG_BAT_CC)
 	variable BG_OFS_X : unsigned(9 downto 0);
 	variable BG_OFS_Y : unsigned(8 downto 0);
+	variable NEW_OFS_Y : unsigned(8 downto 0);
 	begin
 		BG_OFS_X := resize(BG_X + unsigned(OFS_X), BG_OFS_X'length);
 		if SCREEN(2) = '0' then
@@ -639,10 +644,13 @@ begin
 				
 				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and DISP_CNT = VDS_END_POS + 1 then
 					OFS_Y <= unsigned(BYR);
-				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and BYR_SET = '1' then
-					OFS_Y <= unsigned(BYR) + 1;
 				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
-					OFS_Y <= OFS_Y + 1;
+					if BYRL_SET = '1' or BYRH_SET = '1' then
+						NEW_OFS_Y := unsigned(BYR);
+					else
+						NEW_OFS_Y := OFS_Y;
+					end if;
+					OFS_Y <= NEW_OFS_Y + 1;
 				end if; 
 				
 				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
@@ -753,7 +761,7 @@ begin
 					SPR_FETCH_CNT <= (others=>'0');
 					SPR_FETCH_W <= '0';
 					SPR_FETCH_DONE <= '0';
-				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 then
+				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
 					SPR_FETCH <= '0';
 				end if;
 					
@@ -890,6 +898,8 @@ begin
 			SPR_LINE_WE <= '0';
 			SPR_TILE_PIX_SET <= (others=>'0');
 			SPR_TILE_SPR0_SET <= (others=>'0');
+			SPR_OUT_X <= (others=>'0');
+			SPR_LINE_CLR <= '0';
 			IRQ_COL <= '0';
 		elsif rising_edge(CLK) then
 			SPR_LINE_WE <= '0';
@@ -918,10 +928,20 @@ begin
 				SPR_TILE_PIX <= SPR_TILE_PIX + 1;
 			end if; 
 			
-			if BG_OUT = '1' and DCK_CE = '1' then
-				SPR_TILE_PIX_SET(to_integer(unsigned(BG_OUT_X))) <= '0';
-				SPR_TILE_SPR0_SET(to_integer(unsigned(BG_OUT_X))) <= '0';
-				SPR_TILE_FRAME(to_integer(unsigned(BG_OUT_X))) <= '0';
+			if DCK_CE = '1' then
+				if TILE_CNT = HDS_END_POS and DOT_CNT = 7 then
+					SPR_OUT_X <= (others=>'0');
+					SPR_LINE_CLR <= '1';
+				elsif TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
+					SPR_LINE_CLR <= '0';
+				end if;
+				
+				if SPR_LINE_CLR = '1' then
+					SPR_TILE_PIX_SET(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_TILE_SPR0_SET(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_TILE_FRAME(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_OUT_X <= SPR_OUT_X + 1;
+				end if;
 			end if;
 			
 			if A = "00" and CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
@@ -938,8 +958,8 @@ begin
 		data_a	=> SPR_LINE_D,
 		wren_a	=> SPR_LINE_WE,
 		
-		address_b=> std_logic_vector(BG_OUT_X),
-		wren_b	=> BG_OUT and DCK_CE,
+		address_b=> std_logic_vector(SPR_OUT_X),
+		wren_b	=> SPR_LINE_CLR and DCK_CE,
 		q_b		=> SPR_LINE_Q
 	);
 	
@@ -1040,48 +1060,23 @@ begin
 			IRQ_RCR <= '0';
 			IRQ_DMAS <= '0';
 			IRQ_VBL <= '0';
+			IO_BYRL_SET <= '0';
+			IO_BYRH_SET <= '0';
 						
 			CPURD_EXEC <= '0';
 			CPUWR_EXEC <= '0';
 			DMA_EXEC <= '0';
 			DMAS_EXEC <= '0';
 			DMA_WR <= '0';
-			BYR_SET <= '0';
+			BYRL_SET <= '0';
+			BYRH_SET <= '0';
 			VDISP_OLD <= '0';
-			WR_N_OLD <= '1';
 		elsif rising_edge(CLK) then
-			WR_N_OLD <= WR_N;
-			if CS_N = '0' and WR_N = '0' and WR_N_OLD = '1' then
-				case A is
-					when "10" =>
-						if AR >= "00011" then
-							REGS(to_integer(unsigned(AR)))(7 downto 0) <= DI;
-						end if;
-						case AR is
-							when "01000" =>
-								BYR_SET <= '1';
-							when others => null;
-						end case;
-						
-					when "11" =>
-						if AR >= "00011" then
-							REGS(to_integer(unsigned(AR)))(15 downto 8) <= DI;
-						end if;
-						case AR is
-							when "01000" =>
-								BYR_SET <= '1';
-							when "10010" =>
-								DMA_PEND <= '1';
-							when "10011" =>
-								DMAS_PEND <= '1';
-							when others => null;
-						end case;
-					when others => null;
-				end case;
-			elsif CS_N = '0' and WR_N = '0' and CPU_CE = '1' then
+			if CS_N = '0' and WR_N = '0' and CPU_CE = '1' then
 				case A is
 					when "00" =>
 						AR <= DI(4 downto 0);
+						
 					when "10" =>
 						case AR is
 							when "00000" =>
@@ -1094,8 +1089,13 @@ begin
 								if CPU_BUSY = '0' then
 									REGS(2)(7 downto 0) <= DI;
 								end if;
+							when "01000" =>
+								IO_BYRL_SET <= '1';
 							when others => null;
 						end case;
+						if AR >= "00011" then
+							REGS(to_integer(unsigned(AR)))(7 downto 0) <= DI;
+						end if;
 						
 					when "11" =>
 						case AR is
@@ -1113,8 +1113,18 @@ begin
 									CPUWR_PEND <= '1';
 									CPU_BUSY <= '1';
 								end if;
+							when "01000" =>
+								IO_BYRH_SET <= '1';
+							when "10010" =>
+								DMA_PEND <= '1';
+							when "10011" =>
+								DMAS_PEND <= '1';
 							when others => null;
 						end case;
+						if AR >= "00011" then
+							REGS(to_integer(unsigned(AR)))(15 downto 8) <= DI;
+						end if;
+						
 					when others => null;
 				end case;
 			elsif CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
@@ -1245,8 +1255,19 @@ begin
 					IRQ_RCR <= '1';
 				end if;
 				
-				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and BYR_SET = '1' then
-					BYR_SET <= '0';
+				--sync BYRx latches to dot clock
+				if IO_BYRL_SET = '1' then
+					IO_BYRL_SET <= '0';
+					BYRL_SET <= '1';
+				end if;
+				if IO_BYRH_SET = '1' then
+					IO_BYRH_SET <= '0';
+					BYRH_SET <= '1';
+				end if;
+				
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+					BYRL_SET <= '0';
+					BYRH_SET <= '0';
 				end if; 
 			end if;
 		end if;
