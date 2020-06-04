@@ -74,6 +74,7 @@ constant LEFT_BL_CLOCKS	: integer := 456;
 constant DISP_CLOCKS	   : integer := 2160;
 constant LINE_CLOCKS	   : integer := 2730;
 constant HS_CLOCKS		: integer := 192;
+constant HS_OFF			: integer := 36;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
@@ -260,10 +261,10 @@ end process;
 process( CLK )
 begin
 	if rising_edge( CLK ) then
-		if H_CNT = 0             then HS_N <= '0'; end if;
-		if H_CNT = HS_CLOCKS     then HS_N <= '1'; end if;
-		if V_CNT = 0             then VS_N <= '0'; end if;
-		if V_CNT = VS_LINES      then VS_N <= '1'; end if;
+		if H_CNT = HS_OFF             then HS_N <= '0'; end if;
+		if H_CNT = HS_OFF + HS_CLOCKS then HS_N <= '1'; end if;
+		if V_CNT = 0                  then VS_N <= '0'; end if;
+		if V_CNT = VS_LINES           then VS_N <= '1'; end if;
 		
 		HS_F <= '0';
 		HS_R <= '0';
