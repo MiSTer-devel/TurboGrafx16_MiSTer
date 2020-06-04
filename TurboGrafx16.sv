@@ -132,14 +132,7 @@ module emu
 `ifdef DEBUG_BUILD
 	localparam LITE = 1;
 `else
-	//`define USE_SP64
 	localparam LITE = 0;
-`endif
-
-`ifdef USE_SP64
-	localparam SP64 = 1;
-`else
-	localparam SP64 = 0;
 `endif
 
 assign ADC_BUS  = 'Z;
@@ -185,7 +178,7 @@ parameter CONF_STR = {
 	"P1-;",
 	"P1OH,Overscan,Hidden,Visible;",
 	"P1OF,Border Color,Original,Black;",
-	"H6P1OB,Sprites per line,Normal,Extra;",
+	"P1OB,Sprites per line,Normal,Extra;",
 	"P1-;",
 	"P1OK,CD Audio Boost,No,2x;",
 	"P1OIJ,Master Audio Boost,No,2x,4x;",
@@ -297,7 +290,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({!SP64, snac, 1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
+	.status_menumask({snac, 1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
 
 	.sdram_sz(sdram_sz),
@@ -389,9 +382,9 @@ pce_top #(LITE) pce_top
 	.GG_RESET((cart_download | code_download) & ioctl_wr & !ioctl_addr),
 	.GG_AVAIL(gg_avail),
 
-	.SP64(status[11] && SP64),
+	.SP64(status[11]),
 	.SGX(sgx && !LITE),
-
+	
 	.JOY_OUT(joy_out),
 	.JOY_IN(joy_in),
 

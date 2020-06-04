@@ -27,6 +27,7 @@ entity HUC6270 is
 		VD			: out std_logic_vector(8 downto 0);
 		BORDER	: out std_logic;
 		GRID		: out std_logic_vector(1 downto 0);
+		SP64		: in std_logic := '0';
 
 		RAM_A		: out std_logic_vector(15 downto 0);
 		RAM_DI	: in std_logic_vector(15 downto 0);
@@ -175,7 +176,7 @@ architecture rtl of HUC6270 is
 	
 	--rendering
 	type slot_t is ( CPU, BAT, CG0, CG1, SG0, SG1, SG2, SG3, NOP );
-	signal SLOT				: slot_t;	
+	signal SLOT				: slot_t;
 	signal DISP 			: std_logic_vector(7 downto 0);
 	signal BORD 			: std_logic_vector(7 downto 0);
 	signal GRID_BG 		: std_logic_vector(7 downto 0);
@@ -223,25 +224,31 @@ architecture rtl of HUC6270 is
 		TOP    	: std_logic;
 		BOTTOM   : std_logic;
 	end record;
-	type SpriteCache_t is array (0 to 15) of Sprite_r;
+	type SpriteCache_t is array (0 to 63) of Sprite_r;
 	signal SPR_CACHE		: SpriteCache_t;
 	signal SPR				: Sprite_r;
 	signal SPR_EVAL 		: std_logic;
 	signal SPR_EVAL_X		: unsigned(7 downto 0);
 	signal SPR_EVAL_DONE : std_logic;
 	signal SPR_EVAL_FULL : std_logic;
-	signal SPR_EVAL_CNT	: unsigned(4 downto 0);
+	signal SPR_EVAL_CNT	: unsigned(6 downto 0);
 	signal SPR_FIND		: std_logic; 
 	signal SPR_Y			: std_logic_vector(9 downto 0);
 	signal SPR_X			: std_logic_vector(9 downto 0);
 	signal SPR_PC			: std_logic_vector(9 downto 0);
 	signal SPR_CG    		: std_logic;
-	signal SPR_FETCH_CNT	: unsigned(4 downto 0);
+	signal SPR_FETCH_CNT	: unsigned(6 downto 0);
 	signal SPR_FETCH_DONE: std_logic; 
 	signal SPR_FETCH_W   : std_logic;
 	signal SPR_OUT_X		: unsigned(9 downto 0);
 
-	signal SPR_TILE_X    : std_logic_vector(9 downto 0);
+	signal SPR_CE			: std_logic;
+	signal SPR_MAX			: integer range 0 to 63;
+	signal FETCH_DOT		: unsigned(2 downto 0);
+	signal FETCH_CE		: std_logic;
+	signal FDOT_CNT		: unsigned(2 downto 0);
+
+	signal SPR_TILE_X    : unsigned(9 downto 0);
 	signal SPR_TILE_P0	: std_logic_vector(15 downto 0);
 	signal SPR_TILE_P1	: std_logic_vector(15 downto 0);
 	signal SPR_TILE_P2	: std_logic_vector(15 downto 0);
@@ -255,14 +262,14 @@ architecture rtl of HUC6270 is
 	signal SPR_TILE_TOP 	: std_logic;
 	signal SPR_TILE_BOTTOM: std_logic;
 	signal SPR_TILE_SAVE : std_logic;
-	signal SPR_TILE_PIX	: unsigned(3 downto 0);
-	signal SPR_TILE_PIX_SET: std_logic_vector(1023 downto 0);
-	signal SPR_TILE_SPR0_SET: std_logic_vector(1023 downto 0);
-	signal SPR_TILE_FRAME: std_logic_vector(1023 downto 0);
-	signal SPR_LINE_ADDR	: std_logic_vector(9 downto 0); 
-	signal SPR_LINE_D		: std_logic_vector(8 downto 0); 
-	signal SPR_LINE_Q		: std_logic_vector(8 downto 0);
-	signal SPR_LINE_WE 	: std_logic;
+	signal SPR_TILE_PIX_SET  : std_logic_vector(559 downto 0);
+	signal SPR_TILE_SPR0_SET : std_logic_vector(559 downto 0);
+	signal SPR_TILE_FRAME    : std_logic_vector(559 downto 0);
+	type bufArray_t is array (0 to 1) of std_logic_vector(8 downto 0);
+	signal SPR_LINE_ADDR	: bufArray_t; 
+	signal SPR_LINE_D		: bufArray_t; 
+	signal SPR_LINE_Q		: bufArray_t; 
+	signal SPR_LINE_WE 	: std_logic_vector(1 downto 0);
 	signal SPR_LINE_CLR 	: std_logic;
 	type SPColorArray_t is array (0 to 7) of std_logic_vector(8 downto 0);
 	signal SPR_COLOR		: SPColorArray_t; 
@@ -290,6 +297,17 @@ begin
 			CM <= '0';
 			SCREEN <= (others=>'0');
 		elsif rising_edge(CLK) then
+
+			FETCH_CE <= not FETCH_CE;
+			if FETCH_CE = '1' then
+				FETCH_DOT <= FETCH_DOT + 1;
+			end if;
+
+			if SPR_FETCH = '0' then
+				FETCH_CE  <= '0';
+				FETCH_DOT <= (others=>'0');
+			end if;
+
 			if DCK_CE = '1' then
 				DOT_CNT <= DOT_CNT + 1;
 				if DOT_CNT = 7 then
@@ -327,6 +345,10 @@ begin
 		end if;
 	end process;
 	
+	FDOT_CNT <= DOT_CNT when SP64 = '0' else FETCH_DOT;
+	SPR_CE   <= DCK_CE  when SP64 = '0' else FETCH_CE;
+	SPR_MAX  <= 15      when SP64 = '0' else 63;
+
 	HSW_END_POS <= "00"&unsigned(HSW);
 	HDS_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS);
 	HDISP_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS) + 1 + unsigned(HDW);
@@ -406,9 +428,9 @@ begin
 		end if;
 	end process;
 	
-	process(DOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB )
+	process(DOT_CNT, FDOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB, SP64 )
 	begin
-		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN then
+		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN and SP64 = '0' then
 			--first several cycles in HSYNC are empty, i.e. without access the memory, N=dots%8
 			SLOT <= NOP;
 		elsif DMAS_EXEC = '1' then
@@ -494,7 +516,7 @@ begin
 					when "00" => 
 						--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 						--|SG0|SG1|SG2|SG3|SG0|SG1|SG2|SG3|
-						case DOT_CNT(1 downto 0) is
+						case FDOT_CNT(1 downto 0) is
 							when "00" => SLOT <= SG0;
 							when "01" => SLOT <= SG1;
 							when "10" => SLOT <= SG2;
@@ -504,7 +526,7 @@ begin
 						--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 						--|  SG0  |  SG1  |  SG0  |  SG1  |
 						--| (SG2) | (SG3) | (SG2) | (SG3) |
-						case DOT_CNT(1 downto 0) is
+						case FDOT_CNT(1 downto 0) is
 							when "01" => 
 								if SPR.CG = '0' then
 									SLOT <= SG0;
@@ -523,15 +545,15 @@ begin
 					when "10" => 
 						--| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 						--|  SG0  |  SG1  |  SG2  |  SG3  |
-						case DOT_CNT(1 downto 0) is
+						case FDOT_CNT(1 downto 0) is
 							when "01" => 
-								if DOT_CNT(2) = '0' then
+								if FDOT_CNT(2) = '0' then
 									SLOT <= SG0;
 								else
 									SLOT <= SG2;
 								end if; 
 							when "11" => 
-								if DOT_CNT(2) = '0' then
+								if FDOT_CNT(2) = '0' then
 									SLOT <= SG1;
 								else
 									SLOT <= SG3;
@@ -540,9 +562,9 @@ begin
 								SLOT <= NOP;
 						end case;
 					when others =>
-						case DOT_CNT(1 downto 0) is
+						case FDOT_CNT(1 downto 0) is
 							when "11" => 
-								case unsigned(TILE_CNT(0 downto 0)&DOT_CNT(2 downto 2)) is
+								case unsigned(TILE_CNT(0 downto 0)&FDOT_CNT(2 downto 2)) is
 									when "00" => SLOT <= SG0;
 									when "01" => SLOT <= SG1;
 									when "10" => SLOT <= SG2;
@@ -676,8 +698,7 @@ begin
 		q_b		=> SAT_Q
 	);
 	
-	
-	SPR <= SPR_CACHE(to_integer(SPR_FETCH_CNT(3 downto 0)));
+	SPR <= SPR_CACHE(to_integer(SPR_FETCH_CNT(5 downto 0)));
 	process(CLK, RST_N, SLOT, RC_CNT, SPR, SPR_FETCH_W)
 	variable SPR_H : std_logic_vector(5 downto 0);
 	variable SPR_OFS_Y : unsigned(5 downto 0);
@@ -764,7 +785,7 @@ begin
 				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
 					SPR_FETCH <= '0';
 				end if;
-					
+
 				if SPR_EVAL = '1' then
 					if SPR_EVAL_DONE = '0' then
 						case SPR_EVAL_X(1 downto 0) is
@@ -780,34 +801,34 @@ begin
 								if RC_CNT >= unsigned(SPR_Y) and RC_CNT <= unsigned(SPR_Y) + unsigned(SPR_H) then
 									SPR_FIND <= '1';
 									if SPR_EVAL_FULL = '0' then
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).X <= SPR_X;
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).Y <= SPR_Y;
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).PC <= SPR_PC;
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).CG <= SPR_CG;
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).PAL <= SAT_Q(3 downto 0);
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).PRIO <= SAT_Q(7);
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).CGX <= SAT_Q(8);
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).CGY <= SAT_Q(13 downto 12);
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).HF <= SAT_Q(11);
-										SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).VF <= SAT_Q(15);
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).X <= SPR_X;
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).Y <= SPR_Y;
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).PC <= SPR_PC;
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).CG <= SPR_CG;
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).PAL <= SAT_Q(3 downto 0);
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).PRIO <= SAT_Q(7);
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).CGX <= SAT_Q(8);
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).CGY <= SAT_Q(13 downto 12);
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).HF <= SAT_Q(11);
+										SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).VF <= SAT_Q(15);
 										if SPR_EVAL_X(7 downto 2) = "000000" then
-											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).SPR0 <= '1';
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).SPR0 <= '1';
 										else
-											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).SPR0 <= '0';
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).SPR0 <= '0';
 										end if;
 										if RC_CNT = unsigned(SPR_Y) then
-											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).TOP <= '1';
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).TOP <= '1';
 										else
-											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).TOP <= '0';
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).TOP <= '0';
 										end if;
 										if RC_CNT = unsigned(SPR_Y) + unsigned(SPR_H) then
-											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).BOTTOM <= '1';
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).BOTTOM <= '1';
 										else
-											SPR_CACHE(to_integer(SPR_EVAL_CNT(3 downto 0))).BOTTOM <= '0';
+											SPR_CACHE(to_integer(SPR_EVAL_CNT(5 downto 0))).BOTTOM <= '0';
 										end if;
 										
 										SPR_EVAL_CNT <= SPR_EVAL_CNT + 1;
-										if SPR_EVAL_CNT = 15 then
+										if SPR_EVAL_CNT = SPR_MAX then
 											SPR_EVAL_FULL <= '1';
 										end if;
 									else
@@ -823,7 +844,9 @@ begin
 						end if; 
 					end if; 
 				end if; 
-				
+			end if;
+
+			if SPR_CE = '1' then
 				if SPR_FETCH = '1' then
 					if SPR_FETCH_DONE = '0' and SPR_FIND = '1' then
 						case SLOT is
@@ -866,7 +889,7 @@ begin
 								SPR_TILE_P2 <= SPR_CH2;
 								SPR_TILE_P3 <= RAM_DI;
 							end if;
-							SPR_TILE_X <= std_logic_vector(unsigned(SPR.X) - 32 + (SPR_FETCH_W&"0000"));
+							SPR_TILE_X <= unsigned(SPR.X) - 32 + (SPR_FETCH_W&"0000");
 							SPR_TILE_HF <= SPR.HF;
 							SPR_TILE_PAL <= SPR.PAL;
 							SPR_TILE_PRIO <= SPR.PRIO;
@@ -879,7 +902,7 @@ begin
 							SPR_TILE_BOTTOM <= SPR.BOTTOM;
 						end if;
 					end if;
-				end if; 
+				end if;
 			end if; 
 			
 			if A = "00" and CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
@@ -890,42 +913,48 @@ begin
 	
 	process(CLK, RST_N)
 	variable COLOR : std_logic_vector(3 downto 0);
-	variable SPR_LINE_X : std_logic_vector(9 downto 0);
+	variable SPR_LINE_X : unsigned(9 downto 0);
 	variable N : unsigned(3 downto 0);
+	variable SPR_TILE_PIX : unsigned(3 downto 0);
+	
 	begin
 		if RST_N = '0' then
-			SPR_TILE_PIX <= (others=>'0');
-			SPR_LINE_WE <= '0';
+			SPR_TILE_PIX := (others=>'0');
+			SPR_LINE_WE <= (others=>'0');
 			SPR_TILE_PIX_SET <= (others=>'0');
 			SPR_TILE_SPR0_SET <= (others=>'0');
 			SPR_OUT_X <= (others=>'0');
 			SPR_LINE_CLR <= '0';
 			IRQ_COL <= '0';
 		elsif rising_edge(CLK) then
-			SPR_LINE_WE <= '0';
+			SPR_LINE_WE <= (others=>'0');
 			if SPR_TILE_SAVE = '1' or SPR_TILE_PIX /= 0 then
-				N := SPR_TILE_PIX xor (3 downto 0 => not SPR_TILE_HF);
-				COLOR := SPR_TILE_P3(to_integer(N)) & SPR_TILE_P2(to_integer(N)) & SPR_TILE_P1(to_integer(N)) & SPR_TILE_P0(to_integer(N));
-				SPR_LINE_X := std_logic_vector(unsigned(SPR_TILE_X) + SPR_TILE_PIX);
-				if SPR_LINE_X(9 downto 8) /= "11" and COLOR /= "0000" then
-					if SPR_TILE_PIX_SET(to_integer(unsigned(SPR_LINE_X))) = '0' then
-						SPR_LINE_D <= SPR_TILE_PRIO & SPR_TILE_PAL & COLOR;
-						SPR_LINE_ADDR <= SPR_LINE_X;
-						SPR_LINE_WE <= '1';
-						SPR_TILE_PIX_SET(to_integer(unsigned(SPR_LINE_X))) <= '1';
-						SPR_TILE_SPR0_SET(to_integer(unsigned(SPR_LINE_X))) <= SPR_TILE_SPR0;
-					end if; 
-					if SPR_TILE_SPR0_SET(to_integer(unsigned(SPR_LINE_X))) = '1' then
-						if CR_IE_CC = '1' then
-							IRQ_COL <= '1';
+				for i in 0 to 1 loop
+					N := SPR_TILE_PIX xor (3 downto 0 => not SPR_TILE_HF);
+					COLOR := SPR_TILE_P3(to_integer(N)) & SPR_TILE_P2(to_integer(N)) & SPR_TILE_P1(to_integer(N)) & SPR_TILE_P0(to_integer(N));
+					SPR_LINE_X := SPR_TILE_X + SPR_TILE_PIX;
+					if SPR_LINE_X(9 downto 8) /= "11" and COLOR /= "0000" then
+						if SPR_TILE_PIX_SET(to_integer(SPR_LINE_X)) = '0' then
+							SPR_LINE_D(to_integer(SPR_LINE_X(0 downto 0))) <= SPR_TILE_PRIO & SPR_TILE_PAL & COLOR;
+							SPR_LINE_ADDR(to_integer(SPR_LINE_X(0 downto 0))) <= std_logic_vector(SPR_LINE_X(9 downto 1));
+							SPR_LINE_WE(to_integer(SPR_LINE_X(0 downto 0))) <= '1';
+							SPR_TILE_PIX_SET(to_integer(SPR_LINE_X)) <= '1';
+							SPR_TILE_SPR0_SET(to_integer(SPR_LINE_X)) <= SPR_TILE_SPR0;
 						end if;
+						if SPR_TILE_SPR0_SET(to_integer(SPR_LINE_X)) = '1' then
+							if CR_IE_CC = '1' then
+								IRQ_COL <= '1';
+							end if;
+						end if; 
+					end if;
+
+					if (SPR_TILE_PIX = 0 and SPR_TILE_LEFT = '1') or (SPR_TILE_PIX = 15 and SPR_TILE_RIGTH = '1') or 
+						SPR_TILE_TOP = '1' or SPR_TILE_BOTTOM = '1' then
+						SPR_TILE_FRAME(to_integer(SPR_LINE_X)) <= '1';
 					end if; 
-				end if; 
-				if (SPR_TILE_PIX = 0 and SPR_TILE_LEFT = '1') or (SPR_TILE_PIX = 15 and SPR_TILE_RIGTH = '1') or 
-					SPR_TILE_TOP = '1' or SPR_TILE_BOTTOM = '1' then
-					SPR_TILE_FRAME(to_integer(unsigned(SPR_LINE_X))) <= '1';
-				end if; 
-				SPR_TILE_PIX <= SPR_TILE_PIX + 1;
+
+					SPR_TILE_PIX := SPR_TILE_PIX + 1;
+				end loop;
 			end if; 
 			
 			if DCK_CE = '1' then
@@ -937,9 +966,9 @@ begin
 				end if;
 				
 				if SPR_LINE_CLR = '1' then
-					SPR_TILE_PIX_SET(to_integer(unsigned(SPR_OUT_X))) <= '0';
-					SPR_TILE_SPR0_SET(to_integer(unsigned(SPR_OUT_X))) <= '0';
-					SPR_TILE_FRAME(to_integer(unsigned(SPR_OUT_X))) <= '0';
+					SPR_TILE_PIX_SET(to_integer(SPR_OUT_X)) <= '0';
+					SPR_TILE_SPR0_SET(to_integer(SPR_OUT_X)) <= '0';
+					SPR_TILE_FRAME(to_integer(SPR_OUT_X)) <= '0';
 					SPR_OUT_X <= SPR_OUT_X + 1;
 				end if;
 			end if;
@@ -950,19 +979,32 @@ begin
 		end if;
 	end process;
 	
-	SPR_LINE_BUF : entity work.dpram generic map (10,9)
+	SPR_LINE_BUF0 : entity work.dpram generic map (9,9)
 	port map(
 		clock		=> CLK,
-		
-		address_a=> SPR_LINE_ADDR,
-		data_a	=> SPR_LINE_D,
-		wren_a	=> SPR_LINE_WE,
-		
-		address_b=> std_logic_vector(SPR_OUT_X),
-		wren_b	=> SPR_LINE_CLR and DCK_CE,
-		q_b		=> SPR_LINE_Q
+
+		address_a=> SPR_LINE_ADDR(0),
+		data_a	=> SPR_LINE_D(0),
+		wren_a	=> SPR_LINE_WE(0),
+
+		address_b=> std_logic_vector(SPR_OUT_X(9 downto 1)),
+		wren_b	=> SPR_LINE_CLR and DCK_CE and not SPR_OUT_X(0),
+		q_b		=> SPR_LINE_Q(0)
 	);
 	
+	SPR_LINE_BUF1 : entity work.dpram generic map (9,9)
+	port map(
+		clock		=> CLK,
+
+		address_a=> SPR_LINE_ADDR(1),
+		data_a	=> SPR_LINE_D(1),
+		wren_a	=> SPR_LINE_WE(1),
+
+		address_b=> std_logic_vector(SPR_OUT_X(9 downto 1)),
+		wren_b	=> SPR_LINE_CLR and DCK_CE and SPR_OUT_X(0),
+		q_b		=> SPR_LINE_Q(1)
+	);
+
 	process(CLK, RST_N)
 	variable PX : unsigned(3 downto 0);
 	variable GX,GY : unsigned(2 downto 0);
@@ -992,7 +1034,7 @@ begin
 										BG_SR2(to_integer(PX(3 downto 0))) & 
 										BG_SR1(to_integer(PX(3 downto 0))) & 
 										BG_SR0(to_integer(PX(3 downto 0)));
-					SPR_COLOR(7) <= SPR_LINE_Q;
+					SPR_COLOR(7) <= SPR_LINE_Q(to_integer(SPR_OUT_X(0 downto 0)));
 					DISP(7) <= not BURST;
 					BORD(7) <= '0';
 					
@@ -1020,7 +1062,7 @@ begin
 			end if; 
 		end if;
 	end process;
-	
+
 	BORDER <= BORD(0);
 	GRID <= GRID_SP(0)&GRID_BG(0);
 	
