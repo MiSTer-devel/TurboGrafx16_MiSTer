@@ -295,7 +295,7 @@ begin
 end process;
 
 -- Channels mixing
-VT : entity work.dpram generic map (12,24,"huc6280/voltab.mif")
+VT : entity work.dpram generic map (12,24,"HUC6280/voltab.mif")
 port map (
 	clock		=> CLK,
 	address_a=> VT_ADDR,
