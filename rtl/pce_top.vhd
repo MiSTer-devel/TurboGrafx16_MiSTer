@@ -371,7 +371,8 @@ port map(
 	
 	BORDER	=> VDC0_BORDER,
 	GRID		=> VDC0_GRID,
-	
+	SP64     => SP64,
+
 	RAM_A		=> VRAM0_A,
 	RAM_DI	=> VRAM0_DI,
 	RAM_DO	=> VRAM0_DO,
@@ -419,11 +420,13 @@ generate_SGX: if (LITE = 0) generate begin
 		VD			=> VDC1_COLNO,
 		--GRID		=> VDC1_GRID,
 		
+		SP64     => SP64,
+		
 		RAM_A		=> VRAM1_A,
 		RAM_DI	=> VRAM1_DI,
 		RAM_DO	=> VRAM1_DO,
 		RAM_WE	=> VRAM1_WE,
-		
+
 		BG_EN		=> BG_EN,
 		SPR_EN	=> SPR_EN
 	);
