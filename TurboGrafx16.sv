@@ -361,6 +361,7 @@ wire [15:0] cdda_sl, cdda_sr, adpcm_s, psg_sl, psg_sr;
 pce_top #(LITE) pce_top
 (
 	.RESET(reset|cart_download),
+	.COLD_RESET(cart_download),
 
 	.CLK(clk_sys),
 
