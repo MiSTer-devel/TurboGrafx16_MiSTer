@@ -7,6 +7,7 @@ entity HUC6270 is
 	port( 
 		CLK		: in std_logic;
 		RST_N		: in std_logic;
+		CLR_MEM	: in std_logic;
 		  
 		CPU_CE	: in std_logic;
 		A			: in std_logic_vector(1 downto 0);
@@ -276,6 +277,8 @@ architecture rtl of HUC6270 is
 
 	signal SAT_ADDR		: std_logic_vector(7 downto 0);
 	signal SAT_Q			: std_logic_vector(15 downto 0);
+	signal CLR_A			: unsigned(7 downto 0);
+	signal CLR_WE			: std_logic;
 
 begin
 
@@ -684,7 +687,7 @@ begin
 	
 	--Sprites
 	DMAS_SAT_WE <= DCK_CE when DMAS_EXEC = '1' and SLOT = CPU else '0'; 
-	SAT_ADDR <= std_logic_vector(SPR_EVAL_X);
+	SAT_ADDR <= std_logic_vector(SPR_EVAL_X) when CLR_WE = '0' else std_logic_vector(CLR_A);
 	
 	SAT : entity work.dpram generic map (8,16)
 	port map(
@@ -695,9 +698,14 @@ begin
 		wren_a	=> DMAS_SAT_WE,
 		
 		address_b=> SAT_ADDR,
+		data_b   => (others => '0'),
+		wren_b   => CLR_WE,
 		q_b		=> SAT_Q
 	);
-	
+
+	CLR_A  <= CLR_A + 1 when rising_edge(CLK);
+	CLR_WE <= CLR_MEM   when rising_edge(CLK);
+
 	SPR <= SPR_CACHE(to_integer(SPR_FETCH_CNT(5 downto 0)));
 	process(CLK, RST_N, SLOT, RC_CNT, SPR, SPR_FETCH_W)
 	variable SPR_H : std_logic_vector(5 downto 0);

@@ -1,11 +1,8 @@
-library STD;
-use STD.TEXTIO.ALL;
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
--- use IEEE.STD_LOGIC_ARITH.ALL;
--- use IEEE.STD_LOGIC_UNSIGNED.ALL;
-use IEEE.STD_LOGIC_TEXTIO.all;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use IEEE.STD_LOGIC_TEXTIO.all;
 
 entity pce_top is
 	generic (
@@ -13,6 +10,7 @@ entity pce_top is
 	);
 	port(
 		RESET			: in  std_logic;
+		COLD_RESET	: in  std_logic;
 		CLK 			: in  std_logic;
 
 		ROM_RD		: out std_logic;
@@ -190,6 +188,8 @@ signal VRAM1_A	   : std_logic_vector(15 downto 0);
 signal VRAM1_DI	: std_logic_vector(15 downto 0);
 signal VRAM1_DO	: std_logic_vector(15 downto 0);
 signal VRAM1_WE	: std_logic;
+signal CLR_A	   : std_logic_vector(14 downto 0);
+signal CLR_WE		: std_logic;
 signal VCE_DCC		: std_logic_vector(1 downto 0);
 signal VDC0_BORDER: std_logic;
 signal VDC0_GRID	: std_logic_vector(1 downto 0);
@@ -348,6 +348,7 @@ VDC0 : entity work.HUC6270
 port map(
 	CLK 		=> CLK,
 	RST_N		=> RESET_N,
+	CLR_MEM  => COLD_RESET,
 
 	-- CPU Interface
 	CPU_CE	=> CPU_CE,
@@ -389,14 +390,22 @@ port map (
 	data_a	=> VRAM0_DO,
 	cs_a		=> not VRAM0_A(15),
 	wren_a	=> VRAM0_WE,
-	q_a		=> VRAM0_DI
+	q_a		=> VRAM0_DI,
+
+	address_b=> CLR_A,
+	data_b	=> (others => '0'),
+	wren_b	=> CLR_WE
 );
+
+CLR_A  <= CLR_A + 1  when rising_edge(CLK);
+CLR_WE <= COLD_RESET when rising_edge(CLK);
 
 generate_SGX: if (LITE = 0) generate begin
 
 	VDC1 : entity work.HUC6270
 	port map(
 		CLK 		=> CLK,
+		CLR_MEM  => COLD_RESET,
 		RST_N		=> RESET_N,
 
 		-- CPU Interface
@@ -438,7 +447,11 @@ generate_SGX: if (LITE = 0) generate begin
 		data_a	=> VRAM1_DO,
 		cs_a		=> not VRAM1_A(15),
 		wren_a	=> VRAM1_WE and not VRAM1_A(15),
-		q_a		=> VRAM1_DI
+		q_a		=> VRAM1_DI,
+
+		address_b=> CLR_A,
+		data_b	=> (others => '0'),
+		wren_b	=> CLR_WE
 	);
 
 	VPC : entity work.huc6202
@@ -583,7 +596,11 @@ port map (
 	address_a=> CPU_A(14 downto 0),
 	data_a	=> CPU_DO,
 	wren_a	=> CPU_CE and not CPU_PRAM_SEL_N and not CPU_WR_N,
-	q_a		=> PRAM_DO
+	q_a		=> PRAM_DO,
+
+	address_b=> CLR_A,
+	data_b	=> (others => '0'),
+	wren_b	=> CLR_WE
 );
 
 CPU_PRAM_SEL_N <= CPU_A(20) or not CPU_A(19) or not ROM_POP;
@@ -595,7 +612,11 @@ port map (
 	address_a=> RAM_A(14 downto 0),
 	data_a	=> CPU_DO,
 	wren_a	=> CPU_CE and not CPU_RAM_SEL_N and not CPU_WR_N,
-	q_a		=> RAM_DO
+	q_a		=> RAM_DO,
+
+	address_b=> CLR_A,
+	data_b	=> (others => '0'),
+	wren_b	=> CLR_WE
 );
 
 RAM_A(12 downto 0)  <= CPU_A(12 downto 0);
