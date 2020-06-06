@@ -366,7 +366,7 @@ pce_top #(LITE) pce_top
 	.CLK(clk_sys),
 
 	.ROM_RD(rom_rd),
-	.ROM_RDY(rom_sdrdy & rom_ddrdy),
+	.ROM_RDY(rom_sdrdy & rom_ddrdy & ram_ddrdy),
 	.ROM_A(rom_rdaddr),
 	.ROM_DO(use_sdr ? rom_sdata : rom_ddata),
 	.ROM_SZ(romwr_a[23:16]),
@@ -700,23 +700,25 @@ always @(posedge clk_ram) if(~rom_rd) use_sdr <= LITE ? ~status[6] : |sdram_sz[1
 
 wire [21:0] rom_rdaddr;
 wire  [7:0] rom_ddata, rom_sdata;
-wire        rom_rd, rom_sdrdy, rom_ddrdy;
+wire        rom_rd, rom_sdrdy, rom_ddrdy, ram_ddrdy;
 
 assign DDRAM_CLK = clk_ram;
 ddram ddram
 (
 	.*,
+	.clkref(ce_rom),
 
 	.wraddr(cart_download ? romwr_a : {3'b001,cd_ram_a}),
 	.din(cart_download ? romwr_d : {cd_ram_do,cd_ram_do}),
-	.we(cart_download ? 0 : cd_ram_wr & ce_rom),
+	.we(~cart_download & ~use_sdr & cd_ram_wr & ce_rom),
 	.we_req(rom_wr),
 	.we_ack(dd_wrack),
+	.we_rdy(ram_ddrdy),
 
 	.rdaddr(rom_rd ? {3'b000,(rom_rdaddr + (romwr_a[9] ? 22'h200 : 22'h0))} : {3'b001,cd_ram_a}),
-	.dout(rom_ddata),
-	.rd_req(~use_sdr & (rom_rd | cd_ram_rd) & ce_rom),
-	.rd_rdy(rom_ddrdy)
+	.rd(~use_sdr & (rom_rd | cd_ram_rd) & ce_rom),
+	.rd_rdy(rom_ddrdy),
+	.dout(rom_ddata)
 );
 
 sdram sdram
@@ -729,7 +731,7 @@ sdram sdram
 
 	.waddr(cart_download ? romwr_a : {3'b001,cd_ram_a}),
 	.din(cart_download ? romwr_d : {cd_ram_do,cd_ram_do}),
-	.we(cart_download ? 0 : cd_ram_wr & ce_rom),
+	.we(~cart_download & use_sdr & cd_ram_wr & ce_rom),
 	.we_req(rom_wr),
 	.we_ack(sd_wrack),
 
