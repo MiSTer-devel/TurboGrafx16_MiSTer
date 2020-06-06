@@ -74,7 +74,7 @@ constant LEFT_BL_CLOCKS	: integer := 456;
 constant DISP_CLOCKS	   : integer := 2160;
 constant LINE_CLOCKS	   : integer := 2730;
 constant HS_CLOCKS		: integer := 192;
-constant HS_OFF			: integer := 36;
+constant HS_OFF			: integer := 46;
 
 constant TOTAL_LINES		: integer := 263;  -- 525
 constant VS_LINES			: integer := 3; 	 -- pcetech.txt
