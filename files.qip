@@ -6,6 +6,7 @@ set_global_assignment -name VHDL_FILE rtl/huc6260.vhd
 set_global_assignment -name VERILOG_FILE rtl/hps_ext.v
 set_global_assignment -name VERILOG_FILE rtl/sdram.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ddram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cache_2way.sv
 set_global_assignment -name VHDL_FILE rtl/dpram.vhd
 set_global_assignment -name VHDL_FILE rtl/CEGen.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/color_mix.sv
