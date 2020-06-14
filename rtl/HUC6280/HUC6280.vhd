@@ -309,6 +309,8 @@ begin
 		if rising_edge(CLK) then
 			if IO_SEL = '0' then
 				CPU_DI <= DI;
+			elsif PSG_SEL = '1' then
+				CPU_DI <= x"00";
 			elsif IOP_SEL = '1' then
 				CPU_DI <= K;
 			elsif INT_SEL = '1' then
