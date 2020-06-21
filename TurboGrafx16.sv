@@ -386,7 +386,7 @@ pce_top #(LITE) pce_top
 
 	.SP64(status[11]),
 	.SGX(sgx && !LITE),
-	
+
 	.JOY_OUT(joy_out),
 	.JOY_IN(joy_in),
 
@@ -656,23 +656,68 @@ endfunction
 
 reg [17:0] audio_l, audio_r;
 reg [15:0] cmp_l, cmp_r;
+
+logic [4:0] div_audio;
+logic adpcm_ce, psg_ce;
+
+logic [15:0] adpcm_filt, psg_l_filt, psg_r_filt;
+
+always @(posedge clk_sys) begin
+	// 2684650 and 1342323
+	div_audio <= div_audio + 1'd1;
+
+	adpcm_ce <= &div_audio[4:0];
+	psg_ce <= &div_audio[3:0];
+end
+
+IIR_filter #(
+	.coeff_x   (0.00200339512841342642),
+	.coeff_x0  (2),
+	.coeff_x1  (1),
+	.coeff_x2  (0),
+	.coeff_y0  (-1.95511712863912712201),
+	.coeff_y1  (0.95667938324280066276),
+	.coeff_y2  (0),
+	.stereo    (1)
+) psg_filter (
+	.clk       (clk_sys),
+	.ce        (psg_ce), // (1342323 * 2)
+	.sample_ce (1),
+	.input_l   (psg_sl),
+	.input_r   (psg_sr),
+	.output_l  (psg_l_filt),
+	.output_r  (psg_r_filt)
+);
+
+IIR_filter #(
+	.coeff_x   (0.00002488367092441635),
+	.coeff_x0  (3),
+	.coeff_x1  (3),
+	.coeff_x2  (1),
+	.coeff_y0  (-2.94383188882174362533),
+	.coeff_y1  (2.88923013608993572987),
+	.coeff_y2  (-0.94537670406128904155),
+	.stereo    (0)
+) adpcm_filter (
+	.clk       (clk_sys),
+	.ce        (adpcm_ce), // 1342323
+	.sample_ce (1),
+	.input_l   (adpcm_s),
+	.output_l  (adpcm_filt)
+);
+
 always @(posedge clk_sys) begin
 	reg [17:0] pre_l, pre_r;
-	reg [15:0] psg_sl_red, psg_sr_red, adpcm_s_red;
 
-	psg_sl_red  <=  ($signed(psg_sl) >>> 1) +  ($signed(psg_sl) >>> 2) +  ($signed(psg_sl) >>> 4);
-	psg_sr_red  <=  ($signed(psg_sr) >>> 1) +  ($signed(psg_sr) >>> 2) +  ($signed(psg_sr) >>> 4);
-	adpcm_s_red <= ($signed(adpcm_s) >>> 1) + ($signed(adpcm_s) >>> 2) + ($signed(adpcm_s) >>> 3);
-
-	pre_l <= ( CDDA_EN                ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
+	pre_l <= ( CDDA_EN                  ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
 			 + ((CDDA_EN && status[20]) ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
-			 + ( PSG_EN                 ? {{2{psg_sl_red[15]}},   psg_sl_red} : 18'd0)
-			 + ( ADPCM_EN               ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+			 + ( PSG_EN                 ? {{2{psg_l_filt[15]}},   psg_l_filt} : 18'd0)
+			 + ( ADPCM_EN               ? {{2{adpcm_filt[15]}},   adpcm_filt} : 18'd0);
 
-	pre_r <= ( CDDA_EN                ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
+	pre_r <= ( CDDA_EN                  ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
 			 + ((CDDA_EN && status[20]) ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
-			 + ( PSG_EN                 ? {{2{psg_sr_red[15]}},   psg_sr_red} : 18'd0)
-			 + ( ADPCM_EN               ? {{2{adpcm_s_red[15]}}, adpcm_s_red} : 18'd0);
+			 + ( PSG_EN                 ? {{2{psg_r_filt[15]}},   psg_r_filt} : 18'd0)
+			 + ( ADPCM_EN               ? {{2{adpcm_filt[15]}},   adpcm_filt} : 18'd0);
 
 	if(~status[20]) begin
 		// 3/4 + 1/4 to cover the whole range.
@@ -964,7 +1009,7 @@ MB128 MB128
 
 	.i_Clk(mb128_ena & joy_out[1]),	// send only if MB128 enabled
 	.i_Data(joy_out[0]),
-	
+
    .o_Active(mb128_Active),	// high if MB128 asserts itself instead of joypad inputs
 	.o_Data(mb128_Data),
 
