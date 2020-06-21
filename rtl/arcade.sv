@@ -36,7 +36,6 @@ module ARCADE_CARD
 
 typedef struct packed
 {
-	reg        ena;
 	reg [23:0] base;
 	reg [15:0] offset;
 	reg [15:0] increment;
@@ -47,6 +46,7 @@ typedef struct packed
 port_t port[4];
 wire [1:0] p;
 
+reg        ena;
 reg [31:0] shift_latch;
 reg  [7:0] shift_bits;
 reg  [7:0] rotate_bits;
@@ -60,7 +60,7 @@ always_comb begin
 
 	if(A[20:15] == 16) begin // pages 0x40-0x43
 		p = A[14:13];
-		RAM_CS_N = ~EN | ~port[p].ena;
+		RAM_CS_N = ~EN | ~ena;
 	end
 	else begin
 		p = A[5:4];
@@ -118,12 +118,12 @@ always @(posedge CLK) begin
 
 	if(~RST_N) begin
 		for(int i=0; i<4; i++) begin
-			port[i].ena <= 0;
 			port[i].base <= 0;
 			port[i].offset <= 0;
 			port[i].increment <= 0;
 			port[i].control <= 0;
 		end
+		ena <= 0;
 		shift_latch <= 0;
 		shift_bits <= 0;
 		rotate_bits <= 0;
@@ -133,7 +133,7 @@ always @(posedge CLK) begin
 		if(~SEL_N & ~WR_N) begin
 			if(!A[7]) begin
 
-				port[p].ena <= 1;
+				ena <= 1;
 				case(A[3:0])
 					2: port[p].base[7:0] <= DI;
 					3: port[p].base[15:8] <= DI;
