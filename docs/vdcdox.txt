@@ -1,0 +1,866 @@
+ *****************************************************************
+ *      PC-Engine Video Display Controller Documentation         *
+ *      .                                              .         *
+ *   ---+----------------------------------------------+---      *
+ *      |   MOST COMPLETE HuC6270 INTERNAL WORKINGS    |         *
+ *      |    DOCUMENT. IF YOU HAPPEN TO FIND *ANY*     |         *
+ *      |   WRONG INFORMATION, PLEASE CONTACT ME VIA   |         *
+ *      |  EMAIL AS SOON AS POSSIBLE SO I CAN FIX IT.  |         *
+ *   ---+----------------------------------------------+---      *
+ *      :                                              :         *      
+ *                                                               *   
+ *      document revision 0.3 (3rd release)                      *
+ *                                                               *
+ *      written by Emanuel Schleussinger in Feb 1998             *
+ *                 ( eschleus@luva.lb.bawue.de )                 *
+ *      Thanks to:                                               *
+ *          DAVID MICHEL for LOTS of information!!!!!!!!!! ;)    *
+ *          JENS CHR. RESTEMEIER for his EXCELLENT PCE-docu      *
+ *          DAVE SHADOFF for his emails and his TGSim source     *
+ *          NIMAI MALLE for his VDC explanations                 *
+ *          VIDEOMAN for his excellent Hacking Web-Page          *
+ *                   and some documents in there                 *
+ *          PAUL CLIFFORD for an excellent HuC6270 register docu *
+ *****************************************************************
+
+ Revision reference:
+ -----+-----------------------------+---------------+----------
+ | rev 0.3:
+ |   - improved the VDC register table A LOT thanks to the
+ |     help of PAUL CLIFFORD. Thx for that cool doc, dude!
+ |       (all those nasty 'unknown's are now eliminated)
+ |   - more examples here and there.
+ |   - fixed some docu bugs with help of David Michel.
+ |   - Added Video Color Encoder reference.
+ |   - Sprite storage description was WRONG, corrected now.
+ |
+ | rev 0.2:
+ |   - Added Sprite information.
+ |   - Fixed some major bugs in the docu.
+ |   - Registers updated.
+ |
+ | rev 0.1 (initial release):
+ |   - Still missing sprite docu, lots of undocumented registers.
+ -----+-----------------------------+---------------+----------
+
+
+ Document preface: 
+
+   This document has been created for both beginners and advanced
+   programmers. There may be some information that you may well
+   consider 'unnecessary' (such as the introduction to planar image
+   storage), but please think of people who would really like to
+   program the PC-Engine, but dont have a clue on how some basic
+   techniques (like planar) work.
+
+   This document is in very early state and may well contain 
+   a lot of information not being correct. For any wrong in-
+   formation in this document you may discover, please write
+   me a mail at eschleus@luva.lb.bawue.de so I can fix it and
+   release a new version.
+   The latest version of this document can always be obtained
+   at my homepage located at:
+          
+          www.classicgaming.com/aec/
+
+   or just write me an email and ask me to send you the latest
+   revision.
+
+   Any help on improving this document is highly appreciated!
+
+   I think its the most complete one out there at this time.
+  
+   Yours,
+   Manuel
+
+   eschleus@luva.lb.bawue.de
+   www.classicgaming.com/aec/
+
+ --------------------------------------------------------
+ -----           T   O   P   I   C   S      -------------
+ --------------------------------------------------------
+
+
+        +-------------------------------------------+
+        | 1. Purpose of the VDC / General info      |
+        |                                           |
+        | 2. The VRAM structure / encoding VRAM data|
+        |                                           |
+        | 3. Accessing the VDC from the CPU         |
+        |                                           |
+        | 4. The VDC registers in detail            |
+        |                                           |
+        | 5. The Sprites in the VRAM                |
+        |                                           |
+        | 6. The Sprite attribute table (SATB)      |
+        |                                           |
+        | 7. The Video Color Encoder                |
+        |                                           |
+        +-------------------------------------------+
+
+ --------------------------------------------------------
+ ----- 1. Purpose of the VDC / General info -------------
+ --------------------------------------------------------
+
+  The VDC (Video Display Processor), also known as the HuC6270,
+  is the main graphics processing unit in the PC-Engine. Despite
+  the CPU of the PC-Engine is only 8-bit, the VDC is a full 16-bit
+  processor with very powerful capabilities. Its accessible from 
+  the main system via 3 special opcodes that write/read data from/
+  into the Video Display. The VDC is connected to another chip known
+  as the HuC6260 VCE (Video Color Encoder), which supplies the color
+  palette data for the Video System. 
+
+  The VDC in the PC-Engine has two modes of operation:
+
+    1. Background character processing
+    2. Sprite processing
+
+  The 64 kB VRAM that the VDC is connected to does NOT contain one big 
+  bitmap with all the display information stored pixel by pixel like
+  on a Amiga or PC, the Graphics are stored tile-based. In case you do 
+  not know what tile-based graphics are, be sure to read section 2 
+  very carefully. 
+
+
+
+ --------------------------------------------------------
+ ----- 2. The VRAM structure / encoding VRAM data -------
+ --------------------------------------------------------
+
+  The VRAM of the PC-Engine is 64 kBytes in size. No chip other
+  than the VDC can access it. It contains all the important data
+  needed for the display generation.
+
+  The way graphical data is organized in the VRAM is called 'tile
+  based'. This means there is NOT a huge bitmap containing a color 
+  index for every pixel, but only a list of pointers to small, 
+  rectangular areas in the VRAM that will, aligned to each other, 
+  make up the display. Explanation follows.
+  
+  Think of it like this:
+  We have a 512*256 pixel 256 color screen. On a PC, for instance, 
+  we would have to have the following VRAM structure:
+           
+         +---------------------------------------+
+         |       <--512 pixels across -->        |
+         |                                       | 
+         |                                       | 256
+         |                                       | pixels
+         |                                       | down
+         |                                       | 
+         |                                       |
+         |                                       |
+         |                                       |
+         |                                       |
+         +---------------------------------------+
+  The color depth is 8 bit ^= 256 colors
+
+  This would result in        512 * 256 * 8 
+                            = 1.048.576 bit
+                            = 130 kbytes (roughly)
+ 
+  So, if the PC-Engine would do it the same way, it would not be 
+  able to have such high resolutions due to the lack of VRAM. 
+  Thats why data is stored in the VRAM as follows:
+
+  The screen background area is made up out of 8*8 pixels large
+  blocks, called the 'tiles', each tile having a color palette of
+  16 colors. There are 16 different palettes to choose from for 
+  each tile, resulting in 256 different colors for the background
+  generation (the other 256 colors are reserved for sprite usage 
+  which will be described later).
+  In the background, colour 0 of all palettes are equal. Colour 0 of 
+  palette 0 determines colour 0 of all the background palettes. Even 
+  though these colour CAN be set independently, the screen will not 
+  reflect these settings. 
+
+-----Now, how are those tiles aligned to each other?
+
+  Starting at the very beginning of the VRAM ($0) there is the so-
+  called BAT (Block Attribute Table), which is a list of pointers
+  to tiles stored in the Video RAM. The amount of pointers varies
+  depending on how big the actual screen is. (As I told you, you 
+  have 8*8 pixel tiles, so if the screen is larger, theres more 
+  tiles). For our test screen (512*256), we would need:
+
+                             512 / 8     = 64 tiles per line
+                             256 / 8     = 32 tiles vertical
+                              64 * 32    = 2048 tiles
+
+  That means, we would be in need of a BAT 2048 words in lenght.
+  
+-----WHY WORDS? How does a BAT pointer to the VRAM look like?
+
+  A Pointer to a tile in the VRAM must contain palette information
+  as well as the actual VRAM address where to find the tile. This
+  ONE WORD LONG index pointer looks like this:
+      
+      PPPPAAAAAAAAAAAA
+       |       |
+       |       |
+       |       +------- 12 lower bits:   Index of the tile 
+       |
+       +--------------- 4  upper bits:   Palette number (0-15)
+
+  If you multiply the tile index by 32 (LSL #5 ;-), you will get
+  the actual VRAM pointer address.
+
+  The pointers in the BAT are ordered from the left to the right 
+  and top to down.
+
+  ----->Small example:<-----
+
+  Here is the first few words of data in the VRAM of HATRIS, just having
+  the intro screen up. If you look closely, note how VRAM was saved using
+  the same tiles over and over again in the BAT:
+
+
+
+-----HOW CAN I SET THE SIZE OF THE BAT?
+
+  Easy, theres a VDC register dedicated to it, called the MWR register.
+  (find more about the MWR in SECTION 4)
+
+    MWR register mask:   
+	xxxxxxxxxxHWWxxx (16 bits)
+                  | |
+                  | +--- width in tiles/pixels
+                  |      00 = 32/256
+                  |      01 = 64/512
+                  |      10 = 128/1024
+                  |      11 = 128/1024
+                  |
+                  +----- height in tiles/pixels
+                         0  = 32/256
+                         1  = 64/512
+
+  If you understood everything, you should now be asking:
+   "No TV can display a resolution of 1024 pixels across, so whats
+    this mode for?"
+  
+  Answer: Check out the BXR and BYR registers used for SCROLLING ;)
+          (see SECTION 4)  
+
+
+-----HOW DOES THE TILE ITSELF LOOK LIKE IN THE VRAM?
+
+  Well, the tile itself is a piece of memory sized like this:
+
+       8 * 8 * 4 bits = 256 bits
+       |   |   |
+       |   |   +------- color index (4 bits per pixel)
+       |   +----------- height in pixels 
+       +--------------- width in pixels
+
+  On this issue, David Michel posted me a VERY good explanation on
+  how the data of a single tile is organized in the VRAM:
+  
+    The PC-Engine use a planar mode rather than the well known chunky
+    mode of PCs, if you already have some experience decoding Atari ST
+    or Amiga gfx, you should easily understand the following.
+
+    In planar mode the 4 bits that form the color index are stored
+    in 4 separate bytes, let's say that we want to extract the color
+    index for the third pixel from the left :
+
+      color index
+       3rd pixel
+
+    +---+---+---+---+           +---+---+---+---+---+---+---+---+
+    | 3 | 2 | 1 | 0 |   byte 1  | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+    +---+---+---+---+           +---+---+---+---+---+---+---+---+
+      |   |   |   |                       |  
+      |   |   |   +-----------------------+
+      |   |   |
+      |   |   |                 +---+---+---+---+---+---+---+---+
+      |   |   |         byte 2  | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+      |   |   |                 +---+---+---+---+---+---+---+---+
+      |   |   |                           |
+      |   |   +---------------------------+
+      |   |
+      |   |                     +---+---+---+---+---+---+---+---+
+      |   |             byte 3  | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+      |   |                     +---+---+---+---+---+---+---+---+
+      |   |                               | 
+      |   +-------------------------------+
+      |
+      |                         +---+---+---+---+---+---+---+---+
+      |                 byte 4  | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+      |                         +---+---+---+---+---+---+---+---+
+      |                                   |
+      +-----------------------------------+
+
+    It's as simple as that :)
+
+    The funny part is that those 4 bytes are not placed in order,
+    they are interleaved. Byte 1 & 2 are stored first, and bytes
+    2 & 3 are stored 16 bytes after, here is another nice drawing:
+
+	VRAM OFFSET   
+        on pointer
+        (in bytes)
+                   +---------------------+
+              0    | byte 1 & 2 of line 1|
+                   +---------------------+
+              2    | byte 1 & 2 of line 2|
+                   +---------------------+
+              4    | byte 1 & 2 of line 3|
+                   +---------------------+
+              6    | byte 1 & 2 of line 4|
+                   +---------------------+
+              8    | byte 1 & 2 of line 5|
+                   +---------------------+
+             10    | byte 1 & 2 of line 6|
+                   +---------------------+
+             12    | byte 1 & 2 of line 7|
+                   +---------------------+
+             14    | byte 1 & 2 of line 8|
+                   +---------------------+
+                        
+                   +---------------------+
+             16    | byte 3 & 4 of line 1|
+                   +---------------------+
+             18    | byte 3 & 4 of line 2|
+                   +---------------------+
+             20    | byte 3 & 4 of line 3|
+                   +---------------------+
+             22    | byte 3 & 4 of line 4|
+                   +---------------------+
+             24    | byte 3 & 4 of line 5|
+                   +---------------------+
+             26    | byte 3 & 4 of line 6|
+                   +---------------------+
+             28    | byte 3 & 4 of line 7|
+                   +---------------------+
+             30    | byte 3 & 4 of line 8|
+                   +---------------------+
+
+   I think everyone should have got that right now. Thx David!
+   If you ask yourself what this was about, consider reading part
+   2 again. Part 3 won't be better ;-)
+
+
+
+ --------------------------------------------------------
+ ----- 3. Accessing the VDC from the CPU ----------------
+ --------------------------------------------------------
+
+---HOW CAN I TRANSFER DATA INTO THE VRAM?
+
+  Well, there are three memory locations involved that can be read/
+  written by the CPU to supply the VDC with data / read data from
+  the VDC (all in the I/O Memory Segment $FF):
+
+  Full address    Access Purpose
+
+  $1FE000          R/W    VDC Register select
+  $1FE002	   R/W    Low Data register
+  $1FE003          R/W    High Data register         
+      
+    The first of the three locations here is the so-called REGISTER
+    SELECT. The VDC has 19 Registers (several of them being totally
+    unknown, btw) to access. To tell the VDC to which register you
+    want to write the value contained in $1FE002 (and $1FE003), simply
+    write the number of the register to write to into the low 5 bits 
+    of $1FE000. As the VDC is a 16 bit processor (ALL VDC registers
+    are one word wide) in most cases you will need to supply both 
+    of the data values.
+
+    Detailed description of the VDC ports by Videoman (slightly changed):
+
+    Address   | Access | Description  
+    (Mapped   |  mode  | 
+     to $FF)  |        |
+--------------+--------+---------------------------------------------------
+      $0000   |   R    | 6270 Status register
+              |        | 
+              |        |   Different bits flag different conditions.  
+              |        |   Not all are known.
+              |        |   (Note: can use special ST0 opcode to store 
+              |        |   an immediate value.)
+              |        |     b 7 = 0
+              |        |     b 6 = 'BSY' flag
+              |        |         I believe this is '1' when a DMA transfer 
+              |        |         is happening
+              |        |     b 5 = 'VD' flag
+              |        |         I believe this is a '1' when Vertical Sync 
+              |        |         happens, otherwise a '0' (uncertain)
+              |        |     b 4 = 'DV' flag (unknown)
+              |        |     b 3 = 'DS' flag (unknown)
+              |        |     b 2 = 'RR' flag
+              |        |         Set during a Scanline interrupt (see RCR 
+              |        |         register)otherwise '0'
+              |        |     b 1 = 'OR' flag (unknown)
+              |        |     b 0 = 'CR' flag (unknown)
+              |        |
+      $0000   |   W    | 6270 Address register
+              |        |
+              |        |     b 7-5 = ignored
+              |        |     b 4-0 = 6270 register number to access using 
+              |        |             the 6270 data registers
+              |        |             ($0002 and $0003). Please see 6270 
+              |        |             register list (SECTION 4) for details.
+              |        |
+      $0002   |  R/W   | 6270 data LSB
+              |        |
+              |        |   Note: can use special ST1 opcode to store 
+              |        |         an immediate value.)
+              |        |
+      $0003   |  R/W   | 6270 data MSB
+              |        |
+              |        |   Note: can use special ST2 opcode to store 
+              |        |         an immediate value.)
+--------------+--------+---------------------------------------------------
+
+  ----->One short example on this one:<------
+
+    To read the contents of Register 2 (VRAM-Read-Register) simply use the 
+    following line of code:
+
+       ST0 #2
+       ...and then the two data values will sort of 'mirror' the value in
+       this VDC register.        
+  
+
+ --------------------------------------------------------
+ ----- 4. The VDC registers -----------------------------
+ --------------------------------------------------------
+ 
+ This huge and very complete list has been taken from Videomans
+ hardwaremap document,  Jens' PCE documentation, and some information 
+ to it was added by me.
+ 
+
+REG     ACCESS  DESCRIPTION+
+NO.     MODE    DETAILS
+------------------------------------------------------------------------
+0       R?/W    MAWR - 'Memory Address Write Register'
+
+        b 15-0  this is the internal
+                register used as an address-counter when writing to VRAM.
+                All bits used (although no VRAM above $7FFF).
+
+1       R?/W    MARR - 'Memory Address Read Register'
+
+        b 15-0  this is the internal
+                register used as an address-counter when reading from VRAM.
+                All bits used (although no VRAM above $7FFF).
+
+2       R       VRR - 'VRAM Read Register'
+
+        b 15-0  this is the only valid read-access
+                from the data port.  It reads the value from VRAM at the
+                address specified by the MARR.  When the value is read
+                from the second byte-port at $0003, the MARR register
+                (ie. the 'address to read from') is auto-incremented
+                (although this may be a configurable behaviour).
+                All bits used.
+
+2       W       VWR - 'VRAM Write Register'
+
+                (write-access version of the above)
+        b 15-0  Write value to VRAM at the address specified by the MAWR.
+                When the value is written to the second byte-port at $0003,
+                the MAWR register (ie. the 'address to write to') is
+                auto-incremented (although this may be a configurable behaviour).
+
+3       ?       (unused) ?
+
+4       ?       (unused) ?
+
+5       ?       CR - 'Control Register'
+
+                     b 15-13 unused
+                     b 12-11 'IW' Address register auto-Increment 
+                                  of the MAWR register
+                                  00 - normal increment (+1)
+                                  01 - +32
+                                  10 - +64
+                                  11 - +128
+
+                     b 10    'DR' Dynamic RAM refresh (unknown by me though)
+                     b 9-8   'TE' Selection of DISP terminal outputs
+                                  00 - DISP output "H" during display
+                                  01 - BURST colour burst inserting position is
+                                       indicated by output "L"
+                                  10 - INTHSYNC internal horizontal synchronous 
+                                       signal
+                                  11 - not used
+                     b 7     'BB' background (on/off)     --+
+                                  1  - display background   |
+                                  0  - no background         > gets effective in
+                     b 6     'SB' sprites (on/off)          |  next horizontal
+                                  1  - display sprites      |  display period.
+                                  0  - no sprites         --+
+                     b 5-4   'EX' (name unknown by me)
+                                  00 - vsync and hsync inputs
+                                  01 - vsync input, hsync output
+                                  10 - not used
+                                  11 - vsync and hsync outputs
+
+                     b 3     irq  (on/off)
+                                  0 = disabled
+                                  1 = enabled
+                     b 2     rcr  (on/off)
+                                  0 = disabled
+                                  1 = enabled
+                     b 1     Enable interrupt for excess number detection of
+                             sprites. 
+                                  0 = disabled
+                                  1 = enabled
+                     b 0     Enable interrupt for sprite collision detection.
+                                  0 = disabled
+                                  1 = enabled
+
+                     Editor's note: bits 3-0 sound suspiciously like 
+                     interrupt-enable flags. Given what we know about 
+                     the interrupt vector table, is it logical to assume 
+                     that the remaining two IE bits stand for the 
+                     remaining two interrupt vectors? Then again, maybe not.
+                      $FFFC-$FFFD     NMI Vector 
+                      $FFFA-$FFFB     TIMER Vector 
+                      $FFF8-$FFF9     IRQ1 Vector (for Video) 
+                      $FFF6-$FFF7     IRQ2 Vector (for BRK) 
+
+
+6       R       RCR - 'Raster Counter Register'
+
+                    b 15-10 ?
+                    b 9-0   The rcr bit controls the generation of a raster 
+                            counter IRQ. The VDC generates an IRQ, when the 
+                            scanline specified in the RCR register is displayed. 
+                            You need to add 64 to the RCR register to get the 
+                            correct scanline. 
+                    
+7       R?/W    BXR - 'Background X-Scroll Register'
+
+                    b 15-10 (not used)
+                    b 9-0   when the background map is a larger virtual 
+                            size than the viewing screen shows, this is 
+                            the viewing screen's x-offset (in pixels) 
+                            from the origin of the virtual background map.
+
+8       R?/W    BYR - 'Background Y-Scroll Register'
+
+                    b 15-9  (not used)
+                    b 8-0   when the background map is a larger virtual 
+                            size than the viewing screen shows, this is 
+                            the viewing screen's y-offset (in pixels) 
+                            from the origin of the virtual background map.
+
+9       R?/W    MWR - 'Memory-access Width Register'
+
+                    Used to configure the size of the virtual background 
+                    map.
+
+                    b 15-8  (not used)
+                    b 7     'CM' (unknown - presumably 'Color Mode')
+                    b 6-4   'SCREEN' These bits control virtual map size 
+                            as noted below.
+                            b 6     virtual screen height
+                                    0 = 256 pixels / 32 tiles
+                                    1 = 512 pixels / 64 tiles
+                            b 5-4   virtual screen width
+                                    00 = 256 pixels / 32 tiles
+                                    01 = 512 pixels / 64 tiles
+                                    10 = 1024 pixels / 128 tiles
+                                    11 = 1024 pixels / 128 tiles
+                          
+                                       Complete lookup of
+                                       available sizes in tiles:
+                                       -------------------------                                                          
+                                         000 -  32 x 32
+                                         001 -  64 x 32
+                                         010 - 128 x 32
+                                         011 - 128 x 32
+                                         100 -  32 x 64
+                                         101 -  64 x 64
+                                         111 - 128 x 64
+
+
+                    b 3-2   Sprite dot width
+                    b 1-0   VRAM dot width
+
+10($A)  ?       HSR - 'Horizontal Sync Register' 
+
+                    b 15    (not used)
+                    b 14-8  'HDS' Horizontal display start position -1.
+                    b 7-5   (not used)
+                    b 4-0   'HSW' Horizontal synchronous pulse width.
+
+                    Mask = $7F1F
+
+11($B)  ?       HDR - 'Horizontal Display Register' 
+
+                    b 15    (not used)
+                    b 14-8  'HDE' Horizontal display ending period -1.
+                    b 7     (not used)
+                    b 6-0   'HDW' Horizontal display width in tiles -1.
+ 
+                    Mask = $7F7F
+               
+                    added from Jens' PCE-documentation: Lower half of HDR: 
+                      It controls the horizontal width of display generation. 
+                      The value in this register is the number of horizontal 
+                      tiles minus one. Normal values are 31, for 32 tiles
+                      and 256 pixel horizontally, 39, for 40 tiles or 320 
+                      pixel and 63, for 64 tiles or 512 pixel. 
+
+12($C)  ?       VPR - 'Vertical synchronous register'
+
+                    b 15-8  'VDS' Vertical display start position -2.
+                    b 7-5   (not used)
+                    b 4-0   'VSW' Vertical synchronous pulse width.
+
+                    Mask = $FF1F
+
+
+13($D)  ?       VDW - 'Vertical display register'
+
+                    b 15-9  (not used)
+                    b 8-0   Vertical display width in pixels -1.
+        
+                    NOTE:
+                        Unlike the HDR register, the information on the
+                        vertical display width is split up in two registers,
+                        this one storing the vertical width, and the next one 
+                        (VCR) containing the vertical display end position.
+
+                   
+14($E)  ?       VCR - 'Vertical display END position register'
+
+                    b 15-8  (not used)
+                    b 7-0   Vertical display end position.
+
+15($F)  ?       DCR - 'DMA Control Register'
+
+		The DCR, SOUR, DESR and LENR registers control 
+		DMA operations. 
+		The DMA operation starts, as soon as the length 
+		is written into the LENR register
+
+                                               b 15-5 (not used)
+                                               b 4 -  DSR DMA (VRAM-SATB transfer repetition)
+                    b 3 -  Increment (0)/decrement (1) of 
+                           destination address.
+                    b 2 -  Increment (0)/decrement (1) of 
+                           source address.
+                    b 1 -  Enable interrupt at completion of 
+                           VRAM-VRAM transfer.
+                           Checked on completion of transfer.
+                    b 0 -  Enable interrupt at completion of 
+                           VRAM-SATB transfer.
+                           Checked on completion of transfer.
+
+16($10) R?/W    SOUR - '(DMA) Source Address Register'
+
+                     b 15-0  This register sets the source address 
+                             for DMA transfers.
+                             All bits used (address pointer).
+
+17($11) R?/W    DESR - '(DMA) Destination Address Register'
+
+                     b 15-0  This register sets the destination 
+                             address for DMA transfers.
+                             All bits used 
+                             (although no VRAM above $7FFF).
+
+18($12) R?/W    LENR - '(DMA) Block Length Register'
+
+                     b 15-0  This register sets the length of 
+                             the DMA transfer.
+                             All bits used 
+                             (although no VRAM above $7FFF).
+
+19($13) R?/W    SATB - 'Sprite Attribute Table'
+
+                     b 15-0  This register points to the start address 
+                             of the sprite attribute table.
+                             All bits used 
+                             (although no VRAM above $7FFF).
+
+
+
+ --------------------------------------------------------
+ ----- 5. The Sprites in the VRAM -----------------------
+ --------------------------------------------------------
+
+  Well, I will not try to explain what Sprites are here. Basically,
+  all of the PC-Engines' sprites are 16*16 to 32*64 pixels in size,
+  and have a sprite palette of 16 colors. 
+  There are 16 separate sprite palettes available. (remember, there 
+  was 16*16 colors for the background processing, those colors are 
+  INDEPENDENT from the sprite palettes).
+
+  In the Sprites colours, colour 0 is transparent in all palettes, 
+  although it does peek it's head in a peculiar place; beyond the display 
+  width of the BG. 
+  Explanation: 
+  The background display area (in it's most often used setting) is 256x216.
+  The display width of a television may be adjusted to squash the screen 
+  vertically, or horizontally. Even normal TVs show a little more that 256 
+  TG-16 dots wide, leaving a black border on the sides. This border colour is 
+  actually controlled by sprite colour 0. The programmer can actually set the 
+  screen width more narrow or vertically shorter, showing more of this area. 
+  It's only use that I've ever implemented was in measuring the CPU load of 
+  the TG-16 during development. 
+
+--HOW ARE SPRITES STORED IN THE VRAM?
+
+  For the sprite characters the principe is the same as for the background
+  tiles, but in place of using bytes (8 pixels) they use words (16 pixels). 
+  Note that the words still use the same encoding as all word data within the 
+  PC-Engine, this means that the first byte of the word is the lower byte.
+  Sprite data is stored like in the following drawing:
+
+            Byte           Data
+           offset 
+
+                   +-------------------+
+              0    | plane 1 of line 1 |
+                   +-------------------+
+              2    | plane 1 of line 2 |
+                   +-------------------+
+                   .                   .
+                   :                   :
+             30    | plane 1 of line 16|
+                   +-------------------|
+             32    | plane 2 of line 1 |
+                   +-------------------+
+             34    | plane 2 of line 2 |
+                   +-------------------+
+             36    | plane 2 of line 3 |
+                   +-------------------+
+                   .                   .
+                   :                   :
+             46    | plane 2 of line 16|
+                   +-------------------+
+             48    | plane 3 of line 1 |
+                      ......and so on.
+
+  
+
+  Not only you can display sprites, you can do some sort of funny stuff
+  with them, like mirroring, for instance. All this is controlled in the
+  so-called SPRITE ATTRIBUTE TABLE.
+
+
+
+ --------------------------------------------------------
+ ----- 6. The Sprite attribute table (SATB) -------------
+ --------------------------------------------------------
+
+  The sprites' positions and attributes are defined in the so-
+  called SPRITE ATTRIBUTE TABLE (SATB). The SATB can be contained any-
+  where in the VRAM ($0000-$7FFF).
+
+--HOW DOES THE VDC KNOW WHERE THE SATB IS TO BE FOUND?
+
+  The VDC has a special register containing nothing but the start
+  address of the SATB in the VRAM. This is register 19 (SEE SECTION 4)
+  
+  The actual sprite attributes are stored at the address mentioned 
+  above. For aech sprite, there is a 4 word long attribute section, 
+  which looks as follows:
+
+  Word   | Access | Description 
+  offset |  mode  |
+--------------------------------------------------------------------------
+    0	    R/W	    Y position
+
+	              b 15-10   (unused)
+	              b 9-0	    y position (relative to 
+                               virtual-screen origin)
+
+    1	    R/W	    X position
+
+	              b 15-19   (unused?)
+	              b 9-0	    x position (relative to 
+                               virtual-screen origin)
+
+    2	    R/W	    Pattern address
+
+	              b 15-11   (unused?)
+	              b 10-0	    sprite data VRAM address shifted 
+                               right 5 bits(Shift left 6 bits to 
+                               get real VRAM address)
+
+    3	    R/W	    Sprite attributes
+
+	              b 15	   y-invert flag (upside-down)
+	              b 14	   unused
+	              b 13-12  'CGY'
+		                  00 = sprite is 1 'cell' (16 pixels) high
+		                  01 = sprite is 2 cells high (32 pixels)
+		                  10 = invalid
+		                  11 = sprite is 4 cells high (64 pixels)
+	              b 11	   x-invert flag (left-right invert)
+	              b 10-9	   unused
+	              b 8	  'CGX'
+		                 0 = sprite is 1 'cell' wide (16 pixels)
+		                 1 = sprite is 2 cells wide (32 pixels)
+	              b 7	  'SPBG'; is sprite in foreground (in front 
+                                     of CG) or background (behind CG) 
+	              b 6-4	   unused
+	              b 3-0	   sprite colour (i.e. which of 16 sprite 
+                                             palettes to use)
+
+
+
+ --------------------------------------------------------
+ ----- 5. The HuC6260 Video Color Encoder (VCE) ---------
+ --------------------------------------------------------
+ 
+
+ The HuC6260 Video Color Encoder basically supplies the picture on
+ your television ;). It is connected to the VDC and coordinates the 
+ palette processing as its most important job. For practice, do you
+ still know how much palettes with how much colors each are available
+ for both background and sprite encoding? Ok fine, here are your 
+ registers (Thx David, again):
+
+ (A brief description of how to program the VCE including short examples
+  will be available as soon as possible)
+
+
+THE HuC6260 registers:
+
+  Hardware   | Description
+   address   |
+-------------+-----------------------------------------------------------
+   $0400 W   | CR  - 'Control Register'
+             |
+             |       bit 0  control the color clock frequency 0=5MHz/1=7MHz
+             |       bit 1-7 (unknown)
+             |
+   $0402 W   | CTA - 'Color Table Address' 
+   $0403     |       
+             |       Holds the actual palette index that is to be altered.
+             |       (Values range from 0-->512)
+             |
+             |       bit 0-8 index in the color table
+             |
+             |       This register is auto-incremented after each access
+             |       to the color data register.
+             |
+   $0404 R/W | CTD - 'Color Table Data'
+   $0405     |
+             |        Data written in here immediately changes the named 
+             |        palette specified in the CTA. Reading from this register
+             |        will retrieve this information from the given CTA address.
+             |
+             |        b 9-15 (unused)
+             |        b 6-8   Green
+             |        b 3-5   Red
+             |        b 0-2   Blue
+             |        
+
+
+END. Thanx for your interest.
+ 
+For any suggestions, flames, or contributions, please mail me under
+         eschleus@luva.lb.bawue.de
+
+Yours,
+Emanuel Schleussinger

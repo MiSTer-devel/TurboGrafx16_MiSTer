@@ -1,0 +1,99 @@
+
+
+Much more information will be available in the near future! Until then, enjoy this 
+summary of the Turbo/PCE memory mapping. 
+
+Memory Mapping 
+
+
+
+
+The HuC6280 has a 64KB logical address space and a 2MB physical address space. 
+To access this entire memory space, the processor depends on 8 memory mapping registers, 
+known as MPR0 - MPR7. These registers map each 8KB segment of the logical address space 
+to an 8KB segment in the physical address space. 
+
+
+
+Thus, the first block of memory, $0000 - $1FFF, is mapped using MPR0. 
+The next segment, $2000 - $3FFF, is mapped using MPR1, and so on. 
+These registers are set using the special TAM and TMA opcodes, described in the opcode section. 
+
+
+
+Memory Segment          MPR #          TAM / TMA argument 
+$E000 - $FFFF             7              10000000 
+$C000 - $DFFF             6              01000000 
+$A000 - $BFFF             5              00100000 
+$8000 - $9FFF             4              00010000  
+$6000 - $7FFF             3              00001000 
+$4000 - $5FFF             2              00000100 
+$2000 - $3FFF             1              00000010 
+$0000 - $1FFF             0              00000001 
+
+
+
+
+
+
+
+To form the physical address, the three high order bits from the logical address are 
+used to select an MPR. The 8 bits in the MPR then become the high order bits of the 
+address, thus forming a 21-bit physical address from a 16-bit logical address. 
+
+
+
+Here's an example, showing how the address $3F13 is mapped 
+to physical address $1F1F13 using MPR1: 
+
+
+
+See memmap1.jpg<Image>
+
+
+
+The 2MB physical address space available to the HuC6280 contains all of the 
+memory-mapped I/O necessary to interface with the other chips, the CD subsystem, 
+and the user (through the HuCard and joystick ports). Below is the full memory map 
+for the TurboGrafx / PC Engine family. Each segment is labeled with its corresponding 
+MPR register value ($00 - $FF), a description of the segment's use, 
+its physical address location, and a "chip enable signal" or other descriptive text. 
+The Develo Book describes the chip enable signal as an external signal that becomes 
+true when that area of memory is accessed. Currently, it is not known if these signals 
+correspond with any pins or traces available on the system motherboard. Signals 
+in parentheses, such as (/CEP), represent chip enable signals that are internal to 
+the HuC6280. The notation /SIGNAME is equivalent to a negative logic signal; that is, 
+the signal is active when it is low instead of high. 
+
+
+
+
+
+
+
+Physical Addresses          Segment #          Description          Chip Enable Signal 
+1FFC00 - 1FFFFF            FF           Reserved for Expansion 
+1FF800 - 1FFBFF            "             Reserved for Expansion 
+1FF400 - 1FF7FF            "         Interrupt Req./Disable Registers      (/CECG) 
+1FF000 - 1FF3FF            "                    I/O Ports                  (/CEIO) 
+1FEC00 - 1FEFFF            "                   TIMER Ports                 (/CET) 
+1FE800 - 1FEBFF            "                     PSG Ports                 (/CEP) 
+1FE400 - 1FE7FF            "                  HuC6260 Ports                 /CEK 
+1FE000 - 1FE3FF            "                  HuC6270 Ports                 /CE7  
+1FC000 - 1FDFFF            FE 
+1FA000 - 1FBFFF            FD 
+1F8000 - 1F9FFF            FC 
+1F2000 - 1F7FFF          F9 - FB                                            /CER 
+1F0200 - 1F1FFF            F8              Base "scratchpad" RAM              " 
+1F0100 - 1F01FF             "                  Stack Page                     " 
+1F0000 - 1F00FF             "                  Zero Page                      "
+1EE000 - 1EFFFF            F7           Last page of HuCard memory 
+004000 - 1EDFFF         02 - F6             HuCard storage 
+002000 - 003FFF            01 
+001FFE - 001FFF            00                Reset Vector 
+001FFC - 001FFD             "                 NMI Vector 
+001FFA - 001FFB             "                 TIMER Vector 
+001FF8 - 001FF9             "                 IRQ1 Vector 
+001FF6 - 001FF7             "                 IRQ2 Vector (for BRK) 
+000000 - 001FF5             "           First page of HuCard memory 
+
