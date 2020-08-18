@@ -128,7 +128,7 @@ module emu
 
 
 //`define DEBUG_BUILD
-
+//`define DEBUG_PALETTES
 
 `ifdef DEBUG_BUILD
 	localparam LITE = 1;
@@ -153,7 +153,7 @@ assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXX XXXXXXXXXXXXXXXX X  XX
+// XXXXX XXXXXXXXXXXXXXXX X  XXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -163,6 +163,10 @@ parameter CONF_STR = {
 	"FS1,SGX,Load SuperGrafx;",
 `endif
 	"-;",
+`ifdef DEBUG_PALETTES
+	"F3,TGP,Load Palette;",
+	"-;",
+`endif
 	"S0,CUE,Insert CD;",
 	"-;",
 	"C,Cheats;",
@@ -177,6 +181,7 @@ parameter CONF_STR = {
 	"P1O1,Aspect ratio,4:3,16:9;",
 	"P1O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"P1-;",
+	"P1OS,Colors,Original,Raw RGB;",
 	"P1OH,Overscan,Hidden,Visible;",
 	"P1OF,Border Color,Original,Black;",
 	"P1OB,Sprites per line,Normal,Extra;",
@@ -333,6 +338,10 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
 );
 
 wire reset = (RESET | status[0] | buttons[1] | bk_loading);
+
+`ifdef DEBUG_PALETTES
+wire palette_download = ioctl_download & (ioctl_index[5:0] == 6'h03 || (ioctl_index[7:6] == 1 && ~|ioctl_index));
+`endif
 
 wire code_index      = &ioctl_index;
 wire code_download   = ioctl_download & code_index;
@@ -578,15 +587,63 @@ always @(posedge CLK_VIDEO) begin
 	ce_pix <= ~old_ce & ce_vid;
 end
 
+`ifdef DEBUG_PALETTES
+logic [23:0] read_color;
+logic [8:0] ioctl_addr_1;
+logic [1:0] pal_cnt;
+
+always @(posedge clk_sys) begin
+	if (ioctl_wr & palette_download) begin
+		pal_cnt <= pal_cnt + 2'd1;
+		if (pal_cnt == 2) begin
+			pal_cnt <= 0;
+			ioctl_addr_1 <= ioctl_addr_1 + 1'd1;
+		end
+	end
+
+	if (palette_download)
+		read_color[{2'd2 - pal_cnt, 3'b000}+:8] <= ioctl_dout[7:0];
+	else begin
+		pal_cnt <= 0;
+		ioctl_addr_1 <= 0;
+	end
+end
+`endif
+
+logic [23:0] pal_color;
+
+dpram #(
+	.addr_width(9),
+	.data_width(24),
+	.mem_init_file("palette.mif")
+) palette_ram (
+	.clock(CLK_VIDEO),
+
+	.address_a({g,r,b}),
+	.q_a(pal_color)
+
+`ifdef DEBUG_PALETTES
+	,
+	.address_b(ioctl_addr_1),
+	.enable_b(palette_download),
+	.data_b({read_color[23:8], ioctl_dout[7:0]}),
+	.wren_b(ioctl_wr)
+`endif
+);
+
+logic [7:0] r1, b1, g1;
+
+assign {r1, g1, b1} = status[28] ? {{r,r,r[2:1]}, {g,g,g[2:1]}, {b,b,b[2:1]}} : pal_color;
+
 color_mix color_mix
 (
 	.clk_vid(CLK_VIDEO),
 	.ce_pix(ce_pix),
 	.mix(bw ? 3'd5 : 0),
 
-	.R_in({r,r,r[2:1]}),
-	.G_in({g,g,g[2:1]}),
-	.B_in({b,b,b[2:1]}),
+	.R_in(r1),
+	.G_in(g1),
+	.B_in(b1),
 	.HSync_in(hs),
 	.VSync_in(vs),
 	.HBlank_in(hbl),
