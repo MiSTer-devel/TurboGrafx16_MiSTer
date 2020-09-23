@@ -1,0 +1,494 @@
+
+ NEC SuperGrafx hardware notes
+ by Charles MacDonald
+ WWW: http://cgfm2.emuviews.com
+
+ Unpublished work Copyright 2003, 2004 Charles MacDonald
+
+ This document is in a very preliminary state and is subject to change.
+ Most everything within has been tested and verified on a SuperGrafx console,
+ but please be aware that my testing methods or interpretations of results
+ could be flawed. I can't guarantee that everything is 100% accurate.
+
+ What's New:
+
+ [04/17/04]
+ - Completed S-EXP port pin assignments.
+ - Clarified information about I/O port.
+ [02/21/03]
+ - Added information about 74HC157 output state for the S-EXP port.
+ - Added information about VDC #2 interrupts.
+
+ Table of contents:
+
+ - Overview
+ - Memory map
+ - I/O port
+ - PAD connector
+ - S-EXP connector
+ - EXT BUS connector
+ - Video Priority Controller
+ - Miscellaneous
+ - SuperGrafx software
+ - Disclaimer
+
+ ----------------------------------------------------------------------------
+ Overview
+ ----------------------------------------------------------------------------
+
+ The SuperGrafx is an upgraded version of the original PC-Engine, which is
+ mostly backwards compatible with it. It's improved features are:
+
+ - 32K of work RAM for the HuC6280 instead of 8K like the original PC-Engine.
+ - A second VDC with 64K of VRAM.
+ - A video priority controller chip to mix the output of both VDCs, the
+   combined output is sent to the VCE for display.
+
+ It has the following components:
+
+ Hudson HuC6202         Video Priority Controller
+ Hudson HuC6260A        Video Color Encoder
+ Hudson HuC6270  (x2)   Video Display Controller
+ Hudson HuC6280A        CPU
+ HSRM20256-LM10         32K SRAM for CPU work RAM
+ HSRM20256-M12   (x4)   128K SRAM for video RAM (32Kx2 per VDC)
+ MC74HC157N             Quad 2-to-1 multiplexer for PAD and S-EXP ports
+
+ I don't know if the 'A' revisions of the VCE and CPU are different
+ from what was used in the original PC-Engine and TurboGrafx-16. Since
+ the VPC and VDC have no 'A' suffix, they are probably unchanged from
+ the first version of Hudson Soft's original C62 chip set.
+
+ Even though each VDC chip can support up to 128K of video RAM, each one
+ only has 64K available, just like the original PC-Engine.
+
+ The system has a switch located in the back of the unit which selects
+ either PC-Engine compatability mode or native SuperGrafx mode. This
+ switch is to support original PC-Engine games which try to access the
+ VDC at mirrored locations, which the SuperGrafx hardware uses.
+
+ The SuperGrafx has the same type of EXT-BUS connector used in the PC-Engine
+ and other systems to interface with a CD-ROM drive. However, the unique
+ shape of the SuperGrafx prevents it from fitting into the IFU-30 interface
+ tray for use with the original CD-ROM drive.
+
+ NEC sold an extension cable called the RAU-30 that clips on to the back of
+ the SuperGrafx, and has a PC-Engine shaped box on the other end of the
+ cable that fits into the IFU-30 to allow the two to work.
+
+ ----------------------------------------------------------------------------
+ HuC6280 memory map
+ ----------------------------------------------------------------------------
+
+ Bank map
+
+ 00-7F : HuCard ROM
+ 80-87 : Unused (returns $FF, optionally 64K of CD RAM goes here)
+ 88-F6 : Unused (returns $FF)
+ F7    : Unused (returns $FF, optionally 2K of backup RAM goes here)
+ F8-FB : Work RAM (32K)
+ FC-FE : Unused (returns $FF)
+ FF    : I/O region
+
+ The above layout assumes a stock machine with no special HuCards or
+ accessories being used. The full 32K of work RAM is always available
+ regardless of being in PC-Engine or SuperGrafx mode.
+
+ The I/O region has the following layout:
+
+ 0000-03FF : Video chip area
+ 0400-07FF : VCE registers
+ 0800-0BFF : PSG registers
+ 0C00-0FFF : Timer registers
+ 1000-13FF : I/O port
+ 1400-17FF : IRQ registers
+ 1800-1BFF : Unused (returns $FF, optionally CD/backup registers go here)
+ 1C00-1FFF : Unused (returns $FF)
+
+ The video chip area has two different arrangements. In PC-Engine mode,
+ VDC #1 has it's registers mapped here, mirrored repeatedly for every 4
+ bytes. In SuperGrafx mode, a 32-byte block is mirrored throughout the 1K
+ space containing more registers:
+
+ 0000-0003 : VDC #1 registers
+ 0004-0007 : VDC #1 registers (mirror)
+ 0008-000F : VPC registers
+ 0010-0013 : VDC #2 registers
+ 0014-0017 : VDC #2 registers (mirror)
+ 0018-001F : Unused (returns $FF)
+
+ ----------------------------------------------------------------------------
+ I/O port
+ ----------------------------------------------------------------------------
+
+ The HuC6280 contains an 8-bit input port and 8-bit output port as part of
+ it's on-chip peripherals. Writing to $1000-$13FF sets the state of the
+ output latch connected to the output port pins, and reading $1000-$13FF
+ returns the state of input port pins.
+
+ The inputs have pull-up resistors, so they return '1' when left unconnected
+ or not being actively driven low.
+
+ HuC6280 pin    Description             SuperGrafx use
+ 22             Input port bit 0        From 74HC157 1Y (PAD pin G, S-EXP pin e) (D0)
+ 24             Input port bit 1        From 74HC157 2Y (PAD pin F, S-EXP pin f) (D1)
+ 25             Input port bit 2        From 74HC157 3Y (PAD pin E, S-EXP pin g) (D2)
+ 26             Input port bit 3        From 74HC157 4Y (PAD pin D, S-EXP pin h) (D3)
+ 27             Input port bit 4        Not connected
+ 28             Input port bit 5        Not connected
+ 29             Input port bit 6        Not connected
+ 30             Input port bit 7        From EXT-BUS pin CD
+ 31             Output port bit 0       To S-EXP pin p, PAD pin C (SEL)
+ 32             Output port bit 1       To S-EXP pin o, PAD pin B (CLR)
+ 33             Output port bit 2       To S-EXP pin n
+ 34             Output port bit 3       To S-EXP pin m
+ 35             Output port bit 4       To S-EXP pin j
+ 36             Output port bit 5       To S-EXP pin a
+ 37             Output port bit 6       To S-EXP pin b
+ 38             Output port bit 7       To S-EXP pin c
+
+ Input port bits 3-0 are shared between the PAD and S-EXP connectors through
+ a multiplexer.
+
+ Input port bits 6-4 are not connected and return '1' when read.
+ Bit 6 is used by export software to detect if the system is PC-Engine
+ compatible (bit 6 = 1) or TurboGrafx-16 compatible (bit 6 = 0).
+
+ Bit 7 is used by pin CD of the EXT-BUS connector to determine if a device
+ is connected to it (bit 7 = 1) or if nothing is present (bit 7 = 0).
+
+ Output ports bit 0,1 (SEL and CLR) go to both the PAD and S-EXP connectors,
+ and are always active regardless of something being plugged into the
+ S-EXP connector or not.
+
+ ----------------------------------------------------------------------------
+ PAD connector
+ ----------------------------------------------------------------------------
+
+ This is a 8-pin female mini DIN connector, identical to the type used on
+ other NEC systems like the PC-Engine / Shuttle / Duo / R / RX consoles.
+
+ Left   Right
+
+   A B C
+  D   E F
+    G H
+
+ A = Ground
+ B = Output port bit 1 (CLR)
+ C = Output port bit 0 (SEL)
+ D = Input port bit 3 (D3)
+ E = Input port bit 2 (D2)
+ F = Input port bit 1 (D1)
+ G = Input port bit 0 (D0)
+ H = +5V
+
+ The plug notch is directly above pin B.
+
+ The controller circuit board has a 9-pin connector which the cable plugs
+ into. Here is it's pinout, assuming you are looking at the board with
+ the component side facing you.
+
+ Left        Right
+ 1 2 3 4 5 6 7 8 9
+
+ 1 = +5V
+ 2 = Input port bit 0 (D0)
+ 3 = Input port bit 1 (D1)
+ 4 = Input port bit 2 (D2)
+ 5 = Input port bit 3 (D3)
+ 6 = Output port bit 0 (SEL)
+ 7 = Output port bit 1 (CLR)
+ 8 = Ground
+ 9 = Ground (Shield)
+
+ ----------------------------------------------------------------------------
+ S-EXP connector
+ ----------------------------------------------------------------------------
+
+ This is an 18-pin female connector located at the front of the unit. It
+ is an expanded version of the PAD connector with more output pins.
+
+ Left           Right
+  a b c d e f g h i
+  j k l m n o p q r
+
+ a = Output port bit 5
+ b = Output port bit 6
+ c = Output port bit 7
+ d = Ground
+ e = Input port bit 0 (D0)
+ f = Input port bit 1 (D1)
+ g = Input port bit 2 (D2)
+ h = Input port bit 3 (D3)
+ i = +5V
+
+ j = Output port bit 4
+ k = Ground
+ l = Multiplexer select input (GND= S-EXP, +5V= PAD)
+ m = Output port bit 3
+ n = Output port bit 2
+ o = Output port bit 1 (CLR)
+ p = Output port bit 0 (SEL)
+ q = Ground
+ r = +5V
+
+ A 74HC157 multiplexer is used to share input port bits D3-D0 between the
+ PAD and S-EXP connectors. It is always enabled, and has the select input
+ tied to S-EXP pin l through a pull-up resistor. This means that normally
+ the PAD connector is used, and if something is plugged in to the S-EXP port,
+ the PAD connector inputs are disabled and bits D3-D0 of the input port are
+ routed to the S-EXP connector instead.
+
+ As far as I know, NEC only released one peripheral which used the S-EXP
+ port, which was a multi-function input device. I don't know if it was
+ commercially released or was only in the prototype stages; some magazines
+ have a picture of the unit with the SuperGrafx plugged into the back.
+ It's not known if any existing SuperGrafx software supports it.
+
+ ----------------------------------------------------------------------------
+ EXT BUS connector
+ ----------------------------------------------------------------------------
+
+ This is used to hook the SuperGrafx up to a CD-ROM peripheral, and most
+ likely works with other items like the various backup boosters, A/V
+ booster, and printer.
+
+ My unit had a modification made to the board; a wire was added to join the
+ /OE pin on the EXT BUS connector to the /RD pin on the HuCard card edge
+ connector. I don't know if all units have this or if it was a problem
+ with earlier models only. I've seen a photograph of another SuperGrafx
+ with the same modification as well.
+
+ ----------------------------------------------------------------------------
+ Video Priority Controller
+ ----------------------------------------------------------------------------
+
+ The VPC performs several functions:
+
+ - Controls address decoding for the video register area determined by the
+   compatability mode switch.
+
+ - Combines the video output of VDC #1 and VDC #2, passing the result to
+   the VCE for display.
+
+ - Allows the store-immediate instructions (ST0, ST1, ST2) to affect either
+   VDC #1 or VDC #2.
+
+ - Mananges two windows to allow modification of priority and visibility
+   between the VDC #1 and VDC #2 displays on a per-pixel basis.
+
+ Overview
+
+ The VDC has a 9-bit bus which transmits pixel data (4 bits), palette data
+ (4 bits), and a sprite/background indicator (1 bit). In other systems,
+ this bus is connected to the VCE and directly indexes it's 512-entry color
+ table. For the SuperGrafx this is connected to the VPC for further
+ processing.
+
+ Priority between backgrounds and sprites are managed internally to the
+ VDC, and no priority information is output for the VPC to use. This means
+ that the VPC cannot distinguish between the following:
+
+ - High priority or low priority sprites
+
+ - Background tiles with low-priority sprites in an earlier SAT position
+   behind them to mask out high-priority sprites with a later SAT position
+   in front.
+
+ The priority management that the VPC is responsible for is simply ordering
+ the four layers (VPC #1 background, sprites, VPC #2 background, sprites)
+ based on the sprite/background indicator bit and the transparency state
+ of the pixel data from each layer.
+
+ Windows
+
+ The VPC has two 10-bit registers which define the width of Window 1 and
+ Window 2. The windows start from the leftmost pixel of the physical screen,
+ not the active display area, which is a window width setting of $0040.
+ Values smaller than this disable the window, and values larger than this
+ make the window extend horizontally across the screen, from left to right,
+ A setting of $3FF makes the window take up the entire width of the screen.
+
+ Priority Control
+
+ VPC registers $0008 and $0009 make up four 4-bit register groups:
+
+ Bit 3 : Priority mode, bit 1
+ Bit 2 : Priority mode, bit 0
+ Bit 1 : VDC #2 display enable (0= off, 1= on)
+ Bit 0 : VDC #1 display enable (0= off, 1= on)
+
+ Store Immediate Control
+
+ The VPC manages video output from both VDC chips and determines which
+ pixel data from either VDC will be sent to the VCE to be displayed. It
+ seems to also handle address decoding for the VDC memory area, to map
+ the VDC #2 and it's own registers there.
+
+ The VPC controls two windows which individually select which VDC layers
+ are enabled and what the priority setting is. The windows can have their
+ width defined in units of single pixels, and are as tall as the height of
+ the display. There are four possible areas defined by the windows; where
+ there is no window, only window 1, only window 2, or where window 1 and
+ 2 overlap.
+
+ Registers $0008 and $0009 make up four 4-bit values that define the
+ enabled layers and priority setting for the four possible window areas.
+ Each 4-bit value has the same format:
+
+ bit 3 : Bit 1 of priority setting
+ bit 2 : Bit 0 of priority setting
+ bit 1 : VDC #2 graphics are 0=disabled, 1=enabled
+ bit 0 : VDC #1 graphics are 0=disabled, 1=enabled
+
+ Bits 7-4 of $0008 are for the region occupied by window 2
+ Bits 3-0 of $0008 are for the region where window 1 and 2 overlap
+ Bits 7-4 of $0009 are for the region where no window is present
+ Bits 3-0 of $0009 are for the region occupied by window 1
+
+ Both registers return the value last written.
+
+ If both VDC graphics layers are disabled, color 0 from the VCE color
+ table is shown for all pixels in the region affected. This includes the
+ overscan area, which in a regular TurboGrafx-16/PC-Engine is filled
+ with color 256 (first entry of the sprite palette).
+
+ The default priority as as follows:
+
+ Back                          Front
+ SP2 > BG2 > SP2' > SP1 > BG1 > SP1'
+
+ BG2 = VDC #2 background
+ SP2 = VDC #2 low priority sprites
+ SP2'= VDC #2 high priority sprites
+ BG1 = VDC #1 background
+ SP1 = VDC #1 low priority sprites
+ SP1'= VDC #1 high priority sprites
+
+ The 2-bit priority field affects the layer ordering. The above default
+ priority setting is selected for values of 00b and 11b.
+
+ For 01b, VDC #1 sprites are shown behind the VDC #2 background. However,
+ the VDC #1 background has missing sprite-shaped areas where it's sprites
+ are, even though they are hidden behind both background layers.
+
+ For 10b, VDC #2 sprites are shown in front of the VDC #1 background and
+ behind VDC #1 sprites. However, low priority VDC #2 sprites are still
+ shown behind VDC #2 background tiles.
+
+ To my understanding, both VDC chips output a 9-bit code, which consists
+ of four bits for pixel data, four bits for palette data, and one bit
+ which is a background or sprite indicator. This is why a setting of 01b
+ has missing areas where the sprites are, because the VDC #1 isn't sending
+ any background graphics data for those pixels, only sprite data. For
+ the same reason, this is why a setting of 10b allows VDC #2 sprites to
+ appear over the VDC #1 background but still be shown behind the VDC #2
+ background if the sprite is low priority. The sprite and background priority
+ handling is done internally by the VDC, and the final image is output to
+ the VPC. The VPC can't tell the difference between low and high priority
+ sprites.
+
+ The window width is a 10-bit value. Values smaller than $40 mean the window
+ is hidden but I haven't checked to see if this affects the horizontal
+ overscan area. Here are the registers used:
+
+ $000A : Window 1 (LSB in D7-D0)
+ $000B : Window 1 (MSB in D1-D0)
+ $000C : Window 2 (LSB in D7-D0)
+ $000D : Window 2 (MSB in D1-D0)
+
+ Each register returns the value last written, though the MSB register
+ only retains data in bits 1 and 0.
+
+ When bit 0 of register $000E is set, the ST0, ST1, and ST2 instructions
+ send data to VDC #2 instead of VDC #1. Regular access (STZ, STX, etc.) to
+ the VDC #1 or #2 registers function normally. Reading this register always
+ returns $00.
+
+ Register $000F seems to be unused. Reading it always returns $00.
+
+ On power-up the VPC is initialized to the following settings for
+ registers $0008 through $000F:
+
+ $11 $11 $00 $00 $00 $00 $00 $00
+
+ This disables the windows and store immediate to VDC #2 mode, and has the
+ same priority setting with only VDC #1 enabled for all window regions.
+
+ ----------------------------------------------------------------------------
+ Miscellaneous
+ ----------------------------------------------------------------------------
+
+ On power-up, work RAM banks $F8 and $FA are initialized to mostly zero with
+ some random data, and banks $F9 and $FB are initialized to mostly $FF with
+ some random data.
+
+ When reading the VCE color data, odd addresses return random data in unused
+ bits 7-1. In a TurboGrafx-16 these bits are always fixed at '1'.
+
+ On power-up, most of the VCE color entries are initialized with many or all
+ of the bits set. This is why turning on a SuperGrafx with no game inserted
+ gives a white or bright pink, green, or blue screen. The color table address
+ is always reset to zero.
+
+ Even though the VPC window / priority settings affect the entire height of
+ the display, I think the designers assumed raster effects would be used to
+ split up the screen vertically.
+
+ Since the VCE controls the dot clock for both VDC chips and the VPC, it's
+ not possible to have mixed resolutions. However, each VDC can define how
+ much of the display it will use through it's own screen size registers.
+
+ The /IRQ1 input of the HuC6280 is shared with both VDC's. This means
+ that when an IRQ1 interrupt occurs, you have to read the status flags
+ from VDC #1 and #2 to determine which one caused it.
+
+ There's no conflict if they both request an interrupt at the same time,
+ but you do need to acknowledge the interrupt by reading the status flags
+ from VDC #1 and #2.
+
+ From a programming standpoint, as both video chips are in sync with each
+ other and are managed by the same CPU, it would be easier to disable
+ interrupts on VDC #2 and only use them on VDC #1. After all, there's no
+ point in having both of them cause a VD interrupt at the end of the frame.
+
+ ----------------------------------------------------------------------------
+ SuperGrafx software
+ ----------------------------------------------------------------------------
+
+ Here's a list of all of the SuperGrafx games I know of:
+
+ - Ghouls & Ghosts
+ - Grandzort
+ - Battle Ace
+ - Aldynes
+ - 1941 Counter Attack
+
+ Darius Plus is a regular PC-Engine game which uses the SuperGrafx (if
+ present) to add more sprites for less flicker. Darius Alpha is a
+ promotional version of the game which has the same feature, it was given
+ to people who had purchased the Darius Plus HuCard as well as the Super
+ Darius CD game.
+
+ Strider is not a SuperGrafx game and was released as a CD game which
+ required the Arcade Card. Even then, it is a pretty bad port of the
+ original game, though the redone soundtrack is nice. :)
+
+ There are no CD, SCD, or ACD games which were written for the SuperGrafx.
+
+ ----------------------------------------------------------------------------
+ Disclaimer
+ ----------------------------------------------------------------------------
+
+ If you use any information from this document, please credit me
+ (Charles MacDonald) and optionally provide a link to my webpage
+ (http://cgfm2.emuviews.com/) so interested parties can access it.
+
+ The credit text should be present in the accompanying documentation of
+ whatever project which used the information, or even in the program
+ itself (e.g. an about box).
+
+ Regarding distribution, you cannot put this document on another
+ website, nor link directly to it.
+
