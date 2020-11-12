@@ -480,31 +480,23 @@ begin
 				when x"0F" =>
 					EXT_DO <= "0000" & ADPCM_FADER & "0";
 					
+				when x"C0" =>
+					EXT_DO <= x"00";
 				when x"C1" =>
 					EXT_DO <= x"AA";
 				when x"C2" =>
 					EXT_DO <= x"55";
 				when x"C3" =>
-					EXT_DO <= x"00";
+					EXT_DO <= x"03";
 
+				when x"C4" =>
+					EXT_DO <= x"FF";
 				when x"C5" =>
-					if CD_REGION = '1' then
-						EXT_DO <= x"55";
-					else
-						EXT_DO <= x"AA";
-					end if;
+					EXT_DO <= x"FF";
 				when x"C6" =>
-					if CD_REGION = '1' then
-						EXT_DO <= x"AA";
-					else
-						EXT_DO <= x"55";
-					end if;
+					EXT_DO <= x"FF";
 				when x"C7" =>
-					if CD_REGION = '1' then
-						EXT_DO <= x"C0";
-					else
-						EXT_DO <= x"03";
-					end if;
+					EXT_DO <= x"FF";
 				when others => null;
 			end case;
 		end if;
