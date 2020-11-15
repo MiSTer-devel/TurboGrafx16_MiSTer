@@ -470,6 +470,8 @@ generate_SGX: if (LITE = 0) generate begin
 		VDC0_IN  => VDC0_COLNO,
 		VDC1_IN  => VDC1_COLNO,
 		VDC_OUT  => VDC_COLNO,
+		
+		SGX		=> SGX,
 
 		VDCNUM   => VDCNUM
 	);

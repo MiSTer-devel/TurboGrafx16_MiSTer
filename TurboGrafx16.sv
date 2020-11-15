@@ -39,8 +39,8 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output  [7:0] VIDEO_ARX,
-	output  [7:0] VIDEO_ARY,
+	output [11:0] VIDEO_ARX,
+	output [11:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -50,6 +50,7 @@ module emu
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
+	output        VGA_SCALER, // Force VGA scaler
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -145,15 +146,18 @@ assign LED_USER  = cart_download | bk_state | bk_pending;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = osd_btn | llapi_osd;
+assign VGA_SCALER= 0;
 
-assign VIDEO_ARX = status[1] ? 8'd16 : overscan ? 8'd4 : 8'd47;
-assign VIDEO_ARY = status[1] ? 8'd9  : overscan ? 8'd3 : 8'd37;
+wire [1:0] ar = status[25:24];
+
+assign VIDEO_ARX = (!ar) ? (overscan ? 8'd4 : 8'd47) : (ar - 1'd1);
+assign VIDEO_ARY = (!ar) ? (overscan ? 8'd3 : 8'd37) : 12'd0;
 
 // Status Bit Map:
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXX XXXXXXXXXXXXXXXX X  XXX XX
+// XXXXX XXXXXXXXXXXXXXXX XXXXXX XX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -178,7 +182,7 @@ parameter CONF_STR = {
 	"-;",
 	"P1,Audio & Video;",
 	"P1-;",
-	"P1O1,Aspect ratio,4:3,16:9;",
+	"P1OOP,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O8A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"P1-;",
 	"P1OS,Colors,Original,Raw RGB;",
@@ -199,7 +203,7 @@ parameter CONF_STR = {
 `endif
 	"P2-;",
 	"P2OE,Arcade Card,Disabled,Enabled;",
-	"P2OP,CD Seek,Normal,Fast;",
+	"P2O1,CD Seek,Normal,Fast;",
 	"P2-;",
 	"P2OUV,USER I/O,Off,SNAC,LLAPI;",
 	"H5P2OL,MB128,Disabled,Enabled;",
@@ -502,7 +506,7 @@ always @(posedge clk_sys) begin
 		cd_reset_req_old <= cd_reset_req;
 		if (cd_comm_send && !cd_comm_send_old) begin
 			cd_in[95:0] <= cd_comm;
-			cd_in[111:96] <= {status[25],15'd0};
+			cd_in[111:96] <= {status[1],15'd0};
 			cd_in[112] <= ~cd_in[112];
 
 			comm_cnt <= comm_cnt + 8'd1;

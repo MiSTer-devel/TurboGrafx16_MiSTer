@@ -38,6 +38,8 @@ entity huc6202 is
 		VDC1_IN	: in std_logic_vector(8 downto 0);
 		VDC_OUT	: out std_logic_vector(8 downto 0);
 
+		SGX		: in std_logic;
+
 		VDCNUM	: out std_logic
 	);
 end huc6202;
@@ -100,7 +102,11 @@ begin
 
 			if INMIX = '1' and PRI(1 downto 0) /= "00" and VDCDATA(7 downto 0) = x"00" then
 				-- replace color 0 -> 256 if in mixing and one of VDC is enabled
-				VDC_OUT <= "100000000";
+				if SGX = '1' then
+					VDC_OUT <= "000000000";
+				else
+					VDC_OUT <= "100000000";
+				end if;
 			else
 				VDC_OUT <= VDCDATA;
 			end if;
