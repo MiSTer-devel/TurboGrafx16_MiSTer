@@ -157,7 +157,7 @@ assign VIDEO_ARY = (!ar) ? (overscan ? 8'd3 : 8'd37) : 12'd0;
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXX XXXXXXXXXXXXXXXX XXXXXX
+// XXXXXXXXXXXXXXXXXXXXXX XXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -174,7 +174,7 @@ parameter CONF_STR = {
 	"S0,CUE,Insert CD;",
 	"-;",
 	"C,Cheats;",
-	"H1OO,Cheats enabled,ON,OFF;",
+	"H1O5,Cheats enabled,ON,OFF;",
 	"-;",
 	"D0RG,Load Backup RAM;",
 	"D0R7,Save Backup RAM;",
@@ -392,7 +392,7 @@ pce_top #(LITE) pce_top
 	.BRM_DI(bram_data),
 	.BRM_WE(bram_wr),
 
-	.GG_EN(status[24]),
+	.GG_EN(status[5]),
 	.GG_CODE(gg_code),
 	.GG_RESET((cart_download | code_download) & ioctl_wr & !ioctl_addr),
 	.GG_AVAIL(gg_avail),
