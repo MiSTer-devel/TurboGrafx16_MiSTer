@@ -9,7 +9,7 @@ package HUC6280_PKG is
 		ADDR_BUS      	: std_logic_vector(2 downto 0);
 		LOAD_SDLH      : std_logic_vector(1 downto 0);
 		LOAD_P			: std_logic_vector(2 downto 0); 
-		LOAD_T			: std_logic_vector(1 downto 0); 
+		LOAD_T			: std_logic_vector(2 downto 0); 
 		ADDR_CTRL     	: std_logic_vector(5 downto 0);
 		LOAD_PC       	: std_logic_vector(2 downto 0);
 		LOAD_SP       	: std_logic_vector(2 downto 0);
@@ -31,7 +31,7 @@ package HUC6280_PKG is
 		ADDR_BUS      	: std_logic_vector(2 downto 0);
 		LOAD_SDLH      : std_logic_vector(1 downto 0);
 		LOAD_P			: std_logic_vector(2 downto 0); 
-		LOAD_T			: std_logic_vector(1 downto 0); 
+		LOAD_T			: std_logic_vector(2 downto 0); 
 		ADDR_CTRL     	: std_logic_vector(5 downto 0);
 		LOAD_PC       	: std_logic_vector(2 downto 0);
 		LOAD_SP       	: std_logic_vector(2 downto 0);
