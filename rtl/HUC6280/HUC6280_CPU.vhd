@@ -280,9 +280,10 @@ begin
 		elsif rising_edge(CLK) then
 			if EN = '1' then 
 				case MC.LOAD_T is
-					when "01" => T <= ALU_OUT;
-					when "10" => T <= X;
-					when "11" => T <= Y;
+					when "001" => T <= ALU_OUT;
+					when "010" => T <= X;
+					when "011" => T <= Y;
+					when "100" => T <= DI; 
 					when others => null;
 				end case;
 			end if; 
@@ -413,7 +414,6 @@ begin
 				P(7 downto 5) & (not GOT_INT) & P(3 downto 0) when "0101",
 				PC(15 downto 8) when "0110",
 				PC(7 downto 0) when "0111",
-				DR when "1000",
 				x"00" when others;
 		
 	process(MC, RES_INT)
