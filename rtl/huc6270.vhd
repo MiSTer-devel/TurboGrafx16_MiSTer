@@ -148,6 +148,8 @@ architecture rtl of HUC6270 is
 	signal BYRL_SET		: std_logic;
 	signal BYRH_SET		: std_logic;
 	signal VDISP_OLD		: std_logic;
+	signal RD_N_OLD		: std_logic;
+	signal SR_LATCH		: std_logic_vector(6 downto 0);
 	
 	--H/V counters
 	signal DOT_CNT			: unsigned(2 downto 0);
@@ -1180,10 +1182,18 @@ begin
 			elsif CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
 				case A is
 					when "00" =>
-						IRQ_DMA <= '0';
-						IRQ_RCR <= '0';
-						IRQ_DMAS <= '0';
-						IRQ_VBL <= '0';	
+						if SR_LATCH(5) = '1' then
+							IRQ_VBL <= '0';	
+						end if;
+						if SR_LATCH(4) = '1' then
+							IRQ_DMA <= '0';
+						end if;
+						if SR_LATCH(3) = '1' then
+							IRQ_DMAS <= '0';
+						end if;
+						if SR_LATCH(2) = '1' then
+							IRQ_RCR <= '0';
+						end if;
 					when "10" =>
 					when "11" =>
 						if AR = "0" & x"2" then
@@ -1296,8 +1306,6 @@ begin
 							DMAS_SAT_ADDR <= (others=>'0');
 							DMAS_EXEC <= '1';
 						end if;
---					elsif VDISP = '1' and VDISP_OLD = '0' and BURST = '0' then
---						DMA_EXEC <= '0';
 					end if;
 				end if;
 				
@@ -1322,14 +1330,26 @@ begin
 			end if;
 		end if;
 	end process;
-
 	
-	process(A, CPU_BUSY, IRQ_VBL, IRQ_DMA, IRQ_DMAS, IRQ_RCR, IRQ_OVF, IRQ_COL, VRR)
+	process(CLK, RST_N)
+	begin
+		if RST_N = '0' then
+			SR_LATCH <= (others=>'0');
+			RD_N_OLD <= '1';
+		elsif rising_edge(CLK) then
+			RD_N_OLD <= RD_N;
+			if RD_N = '0' and RD_N_OLD = '1' then
+				SR_LATCH <= CPU_BUSY & IRQ_VBL & IRQ_DMA & IRQ_DMAS & IRQ_RCR & IRQ_OVF & IRQ_COL;
+			end if;
+		end if;
+	end process;
+
+	process(A, SR_LATCH, VRR)
 	begin
 		DO <= x"00";
 		case A is
 			when "00" =>
-				DO <= "0" & CPU_BUSY & IRQ_VBL & IRQ_DMA & IRQ_DMAS & IRQ_RCR & IRQ_OVF & IRQ_COL;
+				DO <= "0" & SR_LATCH;
 			when "10" =>
 				DO <= VRR(7 downto 0);
 			when "11" =>
@@ -1339,7 +1359,7 @@ begin
 	end process;
 	
 	IRQ_N <= not (IRQ_COL or IRQ_OVF or IRQ_RCR or IRQ_DMAS or IRQ_DMA or IRQ_VBL);
-	BUSY_N <= '0' when CPU_BUSY = '1' and CS_N = '0' and (RD_N = '0' or WR_N = '0') and A(1) = '1' and (AR = "00010" or AR = "00001" or AR = "00000") else '1';--
+	BUSY_N <= '0' when CPU_BUSY = '1' and CS_N = '0' and (RD_N = '0' or WR_N = '0') and A(1) = '1' and (AR = "00010" or AR = "00001" or AR = "00000") else '1';
 	
 		
 	process(SLOT, BG_RAM_ADDR, SPR_RAM_ADDR, DCK_CE, DMAS_VRAM_ADDR, DMAS_EXEC, DMA_EXEC, DMA_WR, SOUR, DESR, DMA_BUF, CPUWR_EXEC, CPU_VRAM_ADDR, CPU_VRAM_DATA)
