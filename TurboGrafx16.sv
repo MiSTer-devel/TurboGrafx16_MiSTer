@@ -383,7 +383,7 @@ pce_top #(LITE) pce_top
 	.ROM_RDY(rom_sdrdy & rom_ddrdy & ram_ddrdy),
 	.ROM_A(rom_rdaddr),
 	.ROM_DO(use_sdr ? rom_sdata : rom_ddata),
-	.ROM_SZ(romwr_a[23:16]),
+	.ROM_SZ(romwr_a[23:12]),
 	.ROM_POP(populous[romwr_a[9]]),
 	.ROM_CLKEN(ce_rom),
 

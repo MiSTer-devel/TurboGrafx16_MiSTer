@@ -17,7 +17,7 @@ entity pce_top is
 		ROM_RDY		: in  std_logic;
 		ROM_A 		: out std_logic_vector(21 downto 0);
 		ROM_DO 		: in  std_logic_vector(7 downto 0);
-		ROM_SZ 		: in  std_logic_vector(7 downto 0);
+		ROM_SZ 		: in  std_logic_vector(11 downto 0);
 		ROM_POP		: in  std_logic;
 		ROM_CLKEN	: out std_logic;
 
@@ -565,14 +565,14 @@ CPU_DI <= RAM_DO        when CPU_RAM_SEL_N  = '0'
 -- 512K ROM, mapped ABCDABCD -> simple repeat
 -- 1MB and others            -> Straight mapping
 
-ROM_A <=   "00000"&CPU_A(16 downto 0)                                       when rom_sz = X"02" -- 128K
-      else "0000"&CPU_A(17 downto 0)                                        when rom_sz = X"04" -- 256K
-      else "000"&CPU_A(19)&(CPU_A(17) and not CPU_A(19))&CPU_A(16 downto 0) when rom_sz = X"06" -- 384K
-      else "000"&CPU_A(18 downto 0)                                         when rom_sz = X"08" -- 512K
-      else "00" &CPU_A(19)&(CPU_A(18) and not CPU_A(19))&CPU_A(17 downto 0) when rom_sz = X"0C" -- 768K
+ROM_A <=   "00000"&CPU_A(16 downto 0)                                       when rom_sz = X"020" -- 128K
+      else "0000"&CPU_A(17 downto 0)                                        when rom_sz = X"040" -- 256K
+      else "000"&CPU_A(19)&(CPU_A(17) and not CPU_A(19))&CPU_A(16 downto 0) when rom_sz = X"060" -- 384K
+      else "000"&CPU_A(18 downto 0)                                         when rom_sz = X"080" -- 512K
+      else "00" &CPU_A(19)&(CPU_A(18) and not CPU_A(19))&CPU_A(17 downto 0) when rom_sz = X"0C0" -- 768K
       else (CPU_A(19) and (rombank(0) and rombank(1)))
           &(CPU_A(19) and (rombank(0) xor rombank(1)))
-          &(CPU_A(19) and not rombank(0))&CPU_A(18 downto 0)                when rom_sz = X"28" -- SF2
+          &(CPU_A(19) and not rombank(0))&CPU_A(18 downto 0)                when rom_sz = X"280" -- SF2
       else "00"&CPU_A(19 downto 0);                                                             -- 1MB and others
 
 ROM_RD    <= CPU_PRE_RD and not CPU_ROM_SEL_N and CPU_PRAM_SEL_N and ((AC_RAM_CS_N and CD_RAM_CS_N) or not CD_EN);
