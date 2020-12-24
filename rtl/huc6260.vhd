@@ -82,6 +82,7 @@ constant TOP_BL_LINES_E	: integer := 19;   -- pcetech.txt (must include VS_LINES
 constant DISP_LINES_E	: integer := 242;	 -- same as in mednafen
 signal TOP_BL_LINES		: integer;
 signal DISP_LINES			: integer;
+signal END_LINE			: integer := TOTAL_LINES;
 
 signal H_CNT	: std_logic_vector(11 downto 0);
 signal V_CNT	: std_logic_vector(9 downto 0);
@@ -215,8 +216,13 @@ begin
 			CLKEN_FF <= '1';				
 			H_CNT <= (others => '0');
 			V_CNT <= V_CNT + 1;
-			if V_CNT = TOTAL_LINES-1 then
+			if V_CNT >= END_LINE-1 then
 				V_CNT <= (others => '0');
+				if CR(2) = '1' then			-- artifact bit affects number of lines per field; check at start of field
+				  END_LINE <= TOTAL_LINES;
+				else
+				  END_LINE <= TOTAL_LINES - 1;
+				end if;
 			end if;
 			-- Reload registers
 			BW <= CR(7);
@@ -272,7 +278,7 @@ begin
 		VS_R <= '0';
 		if H_CNT = LINE_CLOCKS-1 then HS_F <= '1'; end if;
 		if H_CNT = HS_CLOCKS-1   then HS_R <= '1'; end if;
-		if V_CNT = TOTAL_LINES-1 and H_CNT = LINE_CLOCKS-1 then VS_F <= '1'; end if;
+		if V_CNT = END_LINE-1    and H_CNT = LINE_CLOCKS-1 then VS_F <= '1'; end if;
 		if V_CNT = VS_LINES-1    and H_CNT = LINE_CLOCKS-1 then VS_R <= '1'; end if;
 	end if;
 end process;
