@@ -739,16 +739,9 @@ end
 video_mixer #(.LINE_LENGTH(560), .GAMMA(1)) video_mixer
 (
 	.*,
-
-	.clk_vid(CLK_VIDEO),
-	.ce_pix(ce_pix),
-	.ce_pix_out(CE_PIXEL),
 	.VGA_DE(vga_de),
-
-	.scanlines(0),
 	.scandoubler(scale || forced_scandoubler),
-	.hq2x(scale==1),
-	.mono(0)
+	.hq2x(scale==1)
 );
 
 
