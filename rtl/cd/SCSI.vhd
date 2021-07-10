@@ -35,6 +35,7 @@ entity SCSI is
 		CD_DATA		: in std_logic_vector(7 downto 0);
 		CD_WR			: in std_logic;
 		CD_DATA_END	: out std_logic;
+		STOP_CD_SND	: out std_logic;
 		
 		DBG_DATAIN_CNT: out unsigned(15 downto 0)
 	);
@@ -141,6 +142,7 @@ begin
 			DATA_BUF <= (others => (others => '0'));
 			DATA_POS <= (others => '0');
 			SP <= SP_FREE;
+			STOP_CD_SND <= '0';
 			
 			COMM_OUT <= '0';
 			DATA_OUT <= '0';
@@ -224,6 +226,9 @@ begin
 								COMM_OUT <= '1';
 								CD_Nr <= '1';
 								SP <= SP_FREE;
+								if (COMM(0) = x"DA") then	-- PAUSE command should mute sound, but still drain FIFO
+									STOP_CD_SND <= '1';
+								end if;
 							else
 								REQ_Nr <= '0';
 								SP <= SP_COMM_START;
@@ -267,6 +272,7 @@ begin
 						if REQ_Nr = '0' and ACK_N = '0' then
 							REQ_Nr <= '1';
 							SP <= SP_DATAIN_END;
+							STOP_CD_SND <= '0';		-- unmute
 						end if;
 					
 					when SP_DATAIN_END =>

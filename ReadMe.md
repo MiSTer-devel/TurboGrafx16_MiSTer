@@ -11,8 +11,9 @@
  * Turbotap(multiple joysticks)
  * Mouse
  * Pachinko controller
+ * Memory Base 128 storage unit
  * Street Fighter II and Populous mappers
- * CD-ROM
+ * CD-ROM / Super CD-ROM
  * Arcade Card
  * Cheat engine
 
@@ -43,6 +44,7 @@ Pachinko controller is supported through either paddle or analog joystick Y axis
 
 ## Reset
 Hold down Run button then press Select. Some games require to keep both buttons pressed longer to reset. The PC Engine/Turbografx-16 did not have a hardware reset button, and instead relies on this button combination. With this method, in-game options will remain if you have changed them, whereas the MiSTer OSD reset will revert them.
+(Note: this reset method is suppressed in a small number of games)
 
 ## SDRAM
 This core may work without SDRAM (using on-board DDR3), but it may have different kinds of issues/glitches due to high latency of DDR3 memory. Thus SDRAM module is highly recommended for maximum accuracy.
