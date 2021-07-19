@@ -226,7 +226,7 @@ begin
 								COMM_OUT <= '1';
 								CD_Nr <= '1';
 								SP <= SP_FREE;
-								if (COMM(0) = x"DA") then	-- PAUSE command should mute sound, but still drain FIFO
+								if ((COMM(0) = x"08") or (COMM(0) = x"DA")) then	-- READ6 and PAUSE commands should mute sound, but still drain FIFO
 									STOP_CD_SND <= '1';
 								end if;
 							else
