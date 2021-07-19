@@ -260,7 +260,7 @@ process( CLK ) begin
 				end if;
 
 				if CH(i).CHON = '0' then
-					CH(i).GL_OUT <= (others => '0');
+					CH(i).GL_OUT <= "10000";		-- Not zero; this should be midpoint in the range to reduce 'pop' sound
 				elsif CH(i).DDA = '1' then
 					CH(i).GL_OUT <= CH(i).DA_OUT;
 				elsif CH(i).NE = '1' then
