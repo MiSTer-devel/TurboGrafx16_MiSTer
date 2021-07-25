@@ -229,6 +229,9 @@ begin
 								if ((COMM(0) = x"08") or (COMM(0) = x"DA")) then	-- READ6 and PAUSE commands should mute sound, but still drain FIFO
 									STOP_CD_SND <= '1';
 								end if;
+								if (COMM(0) = x"D8") then	-- SAPSP command should unmute sound (FIFO should be empty by now)
+									STOP_CD_SND <= '0';
+								end if;
 							else
 								REQ_Nr <= '0';
 								SP <= SP_COMM_START;
