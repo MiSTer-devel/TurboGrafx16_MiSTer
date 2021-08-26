@@ -358,6 +358,7 @@ wire [15:0] sdram_sz;
 
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
+wire [15:0] ps2_mouse_ext;
 
 hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 (
@@ -403,6 +404,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
+	.ps2_mouse_ext(ps2_mouse_ext),
 
 	.EXT_BUS(EXT_BUS)
 );
@@ -1017,7 +1019,7 @@ always @(posedge clk_sys) begin
 end
 
 wire [7:0] mouse_data;
-assign mouse_data[3:0] = ~{joy_0[7:6], ps2_mouse[0], ps2_mouse[1]};
+assign mouse_data[3:0] = ~{ joy_0[7:6] | {ps2_mouse_ext[8], ps2_mouse_ext[9]} , ps2_mouse[0], ps2_mouse[1]};
 
 always_comb begin
 	case (mouse_cnt)
