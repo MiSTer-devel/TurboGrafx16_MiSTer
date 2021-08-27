@@ -292,10 +292,10 @@ begin
 			DOTS_REMAIN <= (others=>'0');
 			HDW <= (others=>'0');
 			HDS <= (others=>'0');
-			VSW <= (others=>'0');
-			VDS <= (others=>'0');
-			VDW <= (others=>'0');
-			VDE <= (others=>'0');
+			VSW <= (others=>'1');
+			VDS <= (others=>'1');
+			VDW <= (others=>'1');
+			VDE <= (others=>'1');
 			
 			VM <= (others=>'0');
 			SM <= (others=>'0');
@@ -1098,6 +1098,9 @@ begin
 		if RST_N = '0' then
 			AR <= (others=>'0');
 			REGS <= (others=>(others=>'0'));
+			REGS(12) <= x"FF1F";
+			REGS(13) <= x"01FF";
+			REGS(14) <= x"00FF";
 			
 			CPURD_PEND <= '0';
 			CPUWR_PEND <= '0';
