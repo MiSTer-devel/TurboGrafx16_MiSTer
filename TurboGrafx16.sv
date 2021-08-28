@@ -221,7 +221,7 @@ video_freak video_freak
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXX XXXXXX    XXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXX    XXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -259,6 +259,7 @@ parameter CONF_STR = {
 	"P1OB,Sprites per line,Normal,Extra;",
 	"P1-;",
 	"P1OK,CD Audio Boost,No,2x;",
+	"P1OM,ADPCM Audio Boost,No,Yes;",
 	"P1OIJ,Master Audio Boost,No,2x,4x;",
 	"P2,Hardware;",
 	"P2-;",
@@ -824,16 +825,18 @@ IIR_filter #(
 
 always @(posedge clk_sys) begin
 	reg [17:0] pre_l, pre_r;
+	reg signed [16:0] adpcm_boost;
+	adpcm_boost <= $signed({adpcm_filt[15], adpcm_filt}) + $signed((status[22] ? {{3{adpcm_filt[15]}}, adpcm_filt[15:2]} : 17'd0));
 
 	pre_l <= ( CDDA_EN                  ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
 			 + ((CDDA_EN && status[20]) ? {{2{cdda_sl[15]}},         cdda_sl} : 18'd0)
 			 + ( PSG_EN                 ? {{2{psg_l_filt[15]}},   psg_l_filt} : 18'd0)
-			 + ( ADPCM_EN               ? {{2{adpcm_filt[15]}},   adpcm_filt} : 18'd0);
+			 + ( ADPCM_EN               ? {adpcm_boost[16],   adpcm_boost} : 18'd0);
 
 	pre_r <= ( CDDA_EN                  ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
 			 + ((CDDA_EN && status[20]) ? {{2{cdda_sr[15]}},         cdda_sr} : 18'd0)
 			 + ( PSG_EN                 ? {{2{psg_r_filt[15]}},   psg_r_filt} : 18'd0)
-			 + ( ADPCM_EN               ? {{2{adpcm_filt[15]}},   adpcm_filt} : 18'd0);
+			 + ( ADPCM_EN               ? {adpcm_boost[16],   adpcm_boost} : 18'd0);
 
 	if(~status[20]) begin
 		// 3/4 + 1/4 to cover the whole range.
