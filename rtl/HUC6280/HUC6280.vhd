@@ -73,7 +73,8 @@ architecture rtl of HUC6280 is
 	signal IO_SEL 			: std_logic;
 	
 	signal INT_MASK 		: std_logic_vector(2 downto 0);
-	signal TMR_VALUE 		: std_logic_vector(16 downto 0);
+	signal TMR_PRE_CNT 	: unsigned(9 downto 0);
+	signal TMR_VALUE 		: std_logic_vector(6 downto 0); 
 	signal TMR_LATCH 		: std_logic_vector(6 downto 0);
 	signal TMR_EN 			: std_logic;
 	signal TMR_IRQ 		: std_logic;
@@ -238,7 +239,8 @@ begin
 	process( CLK, RST_N )
 	begin
 		if RST_N = '0' then
-			TMR_VALUE <= (others => '0');
+			TMR_VALUE <= (others => '0');			
+			TMR_PRE_CNT <= (others => '1'); 
 			TMR_LATCH <= (others => '0');
 			TMR_EN <= '0';
 			TMR_IRQ <= '0';
@@ -251,7 +253,8 @@ begin
 					-- Timer enable
 					TMR_EN <= CPU_DO(0);
 					if TMR_EN = '0' and CPU_DO(0) = '1' then
-						TMR_VALUE <= TMR_LATCH & "1111111110";
+						TMR_VALUE <= TMR_LATCH;
+						TMR_PRE_CNT <= (others => '1'); 
 					end if;
 				end if;	
 			end if; 
@@ -261,11 +264,14 @@ begin
 			end if;
 			
 			if IO_CE = '1' and TMR_EN = '1' then
-				TMR_VALUE <= std_logic_vector( unsigned(TMR_VALUE) - 1 );
-				if TMR_VALUE = "1111111" & "1111111111" then
-					TMR_VALUE <= TMR_LATCH & "1111111110";
-					TMR_IRQ <= '1';
-				end if;
+				TMR_PRE_CNT <= TMR_PRE_CNT - 1;
+				if TMR_PRE_CNT = 0 then
+					TMR_VALUE <= std_logic_vector( unsigned(TMR_VALUE) - 1 );
+					if TMR_VALUE = "0000000" then
+						TMR_VALUE <= TMR_LATCH;
+						TMR_IRQ <= '1';
+					end if;
+				end if; 
 			end if; 
 		end if;
 	end process;
@@ -323,7 +329,7 @@ begin
 						CPU_DI <= IO_BUF;
 				end case;
 			elsif TMR_SEL = '1' then
-				CPU_DI <= IO_BUF(7) & TMR_VALUE(16 downto 10);
+				CPU_DI <= IO_BUF(7) & TMR_VALUE;
 			else
 				CPU_DI <= IO_BUF;
 			end if;

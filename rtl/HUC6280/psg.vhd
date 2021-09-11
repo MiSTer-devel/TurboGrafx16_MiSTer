@@ -239,7 +239,7 @@ process( CLK ) begin
 					if CH(i).LFSR(0) = '0' then
 						CH(i).NG_OUT <= "00000";
 					else
-						CH(i).NG_OUT <= "10011";
+						CH(i).NG_OUT <= "11111";
 					end if;
 
 					if CLKEN = '1' then

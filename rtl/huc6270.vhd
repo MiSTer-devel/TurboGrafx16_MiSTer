@@ -292,15 +292,7 @@ begin
 			DOTS_REMAIN <= (others=>'0');
 			HDW <= (others=>'0');
 			HDS <= (others=>'0');
-			VSW <= (others=>'0');
-			VDS <= (others=>'0');
-			VDW <= (others=>'0');
-			VDE <= (others=>'0');
-			
-			VM <= (others=>'0');
-			SM <= (others=>'0');
 			CM <= '0';
-			SCREEN <= (others=>'0');
 		elsif rising_edge(CLK) then
 
 			FETCH_CE <= not FETCH_CE;
@@ -336,16 +328,6 @@ begin
 
 					CM <= MWR_CM;
 				end if; 
-				
-				if VS_F = '1' then
-					VSW <= VPR_VSW;
-					VDS <= VPR_VDS;
-					VDW <= VDR_VDW;
-					VDE <= VCR_VCR;
-					VM <= MWR_VM;
-					SM <= MWR_SM;
-					SCREEN <= MWR_SCREEN;
-				end if;
 			end if; 
 		end if;
 	end process;
@@ -375,6 +357,13 @@ begin
 			BG_OUT <= '0';
 			RC_CNT <= "00"&x"40";
 			
+			VSW <= (others=>'0');
+			VDS <= (others=>'0');
+			VDW <= (others=>'0');
+			VDE <= (others=>'0');
+			VM <= (others=>'0');
+			SM <= (others=>'0');
+			SCREEN <= (others=>'0');
 			BB <= '0';
 			SB <= '0';
 		elsif rising_edge(CLK) then
@@ -382,6 +371,13 @@ begin
 				if VS_F = '1' then
 					VDISP <= '0';
 					DISP_CNT <= (others=>'0');
+					VSW <= VPR_VSW;
+					VDS <= VPR_VDS;
+					VDW <= VDR_VDW;
+					VDE <= VCR_VCR;
+					VM <= MWR_VM;
+					SM <= MWR_SM;
+					SCREEN <= MWR_SCREEN;
 				else
 					if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
 						DISP_CNT_INC <= '1';
@@ -400,10 +396,17 @@ begin
 						end if;
 						if DISP_CNT = VDE_END_POS then
 							DISP_CNT <= (others=>'0');
+							VSW <= VPR_VSW;
+							VDS <= VPR_VDS;
+							VDW <= VDR_VDW;
+							VDE <= VCR_VCR;
+							VM <= MWR_VM;
+							SM <= MWR_SM;
+							SCREEN <= MWR_SCREEN;
 						end if;
-						
 					end if;
 				end if;
+
 				
 				if DOT_CNT = 7 then
 					if TILE_CNT = HDS_END_POS - 2 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
