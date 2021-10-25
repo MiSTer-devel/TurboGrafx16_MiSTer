@@ -77,6 +77,7 @@ architecture rtl of HUC6280 is
 	signal TMR_VALUE 		: std_logic_vector(6 downto 0); 
 	signal TMR_LATCH 		: std_logic_vector(6 downto 0);
 	signal TMR_EN 			: std_logic;
+	signal TMR_RELOAD		: std_logic; 
 	signal TMR_IRQ 		: std_logic;
 	signal TMR_IRQ_ACK 	: std_logic;
 
@@ -243,6 +244,7 @@ begin
 			TMR_PRE_CNT <= (others => '1'); 
 			TMR_LATCH <= (others => '0');
 			TMR_EN <= '0';
+			TMR_RELOAD <= '0'; 
 			TMR_IRQ <= '0';
 		elsif rising_edge(CLK) then
 			if TMR_SEL = '1' and CPU_WE_N = '0' and CPU_CER = '1' then
@@ -263,16 +265,23 @@ begin
 				TMR_IRQ <= '0';
 			end if;
 			
-			if IO_CE = '1' and TMR_EN = '1' then
-				TMR_PRE_CNT <= TMR_PRE_CNT - 1;
-				if TMR_PRE_CNT = 0 then
-					TMR_VALUE <= std_logic_vector( unsigned(TMR_VALUE) - 1 );
-					if TMR_VALUE = "0000000" then
-						TMR_VALUE <= TMR_LATCH;
-						TMR_IRQ <= '1';
+			if IO_CE = '1' then
+				TMR_RELOAD <= '0';
+				if TMR_EN = '1' then
+					TMR_PRE_CNT <= TMR_PRE_CNT - 1;
+					if TMR_PRE_CNT = 0 then
+						TMR_VALUE <= std_logic_vector( unsigned(TMR_VALUE) - 1 );
+						if TMR_VALUE = "0000000" then
+							TMR_RELOAD <= '1';
+							TMR_IRQ <= '1';
+						end if;
 					end if;
 				end if; 
-			end if; 
+				
+				if TMR_RELOAD = '1' then
+					TMR_VALUE <= TMR_LATCH;
+				end if; 
+			end if;
 		end if;
 	end process;
 	
