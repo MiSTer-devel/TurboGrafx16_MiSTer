@@ -400,7 +400,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.joystick_2(joy_2),
 	.joystick_3(joy_3),
 	.joystick_4(joy_4),
-	.joystick_analog_0(joy_a),
+	.joystick_l_analog_0(joy_a),
 	.paddle_0(pd_0),
 
 	.ps2_key(ps2_key),
