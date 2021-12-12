@@ -67,6 +67,11 @@ signal RAM_DI	: std_logic_vector(8 downto 0);
 signal RAM_WE	: std_logic := '0';
 signal RAM_DO	: std_logic_vector(8 downto 0);
 
+-- CPU conflict color latching
+signal LATCH_R	: std_logic_vector(2 downto 0);
+signal LATCH_G	: std_logic_vector(2 downto 0);
+signal LATCH_B	: std_logic_vector(2 downto 0);
+
 -- Color RAM Output
 signal COLOR	: std_logic_vector(8 downto 0);
 
@@ -311,14 +316,24 @@ begin
 				G <= (others => '0');
 				R <= (others => '0');
 				B <= (others => '0');
+				LATCH_G <= (others => '0');
+				LATCH_R <= (others => '0');
+				LATCH_B <= (others => '0');
 			elsif (GRID(0) = '1' and GRID_EN(0) = '1') or (GRID(1) = '1' and GRID_EN(1) = '1') then
 				G <= (others => '1');
 				R <= (others => '1');
 				B <= (others => '1');
+			elsif (CE_N = '0' and (WR_N = '0' or RD_N = '0') and (A = "010" or A = "011" or A = "100" or A = "101")) then
+				G <= LATCH_G;
+				R <= LATCH_R;
+				B <= LATCH_B;
 			else
 				G <= COLOR(8 downto 6);
 				R <= COLOR(5 downto 3);
 				B <= COLOR(2 downto 0);
+				LATCH_G <= COLOR(8 downto 6);
+				LATCH_R <= COLOR(5 downto 3);
+				LATCH_B <= COLOR(2 downto 0);
 			end if;
 		end if;
 	end if;
