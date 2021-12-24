@@ -68,9 +68,10 @@ signal RAM_WE	: std_logic := '0';
 signal RAM_DO	: std_logic_vector(8 downto 0);
 
 -- CPU conflict color latching
-signal LATCH_R	: std_logic_vector(2 downto 0);
-signal LATCH_G	: std_logic_vector(2 downto 0);
-signal LATCH_B	: std_logic_vector(2 downto 0);
+signal R_FF	: std_logic_vector(2 downto 0);
+signal G_FF	: std_logic_vector(2 downto 0);
+signal B_FF	: std_logic_vector(2 downto 0);
+signal CE_N_FF : std_logic := '1';
 
 -- Color RAM Output
 signal COLOR	: std_logic_vector(8 downto 0);
@@ -316,24 +317,33 @@ begin
 				G <= (others => '0');
 				R <= (others => '0');
 				B <= (others => '0');
-				LATCH_G <= (others => '0');
-				LATCH_R <= (others => '0');
-				LATCH_B <= (others => '0');
+				G_FF <= (others => '0');
+				R_FF <= (others => '0');
+				B_FF <= (others => '0');
+				CE_N_FF  <= '1';
+
+			elsif (CE_N = '0') then
+				G <= G_FF;
+				R <= R_FF;
+				B <= B_FF;
+				CE_N_FF <= '0';
+			elsif (CE_N_FF = '0') then
+				G <= G_FF;
+				R <= R_FF;
+				B <= B_FF;
+				CE_N_FF <= '1';
+
 			elsif (GRID(0) = '1' and GRID_EN(0) = '1') or (GRID(1) = '1' and GRID_EN(1) = '1') then
 				G <= (others => '1');
 				R <= (others => '1');
 				B <= (others => '1');
-			elsif (CE_N = '0' and (WR_N = '0' or RD_N = '0') and (A = "010" or A = "011" or A = "100" or A = "101")) then
-				G <= LATCH_G;
-				R <= LATCH_R;
-				B <= LATCH_B;
 			else
 				G <= COLOR(8 downto 6);
 				R <= COLOR(5 downto 3);
 				B <= COLOR(2 downto 0);
-				LATCH_G <= COLOR(8 downto 6);
-				LATCH_R <= COLOR(5 downto 3);
-				LATCH_B <= COLOR(2 downto 0);
+				G_FF <= COLOR(8 downto 6);
+				R_FF <= COLOR(5 downto 3);
+				B_FF <= COLOR(2 downto 0);
 			end if;
 		end if;
 	end if;
