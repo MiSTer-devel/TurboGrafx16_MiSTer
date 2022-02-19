@@ -235,7 +235,7 @@ parameter CONF_STR = {
 	"F3,TGP,Load Palette;",
 	"-;",
 `endif
-	"S0,CUE,Insert CD;",
+	"S0,CUECHD,Insert CD;",
 	"-;",
 	"C,Cheats;",
 	"H1O5,Cheats enabled,ON,OFF;",
