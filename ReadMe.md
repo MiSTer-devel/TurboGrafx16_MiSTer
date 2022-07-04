@@ -16,13 +16,14 @@
  * CD-ROM / Super CD-ROM
  * Arcade Card
  * Cheat engine
+ * CHD Support
 
 ## Installation:
 Copy the *.rbf file at the root of the SD card. Copy roms (*PCE,*BIN) to **TGFX16** folder. You may rename ROM of your favorite game to **boot.rom** - it will be automatically loaded upon core loading.
 Use SGX file extension for SuperGrafx games.
 
 ## CD-ROM games
-CD-ROM images must be in BIN/CUE format, and must be located in the **TGFX16-CD** folder. Each CD-ROM image must have its own folder.
+CD-ROM images must be in BIN/CUE or CHD format, and must be located in the **TGFX16-CD** folder. Each CD-ROM image must have its own folder.
 **cd_bios.rom** must be placed in the same TGFX16-CD folder as the images mentioned above. **Japanese Super CD-ROM v3.00 is recomended for maximum compatibility**. 
 Additionally you can use a different bios for specific games (for example from Games Express) by placing cd_bios.rom inside the game image's folder.
 
