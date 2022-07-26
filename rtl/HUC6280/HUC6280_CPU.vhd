@@ -458,7 +458,7 @@ begin
 			OLD_NMI_N <= '1';
 			NMI_SYNC <= '0';
 		elsif rising_edge(CLK) then
-			if CE = '1' and RES_INT = '0' then
+			if RES_INT = '0' then
 				OLD_NMI_N <= NMI_N;
 				if NMI_N = '0' and OLD_NMI_N = '1' and NMI_SYNC = '0' then
 					NMI_SYNC <= '1';
