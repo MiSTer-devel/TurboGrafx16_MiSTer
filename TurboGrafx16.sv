@@ -281,7 +281,7 @@ parameter CONF_STR = {
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
 	"H5O4,Controller,2 Buttons,6 Buttons;",
-	"H5OQR,Special,None,Mouse,Pachinko;",
+	"H5OQR,Special,None,Mouse,Pachinko,XE-1AP;",
 	"H5-;",
 	"R0,Reset;",
 	"J1,Button I,Button II,Select,Run,Button III,Button IV,Button V,Button VI;",
@@ -331,7 +331,7 @@ wire [63:0] status;
 wire  [1:0] buttons;
 
 wire [11:0] joy_0, joy_1, joy_2, joy_3, joy_4;
-wire [15:0] joy_a;
+wire [15:0] joy_a, joy_b;
 wire  [7:0] pd_0;
 
 wire        ioctl_download;
@@ -401,6 +401,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.joystick_3(joy_3),
 	.joystick_4(joy_4),
 	.joystick_l_analog_0(joy_a),
+	.joystick_r_analog_0(joy_b),
 	.paddle_0(pd_0),
 
 	.ps2_key(ps2_key),
@@ -988,8 +989,12 @@ end
 wire [15:0] joy_data;
 always_comb begin
 	case (joy_port)
-		0: joy_data = status[26] ? {mouse_data, mouse_data} : ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
-		1: joy_data = status[27] ? pachinko                 : ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
+		0: joy_data = (status[27:26] == 2'b01) ? {mouse_data, mouse_data} :
+						  (status[27:26] == 2'b11) ? {xe1_data[2], xe1_data[1], xe1_data[3], xe1_data[0], xe1_runbtn, xe1_selbtn, xe1_trg2, xe1_trg1,
+																xe1_data[2], xe1_data[1], xe1_data[3], xe1_data[0], xe1_runbtn, xe1_selbtn, xe1_trg2, xe1_trg1} :
+						                            ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
+															  
+		1: joy_data = (status[27:26] == 2'b10) ? pachinko                 : ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
 		2: joy_data = ~{4'hF, joy_2[11:8], joy_2[1], joy_2[2], joy_2[0], joy_2[3], joy_2[7:4]};
 		3: joy_data = ~{4'hF, joy_3[11:8], joy_3[1], joy_3[2], joy_3[0], joy_3[3], joy_3[7:4]};
 		4: joy_data = ~{4'hF, joy_4[11:8], joy_4[1], joy_4[2], joy_4[0], joy_4[3], joy_4[7:4]};
@@ -1071,10 +1076,12 @@ always @(posedge clk_sys) begin : input_block
 
 	if (joy_out[1]) begin
 		joy_port  <= 0;
-		joy_latch <= 0;
-		if (~last_gp[1]) high_buttons <= ~high_buttons && status[4];
+		if (status[27:26] != 2'b11) begin
+			joy_latch <= 0;
+			if (~last_gp[1]) high_buttons <= ~high_buttons && status[4];
+		end
 	end
-	else if (joy_out[0] && ~last_gp[0] && (status[2] | status[27])) begin
+	else if (joy_out[0] && ~last_gp[0] && (status[2] | status[27]) && (status[27:26] != 2'b11)) begin	// suppress if XE-1AP
 		joy_port <= joy_port + 3'd1;
 	end
 end
@@ -1112,6 +1119,32 @@ wire [3:0] joy_in = snac ? snac_dat : (mb128_ena & mb128_Active) ? mb128_Data : 
 
 assign USER_OUT = snac ? {2'b11, snac_clr, 1'b1, snac_sel, 2'b11} : '1;
 
+wire xe1_trg1;
+wire xe1_trg2;
+wire xe1_runbtn;
+wire xe1_selbtn;
+wire [3:0] xe1_data;
+
+XE1AP #(43) XE1AP		// 43 clock cycles per microsecond
+(
+	.reset(reset|cart_download),
+	.clk_sys(clk_sys),
+
+   .joystick_0(joy_0),
+   .joystick_l_analog_0(joy_a),
+   .joystick_r_analog_0(joy_b),
+   .req(joy_out[1]),			// signal requesting response from XE-1AP (on return to high)
+									// pin 8 on original 9-pin connector 
+   .trg1(xe1_trg1),			// pin 6 on original 9-pin connector
+   .trg2(xe1_trg2),			// pin 7 on original 9-pin connector
+   .data(xe1_data),			// Data[3] = pin 4 on original 9-pin connector
+									// Data[2] = pin 3 on original 9-pin connector
+									// Data[1] = pin 2 on original 9-pin connector
+									// Data[0] = pin 1 on original 9-pin connector
+   .run_btn(xe1_runbtn),	// need to send back for the XHE-3 PC Engine attachment
+   .select_btn(xe1_selbtn)	// need to send back for the XHE-3 PC Engine attachment
+
+);
 
 /////////////////////////  BACKUP RAM SAVE/LOAD  /////////////////////////////
 
