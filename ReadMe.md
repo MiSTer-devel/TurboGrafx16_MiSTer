@@ -8,6 +8,7 @@
  * Completely rewritten CPU and VDC for cycle accuracy
  * Uses DDR3 and SDRAM for cartridge's ROM (SDRAM is recommended for accuracy)
  * 6(8)-buttons joystick
+ * XE-1AP analog controller
  * Turbotap(multiple joysticks)
  * Mouse
  * Pachinko controller
@@ -38,7 +39,12 @@ Standard cheats location is supported for HuCard games. For CD-ROM game all chea
 
 ## Joystick
 Both Turbotap and 6-button joysticks are supported.
+XE-1AP analog joystick is supported for the 4 games which are supported (After Burner II, Forgotten Worlds, Operation Wolf, Outrun)
 Do not enable these features for games not supporting it, otherwise game will work incorrectly.
+
+## Mouse
+Mouse is supported.
+Do not enable this feature for games not supporting it, otherwise game will work incorrectly.
 
 ## Pachinko
 Pachinko controller is supported through either paddle or analog joystick Y axis.

@@ -13,6 +13,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/color_mix.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cheatcodes.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/arcade.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/mb128.sv
+set_global_assignment -name VERILOG_FILE rtl/xe1ap.v
 set_global_assignment -name VHDL_FILE rtl/pce_top.vhd
 set_global_assignment -name SDC_FILE TurboGrafx16.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE TurboGrafx16.sv
