@@ -49,7 +49,7 @@ module XE1AP
 
   // registers
  
-  reg [6:0]  clks_per_usec   = CLKPERUSEC;
+  reg [6:0]  clks_per_usec   = CLKPERUSEC[6:0];
 
   reg [6:0]  clk_counter     = 0;
   reg [6:0]  usec_counter    = 0;
@@ -108,11 +108,11 @@ module XE1AP
 
     else if (active == 1) begin
       usec_counter_ff <= usec_counter;
-      clk_counter     <= clk_counter + 1;
+      clk_counter     <= clk_counter + 1'd1;
       if (clk_counter == clks_per_usec)
       begin
         clk_counter     <= 0;
-        usec_counter    <= usec_counter + 1;
+        usec_counter    <= usec_counter + 1'd1;
       end
 
       if (cycle_count == 0) begin		// first cycle needs 68 microseconds until output
@@ -153,7 +153,7 @@ module XE1AP
           data[3:0]          <= shift_output[3:0];
           shift_output[43:0] <= shift_output[47:4];
           trg2               <= 1'b0;
-          cycle_count        <= cycle_count + 1;
+          cycle_count        <= cycle_count + 1'd1;
           usec_counter       <= 0;
         end
       end
