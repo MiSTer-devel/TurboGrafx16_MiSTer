@@ -223,12 +223,6 @@ begin
 							TMR_IRQ_ACK <= '1';
 						when others => null;
 					end case;
-				else
-					case CPU_A(1 downto 0) is
-						when "10" =>
-							TMR_IRQ_ACK <= '1';
-						when others => null;
-					end case;
 				end if; 
 			end if; 
 		end if;
