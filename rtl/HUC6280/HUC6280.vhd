@@ -72,6 +72,7 @@ architecture rtl of HUC6280 is
 	signal INT_SEL 		: std_logic;
 	signal IO_SEL 			: std_logic;
 	
+	signal INT_MASK_PRE	: std_logic_vector(2 downto 0);
 	signal INT_MASK 		: std_logic_vector(2 downto 0);
 	signal TMR_PRE_CNT 	: unsigned(9 downto 0);
 	signal TMR_VALUE 		: std_logic_vector(6 downto 0); 
@@ -210,15 +211,20 @@ begin
 	process(CLK, RST_N)
 	begin
 		if RST_N = '0' then
-			INT_MASK <= (others=>'0');
+			INT_MASK_PRE <= (others=>'0');
 			TMR_IRQ_ACK <= '0';
 		elsif rising_edge(CLK) then
 			TMR_IRQ_ACK <= '0';
+			
+			if CPU_CE = '1' then
+				INT_MASK <= INT_MASK_PRE;	-- Delay interrupt mask usage until 1 cycle after it is updated
+			end if;
+
 			if INT_SEL = '1' and CPU_CER = '1' then 
 				if CPU_WE_N = '0' then
 					case CPU_A(1 downto 0) is
 						when "10" =>
-							INT_MASK <= CPU_DO(2 downto 0);
+							INT_MASK_PRE <= CPU_DO(2 downto 0);
 						when "11" =>
 							TMR_IRQ_ACK <= '1';
 						when others => null;
