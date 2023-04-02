@@ -91,6 +91,8 @@ architecture rtl of SCSI is
 	
 	signal DATAIN_CNT 	: unsigned(15 downto 0);
 
+	signal STAT_COUNT    : unsigned(15 downto 0);
+
 begin
 
 	process( RESET_N, CLK )
@@ -151,7 +153,10 @@ begin
 			DOUT_PEND <= '0';
 			FIFO_RD_REQ <= '0';
 			
+			STAT_COUNT  <= (others => '0');
+			
 			DATAIN_CNT <= (others => '0');
+
 		elsif rising_edge( CLK ) then
 			if STAT_GET = '1' then
 				STAT_PEND <= '1';
@@ -161,6 +166,7 @@ begin
 				DOUT_PEND <= '1';
 			end if;
 			
+
 			COMM_OUT <= '0';
 			DATA_OUT <= '0';
 			CD_DATA_END <= '0';
@@ -184,14 +190,21 @@ begin
 							SP <= SP_COMM_START;
 							DATAIN_CNT <= (others => '0');
 						elsif STAT_PEND = '1' then
-							STAT_PEND <= '0';
-							DBO <= STATUS;
-							BSY_Nr <= '0';
-							MSG_Nr <= '1';
-							CD_Nr <= '0';
-							IO_Nr <= '0';
-							REQ_Nr <= '0';
-							SP <= SP_STAT_START;
+							STAT_COUNT <= STAT_COUNT + 1;
+
+							if (STAT_COUNT = 4500) then		-- CLK is 42.95 MHz; this gives ~105 usec delay.
+																		-- this is empirical and may not be correct but it solves
+																		-- the Sailor Moon hang issue
+								STAT_COUNT <= (others => '0');
+								STAT_PEND <= '0';
+								DBO <= STATUS;
+								BSY_Nr <= '0';
+								MSG_Nr <= '1';
+								CD_Nr <= '0';
+								IO_Nr <= '0';
+								REQ_Nr <= '0';
+								SP <= SP_STAT_START;
+							end if;
 						elsif EMPTY = '0' then
 							DBO <= FIFO_Q;
 							BSY_Nr <= '0';
