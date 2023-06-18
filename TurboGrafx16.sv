@@ -223,7 +223,7 @@ video_freak video_freak
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXX    XXXXXXX
+// XXXX XXXXXXXXXXXXXXXXXXXXXXXXXX  XXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -282,7 +282,7 @@ parameter CONF_STR = {
 	"D0P2RC,Format Backup RAM;",
 	"-;",
 	"H5O2,Turbo Tap,Disabled,Enabled;",
-	"H5O4,Controller,2 Buttons,6 Buttons;",
+	"H5OTU,Controller,2 Buttons,2 Turbo,6 Buttons;",
 	"H5OQR,Special,None,Mouse,Pachinko,XE-1AP;",
 	"H5-;",
 	"R0,Reset;",
@@ -994,12 +994,12 @@ always_comb begin
 		0: joy_data = (status[27:26] == 2'b01) ? {mouse_data, mouse_data} :
 						  (status[27:26] == 2'b11) ? {xe1_data[2], xe1_data[1], xe1_data[3], xe1_data[0], xe1_runbtn, xe1_selbtn, xe1_trg2, xe1_trg1,
 																xe1_data[2], xe1_data[1], xe1_data[3], xe1_data[0], xe1_runbtn, xe1_selbtn, xe1_trg2, xe1_trg1} :
-						                            ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:4]};
+						                            ~{4'hF, joy_0[11:8], joy_0[1], joy_0[2], joy_0[0], joy_0[3], joy_0[7:6], (status[30:29] == 2'b01) ? joyrept_0[1:0] : joy_0[5:4]};
 															  
-		1: joy_data = (status[27:26] == 2'b10) ? pachinko                 : ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:4]};
-		2: joy_data = ~{4'hF, joy_2[11:8], joy_2[1], joy_2[2], joy_2[0], joy_2[3], joy_2[7:4]};
-		3: joy_data = ~{4'hF, joy_3[11:8], joy_3[1], joy_3[2], joy_3[0], joy_3[3], joy_3[7:4]};
-		4: joy_data = ~{4'hF, joy_4[11:8], joy_4[1], joy_4[2], joy_4[0], joy_4[3], joy_4[7:4]};
+		1: joy_data = (status[27:26] == 2'b10) ? pachinko                 : ~{4'hF, joy_1[11:8], joy_1[1], joy_1[2], joy_1[0], joy_1[3], joy_1[7:6], (status[30:29] == 2'b01) ? joyrept_1[1:0] : joy_1[5:4]};
+		2: joy_data = ~{4'hF, joy_2[11:8], joy_2[1], joy_2[2], joy_2[0], joy_2[3], joy_2[7:6], (status[30:29] == 2'b01) ? joyrept_2[1:0] : joy_2[5:4]};
+		3: joy_data = ~{4'hF, joy_3[11:8], joy_3[1], joy_3[2], joy_3[0], joy_3[3], joy_3[7:6], (status[30:29] == 2'b01) ? joyrept_3[1:0] : joy_3[5:4]};
+		4: joy_data = ~{4'hF, joy_4[11:8], joy_4[1], joy_4[2], joy_4[0], joy_4[3], joy_4[7:6], (status[30:29] == 2'b01) ? joyrept_4[1:0] : joy_4[5:4]};
 		default: joy_data = 16'h0FFF;
 	endcase
 end
@@ -1042,6 +1042,12 @@ end
 
 reg [3:0] joy_latch;
 reg [2:0] joy_port;
+reg [3:0] scan_counter = 0;
+reg [1:0] joyrept_0;
+reg [1:0] joyrept_1;
+reg [1:0] joyrept_2;
+reg [1:0] joyrept_3;
+reg [1:0] joyrept_4;
 reg [1:0] mouse_cnt;
 reg [7:0] ms_x, ms_y;
 
@@ -1061,6 +1067,24 @@ always @(posedge clk_sys) begin : input_block
 
 	if(&mouse_to) mouse_cnt <= 3;
 	if(~last_gp[1] & joy_out[1]) begin
+	
+  		scan_counter <= scan_counter + 1;
+		joyrept_0[0] <= (joy_0[8] & scan_counter[2]) | (joy_0[10] & scan_counter[1]) | joy_0[4];
+		joyrept_0[1] <= (joy_0[9] & scan_counter[2]) | (joy_0[11] & scan_counter[1]) | joy_0[5];
+		
+		joyrept_1[0] <= (joy_1[8] & scan_counter[2]) | (joy_1[10] & scan_counter[1]) | joy_1[4];
+		joyrept_1[1] <= (joy_1[9] & scan_counter[2]) | (joy_1[11] & scan_counter[1]) | joy_1[5];
+		
+		joyrept_2[0] <= (joy_2[8] & scan_counter[2]) | (joy_2[10] & scan_counter[1]) | joy_2[4];
+		joyrept_2[1] <= (joy_2[9] & scan_counter[2]) | (joy_2[11] & scan_counter[1]) | joy_2[5];
+		
+		joyrept_3[0] <= (joy_3[8] & scan_counter[2]) | (joy_3[10] & scan_counter[1]) | joy_3[4];
+		joyrept_3[1] <= (joy_3[9] & scan_counter[2]) | (joy_3[11] & scan_counter[1]) | joy_3[5];
+		
+		joyrept_4[0] <= (joy_4[8] & scan_counter[2]) | (joy_4[10] & scan_counter[1]) | joy_4[4];
+		joyrept_4[1] <= (joy_4[9] & scan_counter[2]) | (joy_4[11] & scan_counter[1]) | joy_4[5];
+		
+
 		mouse_cnt <= mouse_cnt + 1'd1;
 		if(&mouse_cnt) begin
 			ms_x  <= msr_x;
@@ -1080,7 +1104,7 @@ always @(posedge clk_sys) begin : input_block
 		joy_port  <= 0;
 		if (status[27:26] != 2'b11) begin
 			joy_latch <= 0;
-			if (~last_gp[1]) high_buttons <= ~high_buttons && status[4];
+			if (~last_gp[1] && (status[30:29] == 2'b10)) high_buttons <= ~high_buttons;
 		end
 	end
 	else if (joy_out[0] && ~last_gp[0] && (status[2] | status[27]) && (status[27:26] != 2'b11)) begin	// suppress if XE-1AP
