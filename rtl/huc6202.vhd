@@ -59,8 +59,8 @@ signal INMIX		: std_logic;
 
 begin
 
-PRIN(0) <= '1' when WIN1 < x"40" or X > WIN1 else '0';
-PRIN(1) <= '1' when WIN2 < x"40" or X > WIN2 else '0';
+PRIN(0) <= '1' when WIN1 <= x"40" or X >= WIN1 else '0';
+PRIN(1) <= '1' when WIN2 <= x"40" or X >= WIN2 else '0';
 PRI <= PRI0(3 downto 0) when PRIN = "00" else
 		 PRI0(7 downto 4) when PRIN = "01" else
 		 PRI1(3 downto 0) when PRIN = "10" else
