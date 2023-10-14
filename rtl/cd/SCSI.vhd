@@ -192,7 +192,7 @@ begin
 						elsif STAT_PEND = '1' then
 							STAT_COUNT <= STAT_COUNT + 1;
 
-							if (STAT_COUNT = 4500) then		-- CLK is 42.95 MHz; this gives ~105 usec delay.
+							if (STAT_COUNT = 45000) then		-- CLK is 42.95 MHz; this gives ~1.05 millisec delay.
 																		-- this is empirical and may not be correct but it solves
 																		-- the Sailor Moon hang issue
 								STAT_COUNT <= (others => '0');
