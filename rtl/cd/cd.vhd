@@ -247,9 +247,8 @@ begin
 							CH_SEL <= not CH_SEL;
 							
 						when x"07" =>
-							if EXT_DI(7) = '1' then
-								BRAM_LOCK <= '0';
-							end if;
+						   BRAM_LOCK <= not EXT_DI(7);  -- unlock when bit 7 is '1', but also lock if bit 7 is '0'
+
 						when x"08" =>
 							ADPCM_OFFS(7 downto 0) <= EXT_DI;
 						when x"09" =>
