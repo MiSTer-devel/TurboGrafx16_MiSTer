@@ -164,10 +164,12 @@ architecture rtl of cd is
 	signal FIFO_WR_REQ		: std_logic;
 	signal FIFO_D 				: std_logic_vector(31 downto 0);
 	signal FIFO_Q 				: std_logic_vector(31 downto 0);
+	signal FIFO_SCLR			: std_logic;
 	signal SAMPLE_CE 			: std_logic;
-	signal ADPCM_CE             : std_logic;
+	signal ADPCM_CE			: std_logic;
 	signal OUTL 				: signed(15 downto 0);
 	signal OUTR 				: signed(15 downto 0);
+	
 	
 	--Fader
 	signal FADE_VOL 			: unsigned(10 downto 0);
@@ -671,7 +673,7 @@ begin
 		data		=> FIFO_D,
 		wrreq		=> FIFO_WR_REQ,
 		full		=> FIFO_FULL,
-		
+		sclr		=> FIFO_SCLR,
 		rdreq		=> FIFO_RD_REQ,
 		empty		=> FIFO_EMPTY,
 		q			=> FIFO_Q
@@ -698,11 +700,13 @@ begin
 	process( RST_N, CLK )
 	begin
 		if RST_N = '0' then
+			FIFO_SCLR <= '1';
 			FIFO_RD_REQ <= '0';
 			OUTL <= (others => '0');
 			OUTR <= (others => '0');
 		elsif rising_edge(CLK) then
 			FIFO_RD_REQ <= '0';
+			FIFO_SCLR <= '0';
 			if SAMPLE_CE = '1' and EN = '1' then	-- ~44.1kHz
 				if FIFO_EMPTY = '0' then
 					FIFO_RD_REQ <= '1';
@@ -712,6 +716,7 @@ begin
 					else
 						OUTL <= (others => '0');
 						OUTR <= (others => '0');
+						FIFO_SCLR <= '1';
 					end if;
 				end if;
 			end if;
