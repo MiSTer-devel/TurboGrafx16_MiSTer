@@ -2,7 +2,9 @@
 
 ### This is the port of Gregory Estrade's [FPGAPCE](https://github.com/Torlus/FPGAPCE)
 
-Core was heavily reworked with CD Support added by [srg320](https://github.com/srg320)
+Port to MiSTer, Arcade card, DDR3, mappers and other tweaks [Sorgelig](https://github.com/sorgelig)
+
+Tweaks and CD Support added by [srg320](https://github.com/srg320)
 
 Additional bug fixes by [greyrogue](https://github.com/greyrogue)
 
