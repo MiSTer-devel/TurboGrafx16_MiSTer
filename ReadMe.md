@@ -2,6 +2,14 @@
 
 ### This is the port of Gregory Estrade's [FPGAPCE](https://github.com/Torlus/FPGAPCE)
 
+Core was heavily reworked with CD Support added by [srg320](https://github.com/srg320)
+
+Additional bug fixes by [greyrogue](https://github.com/greyrogue)
+
+Palettes & audio filters by [Kitrinx](https://github.com/Kitrinx)
+
+Further refinements and maintanance by [dshadoff](https://github.com/dshadoff)
+
 ## Features
  * SuperGrafx mode
  * saves
@@ -49,6 +57,9 @@ Do not enable this feature for games not supporting it, otherwise game will work
 
 ## Pachinko
 Pachinko controller is supported through either paddle or analog joystick Y axis.
+
+## Palettes
+The 'Original' palette is based on reverse engineering work of the VDP by [furrtek](https://github.com/furrtek). An RGB to YUV lookup table was discovered that translates the colors to their intended values with the composite output of the console. Further work was done by [ArtemioUrbina](https://github.com/ArtemioUrbina) to verify the color output. [Kitrinx](https://github.com/Kitrinx) created a tool to generate the resulting [palette](https://github.com/Kitrinx/TG16_Palette).
 
 ## Reset
 Hold down Run button then press Select. Some games require to keep both buttons pressed longer to reset. The PC Engine/Turbografx-16 did not have a hardware reset button, and instead relies on this button combination. With this method, in-game options will remain if you have changed them, whereas the MiSTer OSD reset will revert them.
