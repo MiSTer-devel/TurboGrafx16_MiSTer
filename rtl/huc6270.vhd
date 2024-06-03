@@ -647,18 +647,20 @@ begin
 					when others => null;
 				end case;
 				
-				if SLOT = CG1 then
-					if VM = "11" and CM = '0' then
+				if SLOT = CG1 or (SLOT = CG0 and VM = "11") then
+					if SLOT = CG0 and VM = "11" then
+						BG_SR0 <= BG_SR0(7 downto 0) & RAM_DI(7 downto 0);
+						BG_SR1 <= BG_SR1(7 downto 0) & RAM_DI(15 downto 8);
+						BG_SR2 <= (others=>'0');
+						BG_SR3 <= (others=>'0');
+					elsif SLOT = CG1 and VM = "11" then
 						BG_SR0 <= (others=>'0');
 						BG_SR1 <= (others=>'0');
+						BG_SR2 <= BG_SR2(7 downto 0) & RAM_DI(7 downto 0);
+						BG_SR3 <= BG_SR3(7 downto 0) & RAM_DI(15 downto 8);
 					else
 						BG_SR0 <= BG_SR0(7 downto 0) & BG_CH0;
 						BG_SR1 <= BG_SR1(7 downto 0) & BG_CH1;
-					end if;
-					if VM = "11" and CM = '1' then
-						BG_SR2 <= (others=>'0');
-						BG_SR3 <= (others=>'0');
-					else
 						BG_SR2 <= BG_SR2(7 downto 0) & RAM_DI(7 downto 0);
 						BG_SR3 <= BG_SR3(7 downto 0) & RAM_DI(15 downto 8);
 					end if; 
