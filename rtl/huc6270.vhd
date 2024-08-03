@@ -735,13 +735,13 @@ begin
 		
 		case SLOT is
 			when SG0 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "00" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "00" & std_logic_vector(SPR_LINE(3 downto 0));
 			when SG1 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "01" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "01" & std_logic_vector(SPR_LINE(3 downto 0));
 			when SG2 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "10" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "10" & std_logic_vector(SPR_LINE(3 downto 0));
 			when SG3 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "11" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "11" & std_logic_vector(SPR_LINE(3 downto 0));
 			when others =>
 				SPR_RAM_ADDR <= (others=>'0');
 		end case;
