@@ -47,7 +47,7 @@ entity HUC6270 is
 		LENR_DBG 			: out std_logic_vector(15 downto 0);
 		SPR_X_DBG    		: out std_logic_vector(9 downto 0);
 		SPR_Y_DBG    		: out std_logic_vector(9 downto 0);
-		SPR_PC_DBG			: out std_logic_vector(9 downto 0);
+		SPR_PC_DBG			: out std_logic_vector(10 downto 0);
 		SPR_CG_DBG     	: out std_logic;
 		SPR_PAL_DBG			: out std_logic_vector(3 downto 0);
 		SPR_PRIO_DBG		: out std_logic; 
@@ -215,7 +215,7 @@ architecture rtl of HUC6270 is
 	type Sprite_r is record
 		X    		: std_logic_vector(9 downto 0);
 		Y    		: std_logic_vector(9 downto 0);
-		PC			: std_logic_vector(9 downto 0);
+		PC			: std_logic_vector(10 downto 0);
 		CG     	: std_logic;
 		PAL		: std_logic_vector(3 downto 0);
 		PRIO		: std_logic; 
@@ -238,7 +238,7 @@ architecture rtl of HUC6270 is
 	signal SPR_FIND		: std_logic; 
 	signal SPR_Y			: std_logic_vector(9 downto 0);
 	signal SPR_X			: std_logic_vector(9 downto 0);
-	signal SPR_PC			: std_logic_vector(9 downto 0);
+	signal SPR_PC			: std_logic_vector(10 downto 0);
 	signal SPR_CG    		: std_logic;
 	signal SPR_FETCH_CNT	: unsigned(6 downto 0);
 	signal SPR_FETCH_DONE: std_logic; 
@@ -723,25 +723,25 @@ begin
 		SPR_OFS_Y := RC_CNT(5 downto 0) - unsigned(SPR.Y(5 downto 0)) - 1;
 		SPR_LINE := SPR_OFS_Y xor (5 downto 0 => SPR.VF);
 		if SPR.CGX = '0' then
-			SPR_TILE_N(0) := SPR.PC(0);
+			SPR_TILE_N(0) := SPR.PC(1);
 		else
 			SPR_TILE_N(0) := SPR_FETCH_W xor SPR.HF;
 		end if;
 		case SPR.CGY is
-			when "00" =>   SPR_TILE_N(2 downto 1) := SPR.PC(2 downto 1);
-			when "01" =>   SPR_TILE_N(2 downto 1) := SPR.PC(2)   & SPR_LINE(4);
+			when "00" =>   SPR_TILE_N(2 downto 1) := SPR.PC(3 downto 2);
+			when "01" =>   SPR_TILE_N(2 downto 1) := SPR.PC(3)   & SPR_LINE(4);
 			when others => SPR_TILE_N(2 downto 1) := SPR_LINE(5) & SPR_LINE(4);
 		end case;
 		
 		case SLOT is
 			when SG0 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "00" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "00" & std_logic_vector(SPR_LINE(3 downto 0));
 			when SG1 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "01" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "01" & std_logic_vector(SPR_LINE(3 downto 0));
 			when SG2 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "10" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "10" & std_logic_vector(SPR_LINE(3 downto 0));
 			when SG3 =>
-				SPR_RAM_ADDR <= SPR.PC(9 downto 3) & SPR_TILE_N & "11" & std_logic_vector(SPR_LINE(3 downto 0));
+				SPR_RAM_ADDR <= SPR.PC(10 downto 4) & SPR_TILE_N & "11" & std_logic_vector(SPR_LINE(3 downto 0));
 			when others =>
 				SPR_RAM_ADDR <= (others=>'0');
 		end case;
@@ -810,7 +810,7 @@ begin
 								SPR_X <= SAT_Q(9 downto 0);
 							when "10" =>
 								SPR_CG <= SAT_Q(0);
-								SPR_PC <= SAT_Q(10 downto 1);
+								SPR_PC <= SAT_Q(10 downto 0);
 							when others =>
 								SPR_H := SAT_Q(13)&(SAT_Q(13) or SAT_Q(12))&"1111";
 								if RC_CNT >= unsigned(SPR_Y) and RC_CNT <= unsigned(SPR_Y) + unsigned(SPR_H) then
@@ -888,7 +888,14 @@ begin
 								end if; 
 							end if; 
 							
-							if SM = "01" and SPR.CG = '0' then
+							if (SM = "01" and SPR.PC(0) = '1') then		-- when it's 4-color mode
+																						-- then if bit 0 of SATB sprint pattern address = '1', then switch SG0/SG1 slot to SG2/SG3						
+
+								SPR_TILE_P0 <= SPR_CH2;
+								SPR_TILE_P1 <= RAM_DI;
+								SPR_TILE_P2 <= (others=>'0');
+								SPR_TILE_P3 <= (others=>'0');
+							elsif SM = "01" and SPR.CG = '0' then
 								SPR_TILE_P0 <= SPR_CH0;
 								SPR_TILE_P1 <= RAM_DI;
 								SPR_TILE_P2 <= (others=>'0');
