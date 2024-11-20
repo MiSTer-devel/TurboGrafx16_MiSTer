@@ -22,9 +22,12 @@ entity huc6260 is
 		-- VDC Interface
 		COLNO		: in std_logic_vector(8 downto 0);
 		CLKEN		: out std_logic;
+		HSYNC_F	: out std_logic;
+		HSYNC_R	: out std_logic;
+		VSYNC_F	: out std_logic;
+		VSYNC_R	: out std_logic;
 		CLKEN_FS	: out std_logic;
 		RVBL		: in std_logic;
-		DCC		: out std_logic_vector(1 downto 0);
 		
 		GRID_EN	: in std_logic_vector(1 downto 0);
 		BORDER_EN: in std_logic;
@@ -40,12 +43,7 @@ entity huc6260 is
 		VS_N		: out std_logic;
 		HS_N		: out std_logic;
 		HBL		: out std_logic;
-		VBL		: out std_logic;
-		
-		HS_F		: out std_logic;
-		HS_R		: out std_logic;
-		VS_F		: out std_logic;
-		VS_R		: out std_logic
+		VBL		: out std_logic
 	);
 end huc6260;
 
@@ -89,6 +87,8 @@ constant DISP_LINES_E	: integer := 242;	 -- same as in mednafen
 signal TOP_BL_LINES		: integer;
 signal DISP_LINES			: integer;
 signal END_LINE			: integer := TOTAL_LINES;
+signal HSYNC_START_POS	: integer;
+signal HSYNC_END_POS 	: integer;
 
 signal H_CNT	: std_logic_vector(11 downto 0);
 signal V_CNT	: std_logic_vector(9 downto 0);
@@ -107,7 +107,7 @@ begin
 
 TOP_BL_LINES <= TOP_BL_LINES_E when RVBL = '1' else TOP_BL_LINES_E+4;
 DISP_LINES   <= DISP_LINES_E   when RVBL = '1' else DISP_LINES_E-11;
-
+	 
 -- Color RAM
 ram : entity work.dpram generic map (addr_width => 9, data_width => 9, mem_init_file =>"huc6260_palette_init.mif")
 port map(
@@ -246,6 +246,26 @@ begin
 	end if;
 end process;
 
+HSYNC_START_POS <= 64-1 when DOTCLOCK = "00" else 
+                72-1 when DOTCLOCK = "01" else 
+                LINE_CLOCKS-1;
+HSYNC_END_POS <= 64+464-1 when DOTCLOCK = "00" else 
+              72+468-1 when DOTCLOCK = "01" else 
+              468-1;
+process( CLK )
+begin
+	if rising_edge( CLK ) then
+		HSYNC_F <= '0';
+		HSYNC_R <= '0';
+		VSYNC_F <= '0';
+		VSYNC_R <= '0';
+		if H_CNT = HSYNC_START_POS then HSYNC_F <= '1'; end if;
+		if H_CNT = HSYNC_END_POS   then HSYNC_R <= '1'; end if;
+		if V_CNT = END_LINE-1    and H_CNT = LINE_CLOCKS-1 then VSYNC_F <= '1'; end if;
+		if V_CNT = VS_LINES-1    and H_CNT = LINE_CLOCKS-1 then VSYNC_R <= '1'; end if;
+	end if;
+end process;
+
 process( CLK )
 begin
 	if rising_edge( CLK ) then
@@ -277,15 +297,6 @@ begin
 		if H_CNT = HS_OFF + HS_CLOCKS then HS_N <= '1'; end if;
 		if V_CNT = 0                  then VS_N <= '0'; end if;
 		if V_CNT = VS_LINES           then VS_N <= '1'; end if;
-		
-		HS_F <= '0';
-		HS_R <= '0';
-		VS_F <= '0';
-		VS_R <= '0';
-		if H_CNT = LINE_CLOCKS-1 then HS_F <= '1'; end if;
-		if H_CNT = HS_CLOCKS-1   then HS_R <= '1'; end if;
-		if V_CNT = END_LINE-1    and H_CNT = LINE_CLOCKS-1 then VS_F <= '1'; end if;
-		if V_CNT = VS_LINES-1    and H_CNT = LINE_CLOCKS-1 then VS_R <= '1'; end if;
 	end if;
 end process;
 
@@ -350,6 +361,5 @@ begin
 end process;
 
 CLKEN <= CLKEN_FF;
-DCC <= DOTCLOCK;
 
 end rtl;
