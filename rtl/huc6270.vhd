@@ -320,7 +320,7 @@ begin
 					DOTS_REMAIN <= DOT_CNT;
 					
 					if HSYNC_F = '1' then
-						HSW <= "00010";
+						HSW <= "00011";
 					else 
 						HSW <= HSR_HSW;
 					end if; 

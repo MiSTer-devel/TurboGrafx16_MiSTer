@@ -246,12 +246,12 @@ begin
 	end if;
 end process;
 
-HSYNC_START_POS <= 64-1 when DOTCLOCK = "00" else 
-                72-1 when DOTCLOCK = "01" else 
-                LINE_CLOCKS-1;
-HSYNC_END_POS <= 64+464-1 when DOTCLOCK = "00" else 
-              72+468-1 when DOTCLOCK = "01" else 
-              468-1;
+HSYNC_START_POS <= 32-1 when DOTCLOCK = "00" else 
+                   66-1 when DOTCLOCK = "01" else 
+                   LINE_CLOCKS-1;
+HSYNC_END_POS   <= 32+464-1 when DOTCLOCK = "00" else 
+                   66+468-1 when DOTCLOCK = "01" else 
+                   468-1;
 process( CLK )
 begin
 	if rising_edge( CLK ) then
