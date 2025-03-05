@@ -247,10 +247,10 @@ begin
 end process;
 
 HSYNC_START_POS <= 32-1 when DOTCLOCK = "00" else 
-                   66-1 when DOTCLOCK = "01" else 
+                   18-1 when DOTCLOCK = "01" else 
                    LINE_CLOCKS-1;
 HSYNC_END_POS   <= 32+464-1 when DOTCLOCK = "00" else 
-                   66+468-1 when DOTCLOCK = "01" else 
+                   18+468-1 when DOTCLOCK = "01" else 
                    468-1;
 process( CLK )
 begin
@@ -260,6 +260,7 @@ begin
 		VSYNC_F <= '0';
 		VSYNC_R <= '0';
 		if H_CNT = HSYNC_START_POS then HSYNC_F <= '1'; end if;
+		if H_CNT = HSYNC_START_POS + 1 and DOTCLOCK = "01" then HSYNC_F <= '1'; end if;
 		if H_CNT = HSYNC_END_POS   then HSYNC_R <= '1'; end if;
 		if V_CNT = END_LINE-1    and H_CNT = LINE_CLOCKS-1 then VSYNC_F <= '1'; end if;
 		if V_CNT = VS_LINES-1    and H_CNT = LINE_CLOCKS-1 then VSYNC_R <= '1'; end if;

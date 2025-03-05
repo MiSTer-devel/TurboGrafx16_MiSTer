@@ -54,6 +54,7 @@ entity HUC6270 is
 		SPR_CGY_DBG     	: out std_logic_vector(1 downto 0);
 		SPR_HF_DBG     	: out std_logic;
 		SPR_VF_DBG     	: out std_logic;
+		HSW_END_POS_DBG 	: out unsigned(6 downto 0);
 		HDS_END_POS_DBG 	: out unsigned(6 downto 0);
 		HDISP_END_POS_DBG : out unsigned(6 downto 0);
 		HSW_DBG				: out std_logic_vector(4 downto 0);
@@ -175,6 +176,7 @@ architecture rtl of HUC6270 is
 	signal VDS				: std_logic_vector(7 downto 0);
 	signal VDW				: std_logic_vector(8 downto 0);
 	signal VDE				: std_logic_vector(7 downto 0);
+	signal RES7M			: std_logic_vector(0 downto 0);
 	signal HDISP			: std_logic;
 	signal VDISP			: std_logic;
 	
@@ -296,6 +298,7 @@ begin
 			HDS <= (others=>'0');
 			HDE <= (others=>'0');
 			CM <= '0';
+			RES7M <= "0";
 		elsif rising_edge(CLK) then
 
 			FETCH_CE <= not FETCH_CE;
@@ -313,7 +316,7 @@ begin
 				if DOT_CNT = 7 then
 					TILE_CNT <= TILE_CNT + 1;
 				end if; 
-				if TILE_CNT = HDE_END_POS or HSYNC_F = '1' then
+				if (TILE_CNT = HDE_END_POS and DOT_CNT = 7) or HSYNC_F = '1' then
 					DOT_CNT <= (others=>'0');
 					TILE_CNT <= (others=>'0');
 					
@@ -327,9 +330,14 @@ begin
 					HDS <= HSR_HDS;
 					HDW <= HDR_HDW;
 					HDE <= HDR_HDE;
+					RES7M <= "0";
 
 					CM <= MWR_CM;
 				end if; 
+			end if; 
+			
+			if DCK_CE = '0' and HSYNC_F = '1' then
+				RES7M <= "1";
 			end if; 
 		end if;
 	end process;
@@ -338,10 +346,10 @@ begin
 	SPR_CE   <= DCK_CE  when SP64 = '0' else FETCH_CE;
 	SPR_MAX  <= 15      when SP64 = '0' else 63;
 
-	HSW_END_POS <= "00"&unsigned(HSW);
-	HDS_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS);
+	HSW_END_POS <= "00"&unsigned(HSW) + ("000000"&unsigned(RES7M));
+	HDS_END_POS <= ("00"&unsigned(HSW)) + ("000000"&unsigned(RES7M)) + 1 + unsigned(HDS);
 	HDISP_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS) + 1 + unsigned(HDW);
-	HDE_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS) + 1 + unsigned(HDW) + unsigned(HDE);
+	HDE_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS) + 1 + unsigned(HDW) + 1 + unsigned(HDE);
 	
 	VSW_END_POS <= ("00000"&unsigned(VSW));
 	VDS_END_POS <= ("00000"&unsigned(VSW)) + 1 + ("00"&unsigned(VDS)) + 1;
@@ -385,7 +393,7 @@ begin
 					if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
 						DISP_CNT_INC <= '1';
 					end if;
-					if (TILE_CNT = HDE_END_POS and DOT_CNT = 7 and DISP_CNT_INC = '1') or DISP_BREAK = '1' then
+					if DISP_BREAK = '1' then--(TILE_CNT = HDE_END_POS and DOT_CNT = 7 and DISP_CNT_INC = '1') or 
 						DISP_CNT <= DISP_CNT + 1;
 						DISP_CNT_INC <= '0';
 						if DISP_CNT = VSW_END_POS then
@@ -785,7 +793,7 @@ begin
 		elsif rising_edge(CLK) then
 			SPR_TILE_SAVE <= '0';
 			if DCK_CE = '1' then
-				if TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
+				if TILE_CNT = HDS_END_POS and DOT_CNT = 3 and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS then
 					SPR_EVAL <= '1';
 					SPR_EVAL_X <= (others=>'0');
 					SPR_EVAL_CNT <= (others=>'0');
@@ -1430,6 +1438,7 @@ begin
 	SPR_HF_DBG <= SPR.HF;
 	SPR_VF_DBG <= SPR.VF;
 	
+	HSW_END_POS_DBG <= HSW_END_POS;
 	HDS_END_POS_DBG <= HDS_END_POS;
 	HDISP_END_POS_DBG <= HDISP_END_POS;
 	HSW_DBG <= HSW;
