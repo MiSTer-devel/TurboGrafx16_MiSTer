@@ -171,6 +171,7 @@ architecture rtl of cd is
 	signal FIFO_WR_REQ		: std_logic;
 	signal FIFO_D 				: std_logic_vector(31 downto 0);
 	signal FIFO_Q 				: std_logic_vector(31 downto 0);
+	signal FIFO_SCLR			: std_logic;
 	signal CDDA_CE 			: std_logic;
 	signal ADPCM_CE         : std_logic;
 	signal CDDA_SAMPLE		: std_logic;
