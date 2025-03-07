@@ -66,12 +66,13 @@ architecture rtl of cd is
 	signal SCSI_MSG_N			: std_logic;
 	signal SCSI_CD_N			: std_logic;
 	signal SCSI_IO_N			: std_logic;
-	signal CD_STOP_CD_SND		: std_logic;
+	signal CD_STOP_CD_SND	: std_logic;
 	
 	signal CD_DTD				: std_logic;	--CD data transfer done flag
 	signal CD_DTR				: std_logic;	--CD data transfer ready flag
 	signal CD_DTD_EN			: std_logic;
 	signal CD_DTR_EN			: std_logic;
+	signal CD_MOTOR			: std_logic;
 	signal ADPCM_END_EN		: std_logic;
 	signal ADPCM_HALF_EN		: std_logic;
 	signal CH_SEL				: std_logic;
@@ -85,12 +86,18 @@ architecture rtl of cd is
 	signal SCSI_ACK_N_OLD	: std_logic;
 	signal CD_DATA_CNT		: unsigned(10 downto 0);
 	
-	signal CDDA_VOL_R			: std_logic_vector(15 downto 0);
-	signal CDDA_VOL_L			: std_logic_vector(15 downto 0);
+	signal R1802_0				: std_logic;
+	signal R1802_1				: std_logic;
+	signal R1802_4				: std_logic;
+	signal R180E_7_4			: std_logic_vector(3 downto 0);
+	signal R180F_0				: std_logic;
+	signal R180F_7_4			: std_logic_vector(3 downto 0);
+	
+	signal CDDA_VOL			: std_logic_vector(15 downto 0);
 	
 	--ADPCM controller
 	signal ADPCM_OFFS			: std_logic_vector(15 downto 0);
-	signal ADPCM_LEN			: std_logic_vector(15 downto 0);
+	signal ADPCM_LEN			: std_logic_vector(16 downto 0);
 	signal ADPCM_RDADDR		: std_logic_vector(16 downto 0);
 	signal ADPCM_WRADDR		: std_logic_vector(16 downto 0);
 	signal ADPCM_CTRL			: std_logic_vector(7 downto 0);
@@ -164,12 +171,12 @@ architecture rtl of cd is
 	signal FIFO_WR_REQ		: std_logic;
 	signal FIFO_D 				: std_logic_vector(31 downto 0);
 	signal FIFO_Q 				: std_logic_vector(31 downto 0);
-	signal FIFO_SCLR			: std_logic;
-	signal SAMPLE_CE 			: std_logic;
-	signal ADPCM_CE			: std_logic;
+	signal CDDA_CE 			: std_logic;
+	signal ADPCM_CE         : std_logic;
+	signal CDDA_SAMPLE		: std_logic;
+	signal CDDA_SAMPLE_OLD	: std_logic;
 	signal OUTL 				: signed(15 downto 0);
 	signal OUTR 				: signed(15 downto 0);
-	
 	
 	--Fader
 	signal FADE_VOL 			: unsigned(10 downto 0);
@@ -181,7 +188,9 @@ begin
 
 	REG_SEL <= '1' when EXT_A(20 downto 13) = x"FF" and EXT_A(12 downto 8) = "11000" else '0';
 
-	process( CLK, RST_N ) begin
+	process( CLK, RST_N ) 
+	variable NEW_ADPCM_LEN : std_logic_vector(16 downto 0);
+	begin
 		if RST_N = '0' then
 			SCSI_DBI <= (others => '0');
 			SCSI_ACK_N <= '1';
@@ -193,12 +202,12 @@ begin
 			BRAM_LOCK <= '1';
 			CD_DTD_EN <= '0';
 			CD_DTR_EN <= '0';
+			CD_MOTOR <= '0';
 			ADPCM_END_EN <= '0';
 			ADPCM_HALF_EN <= '0';
 			AUTO_ACK <= '0';
 			
-			CDDA_VOL_R <= (others => '0');
-			CDDA_VOL_L <= (others => '0');
+			CDDA_VOL <= (others => '0');
 			
 			ADPCM_OFFS <= (others => '0');
 			ADPCM_LEN <= (others => '0');
@@ -229,14 +238,20 @@ begin
 							SCSI_SEL_N <= '0';
 							CD_DTD <= '0';
 							CD_DTR <= '0';
+--							if SCSI_DBI = x"00" then
+								CD_MOTOR <= '1';
+--							end if;
 						when x"01" =>
 							SCSI_DBI <= EXT_DI;
 						when x"02" =>
 							SCSI_ACK_N <= not EXT_DI(7);
 							CD_DTR_EN <= EXT_DI(6);
 							CD_DTD_EN <= EXT_DI(5);
+							R1802_4 <= EXT_DI(4);
 							ADPCM_END_EN <= EXT_DI(3);
 							ADPCM_HALF_EN <= EXT_DI(2);
+							R1802_1 <= EXT_DI(1);
+							R1802_0 <= EXT_DI(0);
 						when x"04" =>
 							SCSI_RST_N <= not EXT_DI(1);
 							if EXT_DI(1) = '1' then
@@ -244,13 +259,18 @@ begin
 								CD_DTR <= '0';
 							end if;
 						when x"05" =>
-							CDDA_VOL_R <= std_logic_vector(OUTR);
-							CDDA_VOL_L <= std_logic_vector(OUTL);
-							CH_SEL <= not CH_SEL;
+							if CDDA_SAMPLE = '1' and CDDA_SAMPLE_OLD = '0' then
+								if CH_SEL /= '0' then
+									CDDA_VOL <= std_logic_vector(OUTL);
+								else
+									CDDA_VOL <= std_logic_vector(OUTR);
+								end if;
+								CH_SEL <= not CH_SEL;
+							end if;
+							CDDA_SAMPLE_OLD <= CDDA_SAMPLE;
 							
 						when x"07" =>
-						   BRAM_LOCK <= not EXT_DI(7);  -- unlock when bit 7 is '1', but also lock if bit 7 is '0'
-
+							BRAM_LOCK <= not EXT_DI(7);  -- unlock when bit 7 is '1', but also lock if bit 7 is '0'
 						when x"08" =>
 							ADPCM_OFFS(7 downto 0) <= EXT_DI;
 						when x"09" =>
@@ -271,15 +291,20 @@ begin
 								ADPCM_PLAY <= '0';
 							end if;
 						when x"0E" =>
+							R180E_7_4 <= EXT_DI(7 downto 4);
 							ADPCM_FREQ <= EXT_DI(3 downto 0);
 						when x"0F" =>
+							R180F_7_4 <= EXT_DI(7 downto 4);
 							ADPCM_FADER <= EXT_DI(3 downto 1);
+							R180F_0 <= EXT_DI(0);
 						when others => null;
 					end case;
 				elsif REG_SEL = '1' and EXT_RD_N = '0' then
 					case EXT_A(7 downto 0) is
 						when x"03" =>
 							BRAM_LOCK <= '1';
+						when x"07" =>
+							CD_MOTOR <= '0';
 						when x"08" =>
 							if SCSI_REQ_N = '0' and SCSI_IO_N = '0' and SCSI_CD_N = '1' and SCSI_ACK_N = '1' then 
 								SCSI_ACK_N <= '0';
@@ -330,9 +355,10 @@ begin
 				PLAY_READ_PEND <= '1';
 			end if;
 			
-			if DRAM_CLKEN = '1' then
+			if DRAM_CLKEN = '1' and ADPCM_CTRL(7) = '0' then
 				case DRAM_SLOT is
 					when SLOT_READ =>
+						NEW_ADPCM_LEN := std_logic_vector(unsigned(ADPCM_LEN) - 1);
 						if ADPCM_READ_PEND = '1' or PLAY_READ_PEND = '1' then
 							M5205_D <= ADRAM_DO;
 							if PLAY_READ_PEND = '1' then
@@ -346,31 +372,39 @@ begin
 								ADPCM_RDDATA(3 downto 0) <= ADRAM_DO;
 							end if;
 							if ADPCM_READ_NIB = '1' then
-								if ADPCM_LEN /= x"0000" then
-									ADPCM_LEN <= std_logic_vector(unsigned(ADPCM_LEN) - 1);
+								if ADPCM_LEN /= "0"&x"0000" then
+									ADPCM_LEN <= NEW_ADPCM_LEN;
 								end if;
 								if ADPCM_READ_PEND = '1' then
 									ADPCM_READ_PEND <= '0';
 								end if;
 							end if;
-							ADPCM_HALF <= not ADPCM_LEN(15);
-							if ADPCM_LEN = x"0000" then
-								ADPCM_END <= '1';
+							if ADPCM_LEN(15 downto 0) < x"8000" then
+								ADPCM_HALF <= '1';
+							elsif ADPCM_LEN(15 downto 0) = x"8000" and ADPCM_CTRL(4) = '0' then
+								ADPCM_HALF <= '1';
+							else
 								ADPCM_HALF <= '0';
+							end if;
+							if ADPCM_LEN = "0"&x"0000" then
+								ADPCM_END <= '1';
+								if ADPCM_READ_PEND = '1' and ADPCM_CTRL(4) = '0' then
+									ADPCM_HALF <= '0';
+								end if;
 								if ADPCM_CTRL(6) = '1' and ADPCM_PLAY = '1' then
 									ADPCM_PLAY <= '0';
 									M5205_D <= (others => '0');
+									ADPCM_CTRL(5) <= '0';
 								end if;
 							end if;
 						end if;
 						
 					when SLOT_WRITE =>
+						NEW_ADPCM_LEN := std_logic_vector(unsigned(ADPCM_LEN) + 1);
 						if ADPCM_WRITE_PEND = '1' or DMA_WRITE_PEND = '1' then
 							ADPCM_WRITE_NIB <= not ADPCM_WRITE_NIB;
 							if ADPCM_WRITE_NIB = '1' then
-								if ADPCM_LEN /= x"FFFF" then
-									ADPCM_LEN <= std_logic_vector(unsigned(ADPCM_LEN) + 1);
-								end if;
+								ADPCM_LEN <= NEW_ADPCM_LEN;
 								if ADPCM_WRITE_PEND = '1' then
 									ADPCM_WRITE_PEND <= '0';
 								end if;
@@ -380,7 +414,10 @@ begin
 									AUTO_ACK <= '1';
 								end if;
 							end if;
-							ADPCM_HALF <= not ADPCM_LEN(15);
+							ADPCM_HALF <= not ADPCM_LEN(15) and not ADPCM_LEN(16);
+							if ADPCM_LEN = "0"&x"0000" then
+								ADPCM_END <= '1';
+							end if;
 						end if;
 						
 					when others => null;
@@ -388,7 +425,7 @@ begin
 			end if;
 			
 			if ADPCM_CTRL(4) = '1' then
-				ADPCM_LEN <= ADPCM_OFFS;
+				ADPCM_LEN <= "0"&ADPCM_OFFS;
 				ADPCM_END <= '0';
 			end if;
 			
@@ -399,8 +436,6 @@ begin
 				ADPCM_RDADDR <= (others => '0');
 				ADPCM_END <= '0';
 				ADPCM_HALF <= '0';
-				ADPCM_PLAY <= '0';
-				ADPCM_CTRL(6 downto 0) <= (others => '0');
 			end if;
 			
 			if DRAM_CLKEN = '1' and DRAM_SLOT = SLOT_WRITE and (ADPCM_WRITE_PEND = '1' or DMA_WRITE_PEND = '1') then
@@ -437,8 +472,8 @@ begin
 	WRITE_PEND <= ADPCM_WRITE_PEND or DMA_WRITE_PEND;
 	READ_PEND <= ADPCM_READ_PEND or PLAY_READ_PEND;
 	process( REG_SEL, EXT_A, SCSI_DBO, SCSI_BSY_N, SCSI_REQ_N, SCSI_MSG_N, SCSI_CD_N, SCSI_IO_N, SCSI_ACK_N, SCSI_RST_N, 
-				CD_DTR, CD_DTD, CD_DTR_EN, CD_DTD_EN, CH_SEL, ADPCM_RDDATA, ADPCM_DMA_EN, ADPCM_DMA_RUN, ADPCM_END, ADPCM_HALF, ADPCM_END_EN, ADPCM_HALF_EN, 
-				ADPCM_CTRL, ADPCM_FREQ, ADPCM_PLAY, ADPCM_FADER, READ_PEND, WRITE_PEND, CDDA_VOL_R, CDDA_VOL_L, CD_REGION) 
+				CD_DTR, CD_DTD, CD_MOTOR, CD_DTR_EN, CD_DTD_EN, R1802_0, R1802_1, R1802_4, CH_SEL, ADPCM_RDDATA, ADPCM_DMA_EN, ADPCM_DMA_RUN, ADPCM_END, ADPCM_HALF, ADPCM_END_EN, ADPCM_HALF_EN, 
+				ADPCM_CTRL, ADPCM_FREQ, R180E_7_4, ADPCM_PLAY, ADPCM_FADER, R180F_0, R180F_7_4, READ_PEND, WRITE_PEND, CDDA_VOL, CD_REGION) 
 	begin
 		EXT_DO <= x"00";
 		if REG_SEL = '1' then
@@ -446,29 +481,29 @@ begin
 				when x"00" =>
 					EXT_DO <= not SCSI_BSY_N & not SCSI_REQ_N & not SCSI_MSG_N & not SCSI_CD_N & not SCSI_IO_N & "000";
 				when x"01" =>
-					EXT_DO <= SCSI_DBO;
+					if SCSI_BSY_N = '0' then
+						EXT_DO <= SCSI_DBO;
+					else
+						EXT_DO <= SCSI_DBI;
+					end if;
 				when x"02" =>
-					EXT_DO <= not SCSI_ACK_N & CD_DTR_EN & CD_DTD_EN & "0" & ADPCM_END_EN & ADPCM_HALF_EN & "00";--TODO
+					EXT_DO <= not SCSI_ACK_N & CD_DTR_EN & CD_DTD_EN & R1802_4 & ADPCM_END_EN & ADPCM_HALF_EN & R1802_1 & R1802_0;
 				when x"03" =>
-					EXT_DO <= "0" & CD_DTR & CD_DTD & "0" & ADPCM_END & ADPCM_HALF & CH_SEL & "0";--TODO	
+					EXT_DO <= "0" & CD_DTR & CD_DTD & CD_MOTOR & ADPCM_END & ADPCM_HALF & CH_SEL & "0";--TODO	
 				when x"04" =>
 					EXT_DO <= "000000" & not SCSI_RST_N & "0";
 				when x"05" =>
-					if CH_SEL = '1' then
-						EXT_DO <= CDDA_VOL_L(7 downto 0);
-					else
-						EXT_DO <= CDDA_VOL_R(7 downto 0);
-					end if;
+					EXT_DO <= CDDA_VOL(7 downto 0);
 				when x"06" =>
-					if CH_SEL = '1' then
-						EXT_DO <= CDDA_VOL_L(15 downto 8);
-					else
-						EXT_DO <= CDDA_VOL_R(15 downto 8);
-					end if;
+					EXT_DO <= CDDA_VOL(15 downto 8);
 				when x"07" =>
 					EXT_DO <= x"FF";
 				when x"08" =>
-					EXT_DO <= SCSI_DBO;
+					if SCSI_BSY_N = '0' then
+						EXT_DO <= SCSI_DBO;
+					else
+						EXT_DO <= SCSI_DBI;
+					end if;
 					
 				when x"0A" =>
 					EXT_DO <= ADPCM_RDDATA;
@@ -479,9 +514,9 @@ begin
 				when x"0D" =>
 					EXT_DO <= ADPCM_CTRL;
 				when x"0E" =>
-					EXT_DO <= "0000" & ADPCM_FREQ;
+					EXT_DO <= R180E_7_4 & ADPCM_FREQ;
 				when x"0F" =>
-					EXT_DO <= "0000" & ADPCM_FADER & "0";
+					EXT_DO <= R180F_7_4 & ADPCM_FADER & R180F_0;
 					
 				when x"C1" =>
 					EXT_DO <= x"AA";
@@ -685,7 +720,7 @@ begin
 		RST_N       => RST_N,		
 		IN_CLK   	=> 429545,
 		OUT_CLK   	=> 441,
-		CE   			=> SAMPLE_CE
+		CE   			=> CDDA_CE
 	);
 
 	ADPCM_CLK_GEN : entity work.CEGen
@@ -707,7 +742,8 @@ begin
 		elsif rising_edge(CLK) then
 			FIFO_RD_REQ <= '0';
 			FIFO_SCLR <= '0';
-			if SAMPLE_CE = '1' and EN = '1' then	-- ~44.1kHz
+			if CDDA_CE = '1' and EN = '1' then	-- ~44.1kHz
+				CDDA_SAMPLE <= not CDDA_SAMPLE;
 				if FIFO_EMPTY = '0' then
 					FIFO_RD_REQ <= '1';
 					if (CD_STOP_CD_SND = '0') then
@@ -731,7 +767,7 @@ begin
 			FADE_VOL <= "01111111111";
 			FADE_CNT <= (others => '0');
 		elsif rising_edge(CLK) then
-			if SAMPLE_CE = '1' and EN = '1' then
+			if CDDA_CE = '1' and EN = '1' then
 				if FADE_VOL(9 downto 0) > 0 and ADPCM_FADER(2) = '1' then
 					FADE_CNT <= FADE_CNT + 1;
 					if (FADE_CNT = 107 and ADPCM_FADER(1) = '1') or 	--2.5s
