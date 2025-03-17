@@ -45,12 +45,15 @@ architecture rtl of SCSI is
 	
 	type SCSIPhase_t is (
 		SP_FREE,
+		SP_COMM_BEFOREREQ,
 		SP_COMM_START,
 		SP_COMM_END,
 		SP_STAT_START,
 		SP_STAT_END,
+		SP_STAT_HOLD,
 		SP_MSGIN_START,
 		SP_MSGIN_END,
+		SP_MSGIN_HOLD,
 		SP_DATAIN_START,
 		SP_DATAIN_END,
 		SP_DATAOUT_START,
@@ -92,6 +95,7 @@ architecture rtl of SCSI is
 	signal DATAIN_CNT 	: unsigned(15 downto 0);
 
 	signal STAT_COUNT    : unsigned(15 downto 0);
+	signal DELAY_COUNT   : unsigned(16 downto 0);
 
 begin
 
@@ -154,8 +158,9 @@ begin
 			FIFO_RD_REQ <= '0';
 			
 			STAT_COUNT  <= (others => '0');
+			DELAY_COUNT <= (others => '0');
 			
-			DATAIN_CNT <= (others => '0');
+			DATAIN_CNT  <= (others => '0');
 
 		elsif rising_edge( CLK ) then
 			if STAT_GET = '1' then
@@ -186,13 +191,13 @@ begin
 							MSG_Nr <= '1';
 							CD_Nr <= '0';
 							IO_Nr <= '1';
-							REQ_Nr <= '0';
-							SP <= SP_COMM_START;
+							SP <= SP_COMM_BEFOREREQ;
+							DELAY_COUNT <= to_unsigned(1700, DELAY_COUNT'LENGTH);		-- Wait 40 microseconds after control signals are set up, before triggering REQ in COMMAND phase
 							DATAIN_CNT <= (others => '0');
 						elsif STAT_PEND = '1' then
 							STAT_COUNT <= STAT_COUNT + 1;
 
-							if (STAT_COUNT = 45000) then		-- CLK is 42.95 MHz; this gives ~1.05 millisec delay.
+							if (STAT_COUNT = 45000) then		-- CLK is 42.95 MHz; this gives ~1.05 millisec delay before transitioning to STATUS phase
 																		-- this is empirical and may not be correct but it solves
 																		-- the Sailor Moon hang issue
 								STAT_COUNT <= (others => '0');
@@ -224,6 +229,14 @@ begin
 							SP <= SP_DATAOUT_START;
 						end if;
 						
+					when SP_COMM_BEFOREREQ =>
+						if (DELAY_COUNT = 0) then
+							REQ_Nr <= '0';
+							SP <= SP_COMM_START;
+						else
+							DELAY_COUNT <= DELAY_COUNT - 1;
+						end if;
+
 					when SP_COMM_START =>
 						if REQ_Nr = '0' and ACK_N = '0' then
 							REQ_Nr <= '1';
@@ -237,7 +250,6 @@ begin
 							if COMM_POS = COMM_LEN(to_integer(unsigned(COMM(0)(7 downto 4)))) then
 								COMM_POS <= (others => '0');
 								COMM_OUT <= '1';
-								CD_Nr <= '1';
 								SP <= SP_FREE;
 								if ((COMM(0) = x"08") or (COMM(0) = x"DA")) then	-- READ6 and PAUSE commands should mute sound, but still drain FIFO
 									STOP_CD_SND <= '1';
@@ -246,11 +258,11 @@ begin
 									STOP_CD_SND <= '0';
 								end if;
 							else
-								REQ_Nr <= '0';
-								SP <= SP_COMM_START;
+								SP <= SP_COMM_BEFOREREQ;
+								DELAY_COUNT <= to_unsigned(5370, DELAY_COUNT'LENGTH);	-- Wait 125 microseconds after ACK, before next REQ in COMMAND phase
 							end if;
 						end if;
-					
+
 					when SP_STAT_START =>
 						if REQ_Nr = '0' and ACK_N = '0' then
 							REQ_Nr <= '1';
@@ -259,6 +271,12 @@ begin
 					
 					when SP_STAT_END =>
 						if REQ_Nr = '1' and ACK_N = '1' then
+							SP <= SP_STAT_HOLD;
+							DELAY_COUNT <= to_unsigned(49400, DELAY_COUNT'LENGTH);	-- wait 1.15 milliseconds after ACK in STATUS pahse before transitioning to next phase (MSGIN)
+						end if;
+
+					when SP_STAT_HOLD =>
+						if (DELAY_COUNT = 0) then
 							DBO <= MESSAGE;
 							BSY_Nr <= '0';
 							MSG_Nr <= '0';
@@ -266,6 +284,8 @@ begin
 							IO_Nr <= '0';
 							REQ_Nr <= '0';
 							SP <= SP_MSGIN_START;
+						else
+							DELAY_COUNT <= DELAY_COUNT - 1;
 						end if;
 					
 					when SP_MSGIN_START =>
@@ -276,14 +296,22 @@ begin
 					
 					when SP_MSGIN_END =>
 						if REQ_Nr = '1' and ACK_N = '1' then
+							SP <= SP_MSGIN_HOLD;
+							DELAY_COUNT <= to_unsigned(6600, DELAY_COUNT'LENGTH);		-- wait 154 microseconds after ACK in STATUS phase before transitioning to next phase/disconnecting
+						end if;
+
+					when SP_MSGIN_HOLD =>
+						if (DELAY_COUNT = 0) then
 							BSY_Nr <= '1';
 							MSG_Nr <= '1';
 							CD_Nr <= '1';
 							IO_Nr <= '1';
 							REQ_Nr <= '1';
 							SP <= SP_FREE;
+						else
+							DELAY_COUNT <= DELAY_COUNT - 1;
 						end if;
-						
+
 					when SP_DATAIN_START =>
 						if REQ_Nr = '0' and ACK_N = '0' then
 							REQ_Nr <= '1';
