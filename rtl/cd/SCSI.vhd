@@ -250,6 +250,7 @@ begin
 							if COMM_POS = COMM_LEN(to_integer(unsigned(COMM(0)(7 downto 4)))) then
 								COMM_POS <= (others => '0');
 								COMM_OUT <= '1';
+								CD_Nr <= '1';
 								SP <= SP_FREE;
 								if ((COMM(0) = x"08") or (COMM(0) = x"DA")) then	-- READ6 and PAUSE commands should mute sound, but still drain FIFO
 									STOP_CD_SND <= '1';
