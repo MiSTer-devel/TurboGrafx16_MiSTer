@@ -335,7 +335,8 @@ begin
 			SCSI_BSY_N_OLD <= SCSI_BSY_N;
 			if SCSI_REQ_N = '0' and SCSI_REQ_N_OLD = '1' and SCSI_BSY_N = '0' and SCSI_MSG_N = '1' and SCSI_IO_N = '0' and SCSI_CD_N = '0' then
 				CD_DTD <= '1';
-				ADPCM_DMA_RUN <= '0';
+			elsif CD_DTD = '1' and SCSI_REQ_N = '1' and SCSI_REQ_N_OLD = '0' and SCSI_MSG_N = '0' then
+				CD_DTD <= '0';
 			elsif CD_DTD = '1' and SCSI_BSY_N = '1' and SCSI_BSY_N_OLD = '0' then
 				CD_DTD <= '0';
 			end if;
@@ -348,6 +349,7 @@ begin
 				CD_DATA_CNT <= CD_DATA_CNT + 1;
 				if CD_DATA_CNT = 2047 then
 					CD_DTR <= '0';
+					ADPCM_DMA_RUN <= '0';
 				end if;
 			end if;
 			
@@ -380,9 +382,9 @@ begin
 									ADPCM_READ_PEND <= '0';
 								end if;
 							end if;
-							if ADPCM_LEN(15 downto 0) < x"8000" then
+							if ADPCM_LEN < "0"&x"8000" then
 								ADPCM_HALF <= '1';
-							elsif ADPCM_LEN(15 downto 0) = x"8000" and ADPCM_CTRL(4) = '0' then
+							elsif ADPCM_LEN = "0"&x"8000" and ADPCM_CTRL(4) = '0' then
 								ADPCM_HALF <= '1';
 							else
 								ADPCM_HALF <= '0';
@@ -472,7 +474,7 @@ begin
 
 	WRITE_PEND <= ADPCM_WRITE_PEND or DMA_WRITE_PEND;
 	READ_PEND <= ADPCM_READ_PEND or PLAY_READ_PEND;
-	process( REG_SEL, EXT_A, SCSI_DBO, SCSI_BSY_N, SCSI_REQ_N, SCSI_MSG_N, SCSI_CD_N, SCSI_IO_N, SCSI_ACK_N, SCSI_RST_N, 
+	process( REG_SEL, EXT_A, SCSI_DBO, SCSI_DBI, SCSI_BSY_N, SCSI_REQ_N, SCSI_MSG_N, SCSI_CD_N, SCSI_IO_N, SCSI_ACK_N, SCSI_RST_N, 
 				CD_DTR, CD_DTD, CD_MOTOR, CD_DTR_EN, CD_DTD_EN, R1802_0, R1802_1, R1802_4, CH_SEL, ADPCM_RDDATA, ADPCM_DMA_EN, ADPCM_DMA_RUN, ADPCM_END, ADPCM_HALF, ADPCM_END_EN, ADPCM_HALF_EN, 
 				ADPCM_CTRL, ADPCM_FREQ, R180E_7_4, ADPCM_PLAY, ADPCM_FADER, R180F_0, R180F_7_4, READ_PEND, WRITE_PEND, CDDA_VOL, CD_REGION) 
 	begin
