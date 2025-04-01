@@ -430,6 +430,7 @@ wire [95:0] cd_comm;
 wire        cd_comm_send;
 reg  [15:0] cd_stat;
 reg         cd_stat_rec;
+reg         cd_int_req;
 reg         cd_dataout_req;
 wire [79:0] cd_dataout;
 wire        cd_dataout_send;
@@ -487,6 +488,7 @@ pce_top #(LITE) pce_top
 	.CD_STAT(cd_stat[7:0]),
 	.CD_MSG(cd_stat[15:8]),
 	.CD_STAT_GET(cd_stat_rec),
+	.CD_INT_REQ(cd_int_req),
 
 	.CD_COMM(cd_comm),
 	.CD_COMM_SEND(cd_comm_send),
@@ -548,13 +550,15 @@ always @(posedge clk_sys) begin
 	if(cart_download) cd_en <= 0;
 end
 
-reg        cd_dat_req;
+reg         cd_dat_req;
+reg  [ 7:0] cd_stat_dbg;
 always @(posedge clk_sys) begin
 	reg cd_out112_last = 1;
 	reg cd_comm_send_old = 0, cd_dataout_send_old = 0, cd_dat_req_old = 0, cd_reset_req_old = 0;
 
 	cd_stat_rec <= 0;
 	cd_dataout_req <= 0;
+	cd_int_req <= 0;
 	if (reset || cart_download) begin
 		cd_region <= 0;
 	end
@@ -563,9 +567,11 @@ always @(posedge clk_sys) begin
 			cd_out112_last <= cd_out[112];
 
 			cd_stat <= cd_out[15:0];
-			cd_stat_rec <= ~cd_out[16];
-			cd_dataout_req <= cd_out[16];
-			cd_region <= cd_out[17];
+			cd_stat_rec <= cd_out[16];
+			cd_dataout_req <= cd_out[17];
+			cd_int_req <= cd_out[18];
+			cd_region <= cd_out[23];
+			cd_stat_dbg <= cd_out[31:24];
 		end
 
 		cd_comm_send_old <= cd_comm_send;

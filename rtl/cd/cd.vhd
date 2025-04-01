@@ -27,6 +27,7 @@ entity cd is
 		CD_STAT		: in std_logic_vector(7 downto 0);
 		CD_MSG		: in std_logic_vector(7 downto 0);
 		CD_STAT_GET	: in std_logic;
+		CD_INT_REQ	: in std_logic;
 		
 		CD_COMM		: out std_logic_vector(95 downto 0);
 		CD_COMM_SEND: out std_logic;
@@ -333,11 +334,11 @@ begin
 			
 			SCSI_REQ_N_OLD <= SCSI_REQ_N;
 			SCSI_BSY_N_OLD <= SCSI_BSY_N;
-			if SCSI_REQ_N = '0' and SCSI_REQ_N_OLD = '1' and SCSI_BSY_N = '0' and SCSI_MSG_N = '1' and SCSI_IO_N = '0' and SCSI_CD_N = '0' then
+			if CD_DTD = '0' and ((SCSI_REQ_N = '0' and SCSI_REQ_N_OLD = '1' and SCSI_BSY_N = '0' and SCSI_IO_N = '0' and SCSI_CD_N = '0') 
+			                      or CD_INT_REQ = '1'	--first variant
+			                                                                                                                             ) then
 				CD_DTD <= '1';
-			elsif CD_DTD = '1' and SCSI_REQ_N = '1' and SCSI_REQ_N_OLD = '0' and SCSI_MSG_N = '0' then
-				CD_DTD <= '0';
-			elsif CD_DTD = '1' and SCSI_BSY_N = '1' and SCSI_BSY_N_OLD = '0' then
+			elsif CD_DTD = '1' and ((SCSI_REQ_N = '1' and SCSI_REQ_N_OLD = '0' and SCSI_MSG_N = '0') or (SCSI_BSY_N = '1' and SCSI_BSY_N_OLD = '0')) then
 				CD_DTD <= '0';
 			end if;
 			
@@ -579,6 +580,7 @@ begin
 		STATUS		=> CD_STAT,
 		MESSAGE		=> CD_MSG,
 		STAT_GET		=> CD_STAT_GET,
+		INT_REQ		=> CD_INT_REQ,
 		
 		COMMAND		=> CD_COMM,
 		COMM_SEND	=> CD_COMM_SEND,

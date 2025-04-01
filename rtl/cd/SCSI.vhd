@@ -24,6 +24,7 @@ entity SCSI is
 		STATUS		: in std_logic_vector(7 downto 0);
 		MESSAGE		: in std_logic_vector(7 downto 0);
 		STAT_GET		: in std_logic;
+		INT_REQ		: in std_logic;
 		
 		COMMAND		: out std_logic_vector(95 downto 0);
 		COMM_SEND	: out std_logic;
@@ -90,7 +91,8 @@ architecture rtl of SCSI is
 	signal FIFO_Q 		: std_logic_vector(7 downto 0);
 	signal CD_WR_OLD 	: std_logic;
 	signal STAT_PEND 	: std_logic;
-	signal DOUT_PEND: std_logic;
+	signal MSG_PEND 	: std_logic;
+	signal DOUT_PEND  : std_logic;
 	
 	signal DATAIN_CNT 	: unsigned(15 downto 0);
 
@@ -167,6 +169,10 @@ begin
 				STAT_PEND <= '1';
 			end if;
 			
+			if INT_REQ = '1' then
+--				MSG_PEND <= '1';	--second variant
+			end if;
+			
 			if DOUT_REQ = '1' then
 				DOUT_PEND <= '1';
 			end if;
@@ -219,6 +225,15 @@ begin
 							REQ_Nr <= '0';
 							FIFO_RD_REQ <= '1';
 							SP <= SP_DATAIN_START;
+						elsif MSG_PEND = '1' then
+							MSG_PEND <= '0';
+							DBO <= x"00";
+							BSY_Nr <= '0';
+							MSG_Nr <= '0';
+							CD_Nr <= '0';
+							IO_Nr <= '0';
+							REQ_Nr <= '0';
+							SP <= SP_MSGIN_START;
 						elsif DOUT_PEND = '1' then
 							DOUT_PEND <= '0';
 							BSY_Nr <= '0';
