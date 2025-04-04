@@ -48,7 +48,6 @@ entity pce_top is
 		CD_STAT		: in  std_logic_vector(7 downto 0);
 		CD_MSG		: in  std_logic_vector(7 downto 0);
 		CD_STAT_GET	: in  std_logic;
-		CD_INT_REQ	: in  std_logic;
 
 		CD_COMM		: out std_logic_vector(95 downto 0);
 		CD_COMM_SEND: out std_logic;
@@ -648,7 +647,6 @@ port map(
 	CD_STAT		=> CD_STAT,
 	CD_MSG		=> CD_MSG,
 	CD_STAT_GET	=> CD_STAT_GET,
-	CD_INT_REQ	=> CD_INT_REQ,
 	CD_COMM		=> CD_COMM,
 	CD_COMM_SEND=> CD_COMM_SEND,
 	CD_DOUT_REQ	=> CD_DOUT_REQ,
