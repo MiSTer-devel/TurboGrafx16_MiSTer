@@ -37,7 +37,7 @@ entity SCSI is
 		CD_DATA_END	: out std_logic;
 		STOP_CD_SND	: out std_logic;
 		
-		DBG_DATAIN_CNT: out unsigned(15 downto 0)
+		DBG_DATAIN_CNT: out unsigned(19 downto 0)
 	);
 end SCSI;
 
@@ -45,15 +45,23 @@ architecture rtl of SCSI is
 	
 	type SCSIPhase_t is (
 		SP_FREE,
-		SP_COMM_BEFOREREQ,
+		
+		SP_OPEN_BUS0,
+		SP_OPEN_BUS1,
+		SP_COMM_REQ,
 		SP_COMM_START,
 		SP_COMM_END,
+		SP_COMM_TO_FREE,
+		
+		SP_STAT_REQ,
 		SP_STAT_START,
 		SP_STAT_END,
-		SP_STAT_HOLD,
+		SP_STAT_TO_MSGIN,
+		SP_MSGIN_REQ,
 		SP_MSGIN_START,
 		SP_MSGIN_END,
-		SP_MSGIN_HOLD,
+		SP_MSGIN_TO_FREE,
+		
 		SP_DATAIN_START,
 		SP_DATAIN_END,
 		SP_DATAOUT_START,
@@ -90,12 +98,22 @@ architecture rtl of SCSI is
 	signal FIFO_Q 		: std_logic_vector(7 downto 0);
 	signal CD_WR_OLD 	: std_logic;
 	signal STAT_PEND 	: std_logic;
-	signal DOUT_PEND  : std_logic;
+	signal DOUT_PEND: std_logic;
 	
-	signal DATAIN_CNT 	: unsigned(15 downto 0);
+	signal DATAIN_CNT 	: unsigned(19 downto 0);
 
 	signal STAT_COUNT    : unsigned(15 downto 0);
-	signal DELAY_COUNT   : unsigned(16 downto 0);
+	signal DELAY_COUNT   : unsigned(19 downto 0);
+	
+	constant DELAY_OPEN_SEL_TO_BSY   : integer := 86000;
+	constant DELAY_OPEN_BSY_TO_CD    : integer := 2500;
+	constant DELAY_OPEN_CD_TO_REQ    : integer := 500;
+	constant DELAY_STAT_BSY_TO_REQ   : integer := 500;
+	constant DELAY_COMM_ACK_TO_REQ   : integer := 2300;
+	constant DELAY_COMM_ACK_TO_FREE  : integer := 2300;
+	constant DELAY_STAT_ACK_TO_MSG   : integer := 1900;
+	constant DELAY_MSGIN_MSG_TO_REQ  : integer := 500;
+	constant DELAY_MSGIN_ACK_TO_FREE : integer := 2580;
 
 begin
 
@@ -161,8 +179,11 @@ begin
 			DELAY_COUNT <= (others => '0');
 			
 			DATAIN_CNT  <= (others => '0');
-
 		elsif rising_edge( CLK ) then
+			if DELAY_COUNT /= 0 then
+				DELAY_COUNT <= DELAY_COUNT - 1;
+			end if;
+			
 			if STAT_GET = '1' then
 				STAT_PEND <= '1';
 			end if;
@@ -171,7 +192,6 @@ begin
 				DOUT_PEND <= '1';
 			end if;
 			
-
 			COMM_OUT <= '0';
 			DATA_OUT <= '0';
 			CD_DATA_END <= '0';
@@ -187,13 +207,8 @@ begin
 				case SP is
 					when SP_FREE =>
 						if SEL_N = '0' then
-							BSY_Nr <= '0';
-							MSG_Nr <= '1';
-							CD_Nr <= '0';
-							IO_Nr <= '1';
-							SP <= SP_COMM_BEFOREREQ;
-							DELAY_COUNT <= to_unsigned(1700, DELAY_COUNT'LENGTH);		-- Wait 40 microseconds after control signals are set up, before triggering REQ in COMMAND phase
-							DATAIN_CNT <= (others => '0');
+							DELAY_COUNT <= to_unsigned(DELAY_OPEN_SEL_TO_BSY, DELAY_COUNT'LENGTH);		-- wait 2ms 
+							SP <= SP_OPEN_BUS0;
 						elsif STAT_PEND = '1' then
 							STAT_COUNT <= STAT_COUNT + 1;
 
@@ -207,8 +222,8 @@ begin
 								MSG_Nr <= '1';
 								CD_Nr <= '0';
 								IO_Nr <= '0';
-								REQ_Nr <= '0';
-								SP <= SP_STAT_START;
+								DELAY_COUNT <= to_unsigned(DELAY_STAT_BSY_TO_REQ, DELAY_COUNT'LENGTH);		-- wait 12us 
+								SP <= SP_STAT_REQ;
 							end if;
 						elsif EMPTY = '0' then
 							DBO <= FIFO_Q;
@@ -229,12 +244,27 @@ begin
 							SP <= SP_DATAOUT_START;
 						end if;
 						
-					when SP_COMM_BEFOREREQ =>
+					when SP_OPEN_BUS0 =>
+						if (DELAY_COUNT = 0) then
+							BSY_Nr <= '0';
+							DELAY_COUNT <= to_unsigned(DELAY_OPEN_BSY_TO_CD, DELAY_COUNT'LENGTH);		-- wait 54us 
+							SP <= SP_OPEN_BUS1;
+						end if;
+						
+					when SP_OPEN_BUS1 =>
+						if (DELAY_COUNT = 0) then
+							MSG_Nr <= '1';
+							CD_Nr <= '0';
+							IO_Nr <= '1';
+							DATAIN_CNT <= (others => '0');
+							DELAY_COUNT <= to_unsigned(DELAY_OPEN_CD_TO_REQ, DELAY_COUNT'LENGTH);		-- wait 12us 
+							SP <= SP_COMM_REQ;
+						end if;
+						
+					when SP_COMM_REQ =>
 						if (DELAY_COUNT = 0) then
 							REQ_Nr <= '0';
 							SP <= SP_COMM_START;
-						else
-							DELAY_COUNT <= DELAY_COUNT - 1;
 						end if;
 
 					when SP_COMM_START =>
@@ -250,8 +280,8 @@ begin
 							if COMM_POS = COMM_LEN(to_integer(unsigned(COMM(0)(7 downto 4)))) then
 								COMM_POS <= (others => '0');
 								COMM_OUT <= '1';
-								CD_Nr <= '1';
-								SP <= SP_FREE;
+								DELAY_COUNT <= to_unsigned(DELAY_COMM_ACK_TO_FREE, DELAY_COUNT'LENGTH);		-- wait 54us 
+								SP <= SP_COMM_TO_FREE;
 								if ((COMM(0) = x"08") or (COMM(0) = x"DA")) then	-- READ6 and PAUSE commands should mute sound, but still drain FIFO
 									STOP_CD_SND <= '1';
 								end if;
@@ -259,9 +289,21 @@ begin
 									STOP_CD_SND <= '0';
 								end if;
 							else
-								SP <= SP_COMM_BEFOREREQ;
-								DELAY_COUNT <= to_unsigned(5370, DELAY_COUNT'LENGTH);	-- Wait 125 microseconds after ACK, before next REQ in COMMAND phase
+								DELAY_COUNT <= to_unsigned(DELAY_COMM_ACK_TO_REQ, DELAY_COUNT'LENGTH);	-- Wait 54us after ACK, before next REQ in COMMAND phase
+								SP <= SP_COMM_REQ;
 							end if;
+						end if;
+
+					when SP_COMM_TO_FREE =>
+						if (DELAY_COUNT = 0) then
+							CD_Nr <= '1';
+							SP <= SP_FREE;
+						end if;
+
+					when SP_STAT_REQ =>
+						if (DELAY_COUNT = 0) then
+							REQ_Nr <= '0';
+							SP <= SP_STAT_START;
 						end if;
 
 					when SP_STAT_START =>
@@ -272,21 +314,25 @@ begin
 					
 					when SP_STAT_END =>
 						if REQ_Nr = '1' and ACK_N = '1' then
-							SP <= SP_STAT_HOLD;
-							DELAY_COUNT <= to_unsigned(49400, DELAY_COUNT'LENGTH);	-- wait 1.15 milliseconds after ACK in STATUS pahse before transitioning to next phase (MSGIN)
+							SP <= SP_STAT_TO_MSGIN;
+							DELAY_COUNT <= to_unsigned(DELAY_STAT_ACK_TO_MSG, DELAY_COUNT'LENGTH);	-- wait 45us after ACK in STATUS pahse before transitioning to next phase (MSGIN)
 						end if;
 
-					when SP_STAT_HOLD =>
+					when SP_STAT_TO_MSGIN =>
 						if (DELAY_COUNT = 0) then
 							DBO <= MESSAGE;
-							BSY_Nr <= '0';
+--							BSY_Nr <= '0';
 							MSG_Nr <= '0';
-							CD_Nr <= '0';
-							IO_Nr <= '0';
+--							CD_Nr <= '0';
+--							IO_Nr <= '0';
+							DELAY_COUNT <= to_unsigned(DELAY_MSGIN_MSG_TO_REQ, DELAY_COUNT'LENGTH);		-- wait 12us 
+							SP <= SP_MSGIN_REQ;
+						end if;
+
+					when SP_MSGIN_REQ =>
+						if (DELAY_COUNT = 0) then
 							REQ_Nr <= '0';
 							SP <= SP_MSGIN_START;
-						else
-							DELAY_COUNT <= DELAY_COUNT - 1;
 						end if;
 					
 					when SP_MSGIN_START =>
@@ -297,11 +343,11 @@ begin
 					
 					when SP_MSGIN_END =>
 						if REQ_Nr = '1' and ACK_N = '1' then
-							SP <= SP_MSGIN_HOLD;
-							DELAY_COUNT <= to_unsigned(6600, DELAY_COUNT'LENGTH);		-- wait 154 microseconds after ACK in STATUS phase before transitioning to next phase/disconnecting
+							SP <= SP_MSGIN_TO_FREE;
+							DELAY_COUNT <= to_unsigned(DELAY_MSGIN_ACK_TO_FREE, DELAY_COUNT'LENGTH);		-- wait 60us after ACK in STATUS phase before transitioning to next phase/disconnecting
 						end if;
 
-					when SP_MSGIN_HOLD =>
+					when SP_MSGIN_TO_FREE =>
 						if (DELAY_COUNT = 0) then
 							BSY_Nr <= '1';
 							MSG_Nr <= '1';
@@ -309,8 +355,6 @@ begin
 							IO_Nr <= '1';
 							REQ_Nr <= '1';
 							SP <= SP_FREE;
-						else
-							DELAY_COUNT <= DELAY_COUNT - 1;
 						end if;
 
 					when SP_DATAIN_START =>

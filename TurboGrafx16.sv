@@ -422,7 +422,8 @@ wire palette_download = ioctl_download & (ioctl_index[5:0] == 6'h03 || (ioctl_in
 wire code_index      = &ioctl_index;
 wire code_download   = ioctl_download & code_index;
 wire cart_download   = ioctl_download & (ioctl_index[5:0] <= 6'h01);
-wire cd_dat_download = ioctl_download & (ioctl_index[5:0] == 6'h02);
+wire cd_data_download = ioctl_download & (ioctl_index[5:0] == 6'h02);
+wire cd_audio_download = ioctl_download & (ioctl_index[5:0] == 6'h03);
 
 wire overscan = ~status[17];
 
@@ -500,7 +501,8 @@ pce_top #(LITE) pce_top
 	.CD_RESET(cd_reset_req),
 
 	.CD_DATA(!cd_dat_byte ? cd_dat[7:0] : cd_dat[15:8]),
-	.CD_WR(cd_wr),
+	.CD_DATA_WR(cd_data_wr),
+	.CD_AUDIO_WR(cd_audio_wr),
 	.CD_DATA_END(cd_dat_req),
 	.CD_DM(cd_dm),
 
@@ -595,7 +597,7 @@ always @(posedge clk_sys) begin
 end
 
 reg [15:0] cd_dat;
-reg        cd_wr;
+reg        cd_data_wr,cd_audio_wr;
 reg        cd_dat_byte;
 reg        cd_dm;
 always @(posedge clk_sys) begin
@@ -603,13 +605,13 @@ always @(posedge clk_sys) begin
 	reg head_pos, cd_dat_write;
 	reg [14:0] cd_dat_len, cd_dat_cnt;
 
-	old_download <= cd_dat_download;
-	if ((~old_download && cd_dat_download) || reset) begin
+	old_download <= cd_data_download | cd_audio_download;
+	if ((~old_download && (cd_data_download || cd_audio_download)) || reset) begin
 		head_pos <= 0;
 		cd_dat_len <= 0;
 		cd_dat_cnt <= 0;
 	end
-	else if (ioctl_wr && cd_dat_download) begin
+	else if (ioctl_wr && (cd_data_download || cd_audio_download)) begin
 		if (!head_pos) begin
 			{cd_dm,cd_dat_len} <= ioctl_dout;
 			cd_dat_cnt <= 0;
@@ -623,11 +625,13 @@ always @(posedge clk_sys) begin
 	end
 
 	if (cd_dat_write) begin
-		if (!cd_wr) begin
-			cd_wr <= 1;
+		if (!cd_data_wr && !cd_audio_wr) begin
+			cd_data_wr <= cd_data_download;
+			cd_audio_wr <= cd_audio_download;
 		end
 		else begin
-			cd_wr <= 0;
+			cd_data_wr <= 0;
+			cd_audio_wr <= 0;
 			cd_dat_byte <= ~cd_dat_byte;
 			cd_dat_cnt <= cd_dat_cnt + 15'd1;
 			if (cd_dat_byte || cd_dat_cnt >= cd_dat_len-1) begin
