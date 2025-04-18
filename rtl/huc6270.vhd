@@ -157,6 +157,7 @@ architecture rtl of HUC6270 is
 	signal DISP_CNT		: unsigned(9 downto 0);
 	signal DISP_CNT_INC 	: std_logic;
 	signal DISP_BREAK 	: std_logic;
+	signal DISP_BREAK_LATCH 	: std_logic;
 	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
@@ -348,8 +349,8 @@ begin
 
 	HSW_END_POS <= "00"&unsigned(HSW) + ("000000"&unsigned(RES7M));
 	HDS_END_POS <= ("00"&unsigned(HSW)) + ("000000"&unsigned(RES7M)) + 1 + unsigned(HDS);
-	HDISP_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS) + 1 + unsigned(HDW) + ("000000"&unsigned(RES7M));
-	HDE_END_POS <= ("00"&unsigned(HSW)) + 1 + unsigned(HDS) + 1 + unsigned(HDW) + 1 + unsigned(HDE) + ("000000"&unsigned(RES7M));
+	HDISP_END_POS <= ("00"&unsigned(HSW)) + ("000000"&unsigned(RES7M)) + 1 + unsigned(HDS) + 1 + unsigned(HDW);
+	HDE_END_POS <= ("00"&unsigned(HSW)) + ("000000"&unsigned(RES7M)) + 1 + unsigned(HDS) + 1 + unsigned(HDW) + 1 + unsigned(HDE);
 	
 	VSW_END_POS <= ("00000"&unsigned(VSW));
 	VDS_END_POS <= ("00000"&unsigned(VSW)) + 1 + ("00"&unsigned(VDS)) + 1;
@@ -358,6 +359,7 @@ begin
 	
 	DISP_BREAK <= '1' when DISP_CNT_INC = '1' and HSYNC_F = '1' else '0';
 	process(CLK, RST_N)
+	variable RC_CNT_UPDATED : std_logic;
 	begin
 		if RST_N = '0' then
 			DISP_CNT <= (others=>'0');
@@ -367,6 +369,7 @@ begin
 			BG_FETCH <= '0';
 			BG_OUT <= '0';
 			RC_CNT <= "00"&x"40";
+			RC_CNT_UPDATED := '0';
 			
 			VSW <= (others=>'0');
 			VDS <= (others=>'0');
@@ -390,12 +393,16 @@ begin
 					SM <= MWR_SM;
 					SCREEN <= MWR_SCREEN;
 				else
+					if DOT_CNT = 7 then
+						DISP_BREAK_LATCH <= '0';
+					end if;
 					if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
 						DISP_CNT_INC <= '1';
 					end if;
 					if DISP_BREAK = '1' then--(TILE_CNT = HDE_END_POS and DOT_CNT = 7 and DISP_CNT_INC = '1') or 
 						DISP_CNT <= DISP_CNT + 1;
 						DISP_CNT_INC <= '0';
+						DISP_BREAK_LATCH <= '1';
 						if DISP_CNT = VSW_END_POS then
 							BURST <= not (CR_SB or CR_BB);
 						end if;
@@ -419,37 +426,41 @@ begin
 				end if;
 
 				
-				if DOT_CNT = 7 then
-					if TILE_CNT = HDS_END_POS - 2 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
-						BG_FETCH <= '1';
-					elsif TILE_CNT = HDISP_END_POS or DISP_BREAK = '1' then
-						BG_FETCH <= '0';
-					end if;
-					
-					if TILE_CNT = HDS_END_POS and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
-						BG_OUT <= '1';
-					elsif TILE_CNT = HDISP_END_POS or DISP_BREAK = '1' then
-						BG_OUT <= '0';
-					end if;
-	
-					if TILE_CNT = HDISP_END_POS then
-						if DISP_CNT = VDS_END_POS - 1 then
-							RC_CNT <= "00"&x"40";
-						else
-							RC_CNT <= RC_CNT + 1;
-						end if; 
-					end if;
-					
-					if TILE_CNT = HDS_END_POS - 3 then
-						BB <= CR_BB;
-						SB <= CR_SB;
-					end if;
+				if TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
+					BG_FETCH <= '1';
+				elsif (TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or (TILE_CNT = 0 and DOT_CNT = 7 and DISP_BREAK_LATCH = '1') then
+					BG_FETCH <= '0';
+				end if;
+				
+				if TILE_CNT = HDS_END_POS and DOT_CNT = 7 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
+					BG_OUT <= '1';
+				elsif (TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or (TILE_CNT = 0 and DOT_CNT = 7 and DISP_BREAK_LATCH = '1') then
+					BG_OUT <= '0';
+				end if;
+
+				if (TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or (DISP_BREAK = '1' and RC_CNT_UPDATED = '0') then
+					if DISP_CNT = VDS_END_POS - 1 then
+						RC_CNT <= "00"&x"40";
+					else
+						RC_CNT <= RC_CNT + 1;
+					end if; 
+				end if;
+				if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
+					RC_CNT_UPDATED := '0';
+				end if;
+				if TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
+					RC_CNT_UPDATED := '1';
+				end if;
+				
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+					BB <= CR_BB;
+					SB <= CR_SB;
 				end if;
 			end if; 
 		end if;
 	end process;
 	
-	process(DOT_CNT, FDOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB, SP64 )
+	process(DOT_CNT, FDOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB, SP64)
 	begin
 		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN and SP64 = '0' then
 			--first several cycles in HSYNC are empty, i.e. without access the memory, N=dots%8
@@ -683,7 +694,7 @@ begin
 					BG_X <= BG_X + 8;
 				end if; 
 				
-				if HSYNC_F = '1' then
+				if TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 then
 					BG_X <= (others=>'0');
 				end if; 
 				
@@ -800,11 +811,11 @@ begin
 					SPR_EVAL_DONE <= '0';
 					SPR_EVAL_FULL <= '0';
 					SPR_FIND <= '0';
-				elsif (TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or DISP_BREAK = '1' then
+				elsif (DOT_CNT = 7 and TILE_CNT = HDISP_END_POS) or (DOT_CNT = 7 and TILE_CNT = 0 and DISP_BREAK_LATCH = '1') then
 					SPR_EVAL <= '0';
 				end if;
 				
-				if ((TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or DISP_BREAK = '1') and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS and SPR_FETCH = '0' then
+				if ((DOT_CNT = 7 and TILE_CNT = HDISP_END_POS) or (DOT_CNT = 7 and TILE_CNT = 0 and DISP_BREAK_LATCH = '1')) and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS and SPR_FETCH = '0' then
 					SPR_FETCH <= '1';
 					SPR_FETCH_EN <= CR_SB and SPR_FIND;
 					SPR_FETCH_CNT <= (others=>'0');
@@ -996,7 +1007,7 @@ begin
 				if TILE_CNT = HDS_END_POS and DOT_CNT = 7 then
 					SPR_OUT_X <= (others=>'0');
 					SPR_LINE_CLR <= '1';
-				elsif (TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or DISP_BREAK = '1' then
+				elsif (TILE_CNT = HDISP_END_POS and DOT_CNT = 7) or (DOT_CNT = 7 and TILE_CNT = 0 and DISP_BREAK_LATCH = '1') then
 					SPR_LINE_CLR <= '0';
 				end if;
 				
