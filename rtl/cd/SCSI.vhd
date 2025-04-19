@@ -209,6 +209,15 @@ begin
 						if SEL_N = '0' then
 							DELAY_COUNT <= to_unsigned(DELAY_OPEN_SEL_TO_BSY, DELAY_COUNT'LENGTH);		-- wait 2ms 
 							SP <= SP_OPEN_BUS0;
+						elsif EMPTY = '0' then
+							DBO <= FIFO_Q;
+							BSY_Nr <= '0';
+							MSG_Nr <= '1';
+							CD_Nr <= '1';
+							IO_Nr <= '0';
+							REQ_Nr <= '0';
+							FIFO_RD_REQ <= '1';
+							SP <= SP_DATAIN_START;
 						elsif STAT_PEND = '1' then
 							STAT_COUNT <= STAT_COUNT + 1;
 
@@ -225,15 +234,6 @@ begin
 								DELAY_COUNT <= to_unsigned(DELAY_STAT_BSY_TO_REQ, DELAY_COUNT'LENGTH);		-- wait 12us 
 								SP <= SP_STAT_REQ;
 							end if;
-						elsif EMPTY = '0' then
-							DBO <= FIFO_Q;
-							BSY_Nr <= '0';
-							MSG_Nr <= '1';
-							CD_Nr <= '1';
-							IO_Nr <= '0';
-							REQ_Nr <= '0';
-							FIFO_RD_REQ <= '1';
-							SP <= SP_DATAIN_START;
 						elsif DOUT_PEND = '1' then
 							DOUT_PEND <= '0';
 							BSY_Nr <= '0';
