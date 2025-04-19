@@ -157,7 +157,8 @@ architecture rtl of HUC6270 is
 	signal DISP_CNT		: unsigned(9 downto 0);
 	signal DISP_CNT_INC 	: std_logic;
 	signal DISP_BREAK 	: std_logic;
-	signal DISP_BREAK_LATCH 	: std_logic;
+	signal DISP_BREAK_EN	: std_logic;
+	signal DISP_BREAK_LATCH: std_logic;
 	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
@@ -398,11 +399,14 @@ begin
 					end if;
 					if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
 						DISP_CNT_INC <= '1';
+						DISP_BREAK_EN <= '1';
+					end if;
+					if TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
+						DISP_BREAK_EN <= '0';
 					end if;
 					if DISP_BREAK = '1' then--(TILE_CNT = HDE_END_POS and DOT_CNT = 7 and DISP_CNT_INC = '1') or 
 						DISP_CNT <= DISP_CNT + 1;
 						DISP_CNT_INC <= '0';
-						DISP_BREAK_LATCH <= '1';
 						if DISP_CNT = VSW_END_POS then
 							BURST <= not (CR_SB or CR_BB);
 						end if;
@@ -422,6 +426,9 @@ begin
 							SM <= MWR_SM;
 							SCREEN <= MWR_SCREEN;
 						end if;
+						
+						DISP_BREAK_LATCH <= DISP_BREAK_EN;
+						DISP_BREAK_EN <= '0';
 					end if;
 				end if;
 
@@ -445,7 +452,7 @@ begin
 						RC_CNT <= RC_CNT + 1;
 					end if; 
 				end if;
-				if TILE_CNT = HSW_END_POS and DOT_CNT = 7 then
+				if DISP_BREAK = '1' then
 					RC_CNT_UPDATED := '0';
 				end if;
 				if TILE_CNT = HDISP_END_POS and DOT_CNT = 7 then
