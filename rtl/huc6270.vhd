@@ -159,6 +159,7 @@ architecture rtl of HUC6270 is
 	signal DISP_BREAK 	: std_logic;
 	signal DISP_BREAK_EN	: std_logic;
 	signal DISP_BREAK_LATCH: std_logic;
+	signal TILE_ZERO		: std_logic;
 	signal DOTS_REMAIN	: unsigned(2 downto 0);
 	signal RC_CNT			: unsigned(9 downto 0);
 	signal BURST			: std_logic;
@@ -317,6 +318,7 @@ begin
 				DOT_CNT <= DOT_CNT + 1;
 				if DOT_CNT = 7 then
 					TILE_CNT <= TILE_CNT + 1;
+					TILE_ZERO <= '0';
 				end if; 
 				if (TILE_CNT = HDE_END_POS and DOT_CNT = 7) or HSYNC_F = '1' then
 					DOT_CNT <= (others=>'0');
@@ -326,6 +328,7 @@ begin
 					
 					if HSYNC_F = '1' then
 						HSW <= "00011";
+						TILE_ZERO <= '1';
 					else 
 						HSW <= HSR_HSW;
 					end if; 
@@ -467,9 +470,9 @@ begin
 		end if;
 	end process;
 	
-	process(DOT_CNT, FDOT_CNT, DOTS_REMAIN, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB, SP64)
+	process(DOT_CNT, FDOT_CNT, DOTS_REMAIN, TILE_ZERO, TILE_CNT, BURST, DMAS_EXEC, DMA_EXEC, BG_FETCH, SPR_FETCH, SPR_FETCH_EN, VM, CM, SM, SPR, BB, SP64)
 	begin
-		if TILE_CNT = 0 and DOT_CNT <= DOTS_REMAIN and SP64 = '0' then
+		if TILE_ZERO = '1' and DOT_CNT <= DOTS_REMAIN and SP64 = '0' then
 			--first several cycles in HSYNC are empty, i.e. without access the memory, N=dots%8
 			SLOT <= NOP;
 		elsif DMAS_EXEC = '1' then
