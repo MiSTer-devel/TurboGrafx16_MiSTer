@@ -57,6 +57,8 @@ module emu
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
 	output        HDMI_FREEZE,
+	output        HDMI_BLACKOUT,
+	output        HDMI_BOB_DEINT,
 
 `ifdef MISTER_FB
 	// Use framebuffer in DDRAM
@@ -196,6 +198,8 @@ assign BUTTONS   = osd_btn;
 assign VGA_SCALER= 0;
 assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
+assign HDMI_BLACKOUT = 0;
+assign HDMI_BOB_DEINT = 0;
 
 wire [1:0] ar       = status[25:24];
 wire       vcrop_en = status[32];
@@ -1073,7 +1077,7 @@ always @(posedge clk_sys) begin : input_block
 	if(&mouse_to) mouse_cnt <= 3;
 	if(~last_gp[1] & joy_out[1]) begin
 	
-  		scan_counter <= scan_counter + 1;
+  		scan_counter <= scan_counter + 1'd1;
 		joyrept_0[0] <= (joy_0[8] & scan_counter[2]) | (joy_0[10] & scan_counter[1]) | joy_0[4];
 		joyrept_0[1] <= (joy_0[9] & scan_counter[2]) | (joy_0[11] & scan_counter[1]) | joy_0[5];
 		
