@@ -41,6 +41,7 @@ entity cd is
 		CD_DATA		: in std_logic_vector(7 downto 0);
 		CD_DATA_WR	: in std_logic;
 		CD_AUDIO_WR	: in std_logic;
+		CD_SUBCD_WR	: in std_logic;
 		CD_DATA_END	: out std_logic;
 		
 		DM				: in std_logic;
@@ -71,9 +72,11 @@ architecture rtl of cd is
 	
 	signal CD_DTD				: std_logic;	--CD data transfer done flag
 	signal CD_DTR				: std_logic;	--CD data transfer ready flag
+	signal CD_SUBCD			: std_logic;	--CD Subcode data ready flag
 	signal CD_DTD_EN			: std_logic;
 	signal CD_DTR_EN			: std_logic;
-	signal CD_MOTOR			: std_logic;
+--	signal CD_MOTOR			: std_logic;
+	signal CD_SUBCD_EN		: std_logic;
 	signal ADPCM_END_EN		: std_logic;
 	signal ADPCM_HALF_EN		: std_logic;
 	signal CH_SEL				: std_logic;
@@ -89,7 +92,6 @@ architecture rtl of cd is
 	
 	signal R1802_0				: std_logic;
 	signal R1802_1				: std_logic;
-	signal R1802_4				: std_logic;
 	signal R180E_7_4			: std_logic_vector(3 downto 0);
 	signal R180F_0				: std_logic;
 	signal R180F_7_4			: std_logic_vector(3 downto 0);
@@ -180,6 +182,21 @@ architecture rtl of cd is
 	signal OUTL 				: signed(15 downto 0);
 	signal OUTR 				: signed(15 downto 0);
 	
+	--CD SUBCODE
+	signal SUBCD_WR_OLD 			: std_logic;
+	signal SUBCD_FIFO_FULL 		: std_logic;
+	signal SUBCD_FIFO_EMPTY 	: std_logic;
+	signal SUBCD_FIFO_RD_REQ	: std_logic;
+	signal SUBCD_FIFO_WR_REQ	: std_logic;
+	signal SUBCD_FIFO_D 			: std_logic_vector(7 downto 0);
+	signal SUBCD_FIFO_Q 			: std_logic_vector(7 downto 0);
+	signal SUBCD_FIFO_SCLR		: std_logic;
+	signal SUBCD_CE			: std_logic;
+	signal SUBCD_CE_OLD		: std_logic;
+	signal SUBCD_CNT			: unsigned(3 downto 0);
+	signal SUBCD_BYTE			: std_logic_vector(7 downto 0);
+	signal SUBCD_BYTENUM		: unsigned(7 downto 0);
+	
 	--Fader
 	signal FADE_VOL 			: unsigned(10 downto 0);
 	signal FADE_CNT 			: unsigned(7 downto 0);
@@ -200,17 +217,20 @@ begin
 			SCSI_SEL_N <= '1';
 			CD_DTD <= '0';
 			CD_DTR <= '0';
+			CD_SUBCD <= '0';
 			CH_SEL <= '0';
 			BRAM_LOCK <= '1';
 			CD_DTD_EN <= '0';
 			CD_DTR_EN <= '0';
-			CD_MOTOR <= '0';
+--			CD_MOTOR <= '0';
+			CD_SUBCD_EN <= '0';
 			ADPCM_END_EN <= '0';
 			ADPCM_HALF_EN <= '0';
 			AUTO_ACK <= '0';
 			
 			CDDA_VOL <= (others => '0');
 			
+			SUBCD_CE_OLD <= '0';
 			ADPCM_OFFS <= (others => '0');
 			ADPCM_LEN <= (others => '0');
 			ADPCM_RDADDR <= (others => '0');
@@ -241,7 +261,7 @@ begin
 							CD_DTD <= '0';
 							CD_DTR <= '0';
 --							if SCSI_DBI = x"00" then
-								CD_MOTOR <= '1';
+--								CD_MOTOR <= '1';
 --							end if;
 						when x"01" =>
 							SCSI_DBI <= EXT_DI;
@@ -249,7 +269,7 @@ begin
 							SCSI_ACK_N <= not EXT_DI(7);
 							CD_DTR_EN <= EXT_DI(6);
 							CD_DTD_EN <= EXT_DI(5);
-							R1802_4 <= EXT_DI(4);
+							CD_SUBCD_EN <= EXT_DI(4);
 							ADPCM_END_EN <= EXT_DI(3);
 							ADPCM_HALF_EN <= EXT_DI(2);
 							R1802_1 <= EXT_DI(1);
@@ -306,7 +326,7 @@ begin
 						when x"03" =>
 							BRAM_LOCK <= '1';
 						when x"07" =>
-							CD_MOTOR <= '0';
+							CD_SUBCD <= '0';
 						when x"08" =>
 							if SCSI_REQ_N = '0' and SCSI_IO_N = '0' and SCSI_CD_N = '1' and SCSI_ACK_N = '1' then 
 								SCSI_ACK_N <= '0';
@@ -350,8 +370,14 @@ begin
 					CD_DTR <= '0';
 					ADPCM_DMA_RUN <= '0';
 				end if;
+			elsif CD_DTR = '1' and (SCSI_BSY_N = '1' and SCSI_BSY_N_OLD = '0') then
+				CD_DTR <= '0';
 			end if;
-			
+
+			SUBCD_CE_OLD <= SUBCD_CE;
+			if CD_SUBCD = '0' and SUBCD_CE = '1' and SUBCD_CE_OLD = '0' then
+				CD_SUBCD <= '1';
+			end if;
 			
 			if M5205_VCK_R = '1' and ADPCM_PLAY = '1' then
 				PLAY_READ_PEND <= '1';
@@ -474,7 +500,7 @@ begin
 	WRITE_PEND <= ADPCM_WRITE_PEND or DMA_WRITE_PEND;
 	READ_PEND <= ADPCM_READ_PEND or PLAY_READ_PEND;
 	process( REG_SEL, EXT_A, SCSI_DBO, SCSI_DBI, SCSI_BSY_N, SCSI_REQ_N, SCSI_MSG_N, SCSI_CD_N, SCSI_IO_N, SCSI_ACK_N, SCSI_RST_N, 
-				CD_DTR, CD_DTD, CD_MOTOR, CD_DTR_EN, CD_DTD_EN, R1802_0, R1802_1, R1802_4, CH_SEL, ADPCM_RDDATA, ADPCM_DMA_EN, ADPCM_DMA_RUN, ADPCM_END, ADPCM_HALF, ADPCM_END_EN, ADPCM_HALF_EN, 
+				CD_DTR, CD_DTD, CD_SUBCD, SUBCD_BYTE, CD_DTR_EN, CD_DTD_EN, CD_SUBCD_EN, R1802_0, R1802_1, CH_SEL, ADPCM_RDDATA, ADPCM_DMA_EN, ADPCM_DMA_RUN, ADPCM_END, ADPCM_HALF, ADPCM_END_EN, ADPCM_HALF_EN, 
 				ADPCM_CTRL, ADPCM_FREQ, R180E_7_4, ADPCM_PLAY, ADPCM_FADER, R180F_0, R180F_7_4, READ_PEND, WRITE_PEND, CDDA_VOL, CD_REGION) 
 	begin
 		EXT_DO <= x"00";
@@ -489,9 +515,9 @@ begin
 						EXT_DO <= SCSI_DBI;
 					end if;
 				when x"02" =>
-					EXT_DO <= not SCSI_ACK_N & CD_DTR_EN & CD_DTD_EN & R1802_4 & ADPCM_END_EN & ADPCM_HALF_EN & R1802_1 & R1802_0;
+					EXT_DO <= not SCSI_ACK_N & CD_DTR_EN & CD_DTD_EN & CD_SUBCD_EN & ADPCM_END_EN & ADPCM_HALF_EN & R1802_1 & R1802_0;
 				when x"03" =>
-					EXT_DO <= "0" & CD_DTR & CD_DTD & CD_MOTOR & ADPCM_END & ADPCM_HALF & CH_SEL & "0";--TODO	
+					EXT_DO <= "0" & CD_DTR & CD_DTD & CD_SUBCD & ADPCM_END & ADPCM_HALF & CH_SEL & "0";--TODO	
 				when x"04" =>
 					EXT_DO <= "000000" & not SCSI_RST_N & "0";
 				when x"05" =>
@@ -499,7 +525,7 @@ begin
 				when x"06" =>
 					EXT_DO <= CDDA_VOL(15 downto 8);
 				when x"07" =>
-					EXT_DO <= x"FF";
+					EXT_DO <= SUBCD_BYTE;
 				when x"08" =>
 					if SCSI_BSY_N = '0' then
 						EXT_DO <= SCSI_DBO;
@@ -551,7 +577,7 @@ begin
 	end process;
 	
 	SEL_N <= not (REG_SEL and EN);
-	IRQ_N <= not ((CD_DTR_EN and CD_DTR) or (CD_DTD_EN and CD_DTD) or (ADPCM_END_EN and ADPCM_END) or (ADPCM_HALF_EN and ADPCM_HALF));
+	IRQ_N <= not ((CD_DTR_EN and CD_DTR) or (CD_DTD_EN and CD_DTD) or (CD_SUBCD_EN and CD_SUBCD) or (ADPCM_END_EN and ADPCM_END) or (ADPCM_HALF_EN and ADPCM_HALF));
 	
 	RAM_SEL <= '1' when EXT_A(20 downto 13) >= x"68" and EXT_A(20 downto 13) <= x"87" else '0';
 	RAM_CS_N <= not (RAM_SEL and EN);
@@ -734,6 +760,39 @@ begin
 		CE          => ADPCM_CE
 	);
 	
+	--CD SUBCODE
+	process( RST_N, CLK )
+	begin
+		if RST_N = '0' then
+			SUBCD_FIFO_D <= (others => '0');
+			SUBCD_FIFO_WR_REQ <= '0';
+			SUBCD_WR_OLD <= '0';
+		elsif rising_edge(CLK) then
+			SUBCD_FIFO_WR_REQ <= '0';
+			if EN = '1' then
+				SUBCD_WR_OLD <= CD_SUBCD_WR;
+				if CD_SUBCD_WR = '1' and SUBCD_WR_OLD = '0' then
+					SUBCD_FIFO_D(7 downto 0) <= CD_DATA;
+					if SUBCD_FIFO_FULL = '0' and DM = '0' then
+						SUBCD_FIFO_WR_REQ <= '1';
+					end if;
+				end if;
+			end if;
+		end if;
+	end process;
+	
+	CDSUBC_FIFO : entity work.CDSUBC_FIFO 
+	port map(
+		clock		=> CLK,
+		data		=> SUBCD_FIFO_D,
+		wrreq		=> SUBCD_FIFO_WR_REQ,
+		full		=> SUBCD_FIFO_FULL,
+		sclr		=> SUBCD_FIFO_SCLR,
+		rdreq		=> SUBCD_FIFO_RD_REQ,
+		empty		=> SUBCD_FIFO_EMPTY,
+		q			=> SUBCD_FIFO_Q
+	);
+	
 	process( RST_N, CLK )
 	begin
 		if RST_N = '0' then
@@ -741,9 +800,19 @@ begin
 			FIFO_RD_REQ <= '0';
 			OUTL <= (others => '0');
 			OUTR <= (others => '0');
+			SUBCD_CE <= '0';
+			SUBCD_CNT <= (others => '0');
+			SUBCD_BYTE <= (others => '0');
+			SUBCD_BYTENUM <= (others => '0');
+			SUBCD_FIFO_SCLR <= '1';
+			SUBCD_FIFO_RD_REQ <= '0';
+
 		elsif rising_edge(CLK) then
 			FIFO_RD_REQ <= '0';
 			FIFO_SCLR <= '0';
+			SUBCD_FIFO_RD_REQ <= '0';
+			SUBCD_FIFO_SCLR <= '0';
+			
 			if CDDA_CE = '1' and EN = '1' then	-- ~44.1kHz
 				CDDA_SAMPLE <= not CDDA_SAMPLE;
 				if FIFO_EMPTY = '0' then
@@ -755,8 +824,40 @@ begin
 						OUTL <= (others => '0');
 						OUTR <= (others => '0');
 						FIFO_SCLR <= '1';
+						SUBCD_FIFO_SCLR <= '1';
 					end if;
 				end if;
+
+
+				if SUBCD_CNT = 0 then
+					SUBCD_CE <= '1';									-- set interrupt flag
+					
+					if SUBCD_FIFO_EMPTY = '0' then
+						SUBCD_FIFO_RD_REQ <= '1';
+						SUBCD_BYTE <= SUBCD_FIFO_Q(7 downto 0);
+					end if;
+
+					-- Note that there are 96 bytes in a subcode sector, PLUS 2 bytes as a 'synchronization word'
+					-- The sync word bytes are "0x00, 0x80" when the motor is running, or "0x1F, 0xFD" when it is not running
+						--> Currently, Main_MiSTer send these two bytes, and only implements the 'motor on' version (0x00, 0x80)
+					-- When paused, the last sector (with correct SUNCODEQ timing information) should be repeated constantly
+						--> Not yet implemented
+
+					if (SUBCD_BYTENUM = 97) then
+						SUBCD_BYTENUM <= (others => '0');		-- 98 bytes in sector
+					else
+						SUBCD_BYTENUM <= SUBCD_BYTENUM + 1;
+					end if;
+				else
+					SUBCD_CE <= '0';									-- SUBCODE 1 sample every 6 CDDA sample intervals
+				end if;
+
+				if SUBCD_CNT = 5 then
+					SUBCD_CNT <= (others => '0');
+				else
+					SUBCD_CNT <= SUBCD_CNT + 1;
+				end if;
+
 			end if;
 		end if;
 	end process;

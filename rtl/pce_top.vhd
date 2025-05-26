@@ -62,6 +62,7 @@ entity pce_top is
 		CD_DATA		: in  std_logic_vector(7 downto 0);
 		CD_DATA_WR	: in  std_logic;
 		CD_AUDIO_WR	: in  std_logic;
+		CD_SUBCD_WR	: in  std_logic;			-- subcode data
 		CD_DATA_END	: out std_logic;
 		CD_DM			: in  std_logic;
 
@@ -657,6 +658,7 @@ port map(
 	CD_DATA		=> CD_DATA,
 	CD_DATA_WR	=> CD_DATA_WR,
 	CD_AUDIO_WR	=> CD_AUDIO_WR,
+	CD_SUBCD_WR	=> CD_SUBCD_WR,
 	CD_DATA_END	=> CD_DATA_END,
 	
 	CD_REGION   => CD_REGION,
