@@ -708,9 +708,9 @@ begin
 					BG_X <= (others=>'0');
 				end if; 
 				
-				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 and DISP_CNT = VDS_END_POS + 1 then
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 6 and DISP_CNT = VDS_END_POS + 1 then
 					OFS_Y <= unsigned(BYR);
-				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 6 then
 					if BYRL_SET = '1' or BYRH_SET = '1' then
 						NEW_OFS_Y := unsigned(BYR);
 					else
