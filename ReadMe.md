@@ -95,6 +95,7 @@ For 2-button 'turbo' joypad (sync'd as in original system), turbo fire is provid
    - Forgotten Worlds
    - Operation Wolf
    - Outrun
+
 Do not enable the above features for games not supporting it, otherwise game will work incorrectly (for example, 6-button is only supported on a very small list of games).
 
 ## Mouse
@@ -115,6 +116,7 @@ Mouse is supported.  Supported games:
  * Princess Maker 2
  * Tokimeki Memorial
  * Vasteel 2
+
 Do not enable this feature for games not supporting it, otherwise game will work incorrectly.
 
 ## Pachinko
@@ -149,7 +151,6 @@ Enabling this should not interfere with normal operation of games, but will only
  * Super Real Mahjong P V Custom
  * Tadaima Yuusha Boshuuchuu
  * Vasteel 2
-
 
 ## Download precompiled binaries
 Go to [releases](https://github.com/MiSTer-devel/TurboGrafx16_MiSTer/tree/master/releases) folder. 
