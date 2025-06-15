@@ -138,7 +138,7 @@ Enabling this should not interfere with normal operation of games, but will only
  * Ganchouhishi - Aoki Ookami to Shiroki Mejika
  * Linda Cube
  * Magicoal
- * Mahojng Sword Princess Quest Gaiden
+ * Mahjong Sword Princess Quest Gaiden
  * Nobunaga no Yabou - Bushou Fuuunroku
  * Nobunaga no Yabou Zenkokuban
  * Popful Mail
