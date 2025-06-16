@@ -463,7 +463,7 @@ begin
 					RC_CNT_UPDATED := '1';
 				end if;
 				
-				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 6 then
 					BB <= CR_BB;
 					SB <= CR_SB;
 				end if;
@@ -1394,7 +1394,7 @@ begin
 					BYRH_SET <= '1';
 				end if;
 				
-				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 6 then
 					BYRL_SET <= '0';
 					BYRH_SET <= '0';
 				end if; 
