@@ -826,13 +826,14 @@ begin
 					SPR_EVAL <= '0';
 				end if;
 				
-				if ((DOT_CNT = 7 and TILE_CNT = HDISP_END_POS) or (DOT_CNT = 7 and TILE_CNT = 0 and DISP_BREAK_LATCH = '1')) and DISP_CNT >= VDS_END_POS and DISP_CNT < VDISP_END_POS and SPR_FETCH = '0' then
+				if ((DOT_CNT = 7 and TILE_CNT = HDISP_END_POS                and DISP_CNT >= VDS_END_POS and DISP_CNT <  VDISP_END_POS) or 
+				    (DOT_CNT = 7 and TILE_CNT = 0 and DISP_BREAK_LATCH = '1' and DISP_CNT >  VDS_END_POS and DISP_CNT <= VDISP_END_POS)) and SPR_FETCH = '0' then
 					SPR_FETCH <= '1';
 					SPR_FETCH_EN <= CR_SB and SPR_FIND;
 					SPR_FETCH_CNT <= (others=>'0');
 					SPR_FETCH_W <= '0';
 					SPR_FETCH_DONE <= '0';
-				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 and DISP_CNT > VDS_END_POS and DISP_CNT <= VDISP_END_POS then
+				elsif TILE_CNT = HDS_END_POS - 2 and DOT_CNT = 7 then
 					SPR_FETCH <= '0';
 				end if;
 
