@@ -199,9 +199,16 @@ begin
 end process;
 
 -- Video counting, register loading and clock generation
-process( CLK )
+process(CLK, RESET_N)
 begin
-	if rising_edge( CLK ) then
+	if RESET_N = '0' then
+		CLKEN_CNT <= (others=>'0');
+		H_CNT <= (others=>'0');
+		V_CNT <= (others=>'0');
+		CLKEN_FF <= '0';
+		MULTIRES_FF <= '0';
+		BW <= '0';
+	elsif rising_edge(CLK) then
 		H_CNT <= H_CNT + 1;
 
 		CLKEN_FF <= '0';
@@ -267,9 +274,12 @@ begin
 	end if;
 end process;
 
-process( CLK )
+process(CLK, RESET_N)
 begin
-	if rising_edge( CLK ) then
+	if RESET_N = '0' then
+		CLKEN_FS_CNT <= (others=>'0');
+		CLKEN_FS <= '0';
+	elsif rising_edge(CLK) then
 		CLKEN_FS <= '0';
 		CLKEN_FS_CNT <= CLKEN_FS_CNT + 1;
 		if (MULTIRES = '1' or DOTCLOCK(1) = '1') and CLKEN_FS_CNT = "011" and H_CNT < LINE_CLOCKS-2-1 then
