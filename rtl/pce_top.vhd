@@ -139,6 +139,7 @@ signal VDC1_BUSY_N	: std_logic;
 signal VDC1_IRQ_N		: std_logic;
 signal VDC1_COLNO		: std_logic_vector(8 downto 0);
 signal VDC_CLKEN		: std_logic;
+signal VDC_CLKEN_F	: std_logic;
 signal VPC_DO			: std_logic_vector(7 downto 0);
 signal VDCNUM    		: std_logic;
 signal VDC_COLNO		: std_logic_vector(8 downto 0);
@@ -322,6 +323,7 @@ port map(
 	-- VDC Interface
 	COLNO		=> VDC_COLNO,
 	CLKEN		=> VDC_CLKEN,
+	CLKEN_F  => VDC_CLKEN_F,
 	HSYNC_F	=> VCE_HSYNC_F,
 	HSYNC_R	=> VCE_HSYNC_R,
 	VSYNC_F	=> VCE_VSYNC_F,
@@ -365,6 +367,7 @@ port map(
 
 	-- VCE Interface
 	DCK_CE	=> VDC_CLKEN,
+	DCK_CE_F => VDC_CLKEN_F,
 	HSYNC_F	=> VCE_HSYNC_F,
 	HSYNC_R	=> VCE_HSYNC_R,
 	VSYNC_F	=> VCE_VSYNC_F,
@@ -423,6 +426,7 @@ generate_SGX: if (LITE = 0) generate begin
 
 		-- VCE Interface
 		DCK_CE	=> VDC_CLKEN,
+		DCK_CE_F => VDC_CLKEN_F,
 		HSYNC_F	=> VCE_HSYNC_F,
 		HSYNC_R	=> VCE_HSYNC_R,
 		VSYNC_F	=> VCE_VSYNC_F,

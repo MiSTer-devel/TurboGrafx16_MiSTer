@@ -22,6 +22,7 @@ entity huc6260 is
 		-- VDC Interface
 		COLNO		: in std_logic_vector(8 downto 0);
 		CLKEN		: out std_logic;
+		CLKEN_F	: out std_logic;
 		HSYNC_F	: out std_logic;
 		HSYNC_R	: out std_logic;
 		VSYNC_F	: out std_logic;
@@ -100,6 +101,7 @@ signal VBL_FF, VBL_FF2	: std_logic;
 signal CLKEN_CNT	: std_logic_vector(2 downto 0);
 signal CLKEN_FS_CNT: std_logic_vector(2 downto 0);
 signal CLKEN_FF	: std_logic;
+signal CLKEN_FF_F	: std_logic;
 signal MULTIRES_FF : std_logic;
 signal MULTIRES   : std_logic;
 
@@ -222,6 +224,14 @@ begin
 		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "011" and H_CNT < LINE_CLOCKS-2-1 then
 			CLKEN_CNT <= (others => '0');
 			CLKEN_FF <= '1';				
+		end if;
+		
+		if DOTCLOCK = "00" and CLKEN_CNT = "011" then
+			CLKEN_FF_F <= '1';
+		elsif DOTCLOCK = "01" and CLKEN_CNT = "010" then
+			CLKEN_FF_F <= '1';				
+		elsif DOTCLOCK(1) = '1' and CLKEN_CNT = "001" then
+			CLKEN_FF_F <= '1';				
 		end if;
 
 		if H_CNT = LINE_CLOCKS-1 then
@@ -372,5 +382,6 @@ begin
 end process;
 
 CLKEN <= CLKEN_FF;
+CLKEN_F <= CLKEN_FF_F;
 
 end rtl;

@@ -21,6 +21,7 @@ entity HUC6270 is
 		IRQ_N		: out std_logic;
 		
 		DCK_CE	: in std_logic;
+		DCK_CE_F	: in std_logic;
 		HSYNC_F	: in std_logic;
 		HSYNC_R	: in std_logic;
 		VSYNC_F	: in std_logic;
@@ -127,6 +128,7 @@ architecture rtl of HUC6270 is
 	signal IRQ_VBL			: std_logic;
 	signal IO_BYRL_SET	: std_logic;
 	signal IO_BYRH_SET	: std_logic;
+	signal IO_BYRL_WR,IO_BYRH_WR : std_logic;
 	signal CPU_BUSY		: std_logic;
 	signal CPU_BUSY_CLEAR: std_logic;
 	signal CPURD_PEND 	: std_logic;
@@ -1143,7 +1145,6 @@ begin
 		
 	
 	process(CLK, RST_N)
-	variable CPU_CE2: std_logic;
 	begin
 		if RST_N = '0' then
 			AR <= (others=>'0');
@@ -1174,15 +1175,9 @@ begin
 			BYRH_SET <= '0';
 			VDISP_OLD <= '0';
 		elsif rising_edge(CLK) then
-			if CPU_CE = '1' then
-				if CS_N = '0' then
-					CPU_CE2 := not CPU_CE2;
-				else
-					CPU_CE2 := '0';
-				end if;
-			end if;
-			
-			if CS_N = '0' and WR_N = '0' and CPU_CE = '1' and CPU_CE2 = '1' then
+			IO_BYRL_WR <= '0';
+			IO_BYRH_WR <= '0';
+			if CS_N = '0' and WR_N = '0' and CPU_CE = '1' then
 				case A(1) is
 					when '0' =>
 						if (BYTEWORD = '0' or A(0) = '0') then		-- if 16-bit access or 8-bit access to "00"
@@ -1229,12 +1224,12 @@ begin
 								end if;
 							when "01000" =>
 								if BYTEWORD = '0' then
-									IO_BYRL_SET <= '1';
-									IO_BYRH_SET <= '1';
+									IO_BYRL_WR <= '1';
+									IO_BYRH_WR <= '1';
 								elsif A(0) = '0' then
-									IO_BYRL_SET <= '1';
+									IO_BYRL_WR <= '1';
 								else
-									IO_BYRH_SET <= '1';
+									IO_BYRH_WR <= '1';
 								end if;
 							when "10010" =>
 								if (BYTEWORD = '0' or A(0) = '1') then	-- if 16-bit access or 8-bit access to "11"
@@ -1258,7 +1253,7 @@ begin
 						
 					when others => null;
 				end case;
-			elsif CS_N = '0' and RD_N = '0' and CPU_CE = '1' and CPU_CE2 = '1' then
+			elsif CS_N = '0' and RD_N = '0' and CPU_CE = '1' then
 				case A(1) is
 					when '0' =>
 						if (BYTEWORD = '0' or A(0) = '0') then		-- if 16-bit access or 8-bit access to "00"
@@ -1285,6 +1280,13 @@ begin
 					when others => null;
 				end case;
 			end if; 
+			
+			if IO_BYRL_WR = '1' then
+				IO_BYRL_SET <= '1';
+			end if; 
+			if IO_BYRH_WR = '1' then
+				IO_BYRH_SET <= '1';
+			end if;
 			
 			if DCK_CE = '1' then
 				if DOT_CNT(0) = '1' then
@@ -1401,20 +1403,22 @@ begin
 					BXR_SET <= '0';
 				end if; 
 				
+				if TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
+					BYRL_SET <= '0';
+					BYRH_SET <= '0';
+				end if;
+			end if;
 				
+			if DCK_CE_F = '1' then
 				--sync BYRx latches to dot clock
 				if IO_BYRL_SET = '1' then
 					IO_BYRL_SET <= '0';
 					BYRL_SET <= '1';
-				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
-					BYRL_SET <= '0';
 				end if; 
 				
 				if IO_BYRH_SET = '1' then
 					IO_BYRH_SET <= '0';
 					BYRH_SET <= '1';
-				elsif TILE_CNT = HDS_END_POS - 3 and DOT_CNT = 7 then
-					BYRH_SET <= '0';
 				end if;
 			end if;
 		end if;
@@ -1433,7 +1437,7 @@ begin
 		end if;
 	end process;
 
-	process(A, SR_LATCH, VRR)
+	process(A, BYTEWORD, SR_LATCH, VRR)
 	begin
 		DO <= x"0000";
 		case A(1) is
