@@ -1172,10 +1172,12 @@ XE1AP #(43) XE1AP		// 43 clock cycles per microsecond
    .joystick_0(joy_0),
    .joystick_l_analog_0(joy_a),
    .joystick_r_analog_0(joy_b),
+
+   .orientation(1),                     // throttle on the right side, stick on the left side
    .req(joy_out[1]),			// signal requesting response from XE-1AP (on return to high)
 									// pin 8 on original 9-pin connector 
-   .trg1(xe1_trg1),			// pin 6 on original 9-pin connector
-   .trg2(xe1_trg2),			// pin 7 on original 9-pin connector
+   .lo_hi(xe1_trg1),			// pin 6 on original 9-pin connector
+   .ack(xe1_trg2),			// pin 7 on original 9-pin connector
    .data(xe1_data),			// Data[3] = pin 4 on original 9-pin connector
 									// Data[2] = pin 3 on original 9-pin connector
 									// Data[1] = pin 2 on original 9-pin connector
