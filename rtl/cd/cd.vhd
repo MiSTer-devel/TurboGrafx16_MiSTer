@@ -282,8 +282,8 @@ begin
 							end if;
 						when x"05" =>
 							if CDDA_SAMPLE = '1' and CDDA_SAMPLE_OLD = '0' then
-								if CH_SEL /= '0' then
-									CDDA_VOL <= std_logic_vector(OUTL);
+								if CH_SEL = '0' then
+									CDDA_VOL <= std_logic_vector(OUTL);   -- CDDA_VOL is returned by a different process in *the same cycle*, so we assign the opposite of what documentation says
 								else
 									CDDA_VOL <= std_logic_vector(OUTR);
 								end if;
