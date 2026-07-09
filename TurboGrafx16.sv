@@ -914,11 +914,14 @@ reg [7:0] ms_x, ms_y;
 
 always @(posedge clk_sys) begin : input_block
 	reg  [1:0] last_gp;
-	reg        high_buttons;
+	reg        high_buttons = 0;
 	reg [14:0] mouse_to;
 	reg        ms_stb;
 	reg  [7:0] msr_x, msr_y;
 
+	if (reset)
+		high_buttons <= 0;
+	
 	joy_latch <= joy_data[{high_buttons, joy_out[0], 2'b00} +:4];
 
 	last_gp <= joy_out;
@@ -967,6 +970,8 @@ always @(posedge clk_sys) begin : input_block
 			joy_latch <= 0;
 			if (~last_gp[1] && (status[30:29] == 2'b10)) high_buttons <= ~high_buttons;
 		end
+		else
+			high_buttons <= 0;
 	end
 	else if (joy_out[0] && ~last_gp[0] && (status[2] | status[27]) && (status[27:26] != 2'b11)) begin	// suppress if XE-1AP
 		joy_port <= joy_port + 3'd1;
