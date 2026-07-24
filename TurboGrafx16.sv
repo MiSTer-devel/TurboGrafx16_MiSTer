@@ -243,7 +243,7 @@ parameter CONF_STR = {
 `endif
 	"S0,CUECHD,Insert CD;",
 	"-;",
-	"C,Cheats;",
+	"H1C,Cheats;",
 	"H1O5,Cheats enabled,ON,OFF;",
 	"-;",
 	"D0RG,Load Backup RAM;",
@@ -374,7 +374,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({en216p, snac, 1'd1, use_sdr, ~use_sdr, ~gg_avail,~bk_ena}),
+	.status_menumask({en216p, snac, 1'd1, use_sdr, ~use_sdr, (~gg_avail | hardcore),~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
 
 	.sdram_sz(sdram_sz),
@@ -471,7 +471,9 @@ pce_top #(LITE) pce_top
 	.BRM_DI(bram_data),
 	.BRM_WE(bram_wr),
 
-	.GG_EN(status[5]),
+	// GG_EN is active-low inside pce_top.vhd (enable => not GG_EN);
+	// status[5]=1 means "Cheats enabled = OFF". Hardcore forces cheats off.
+	.GG_EN(status[5] | hardcore),
 	.GG_CODE(gg_code),
 	.GG_RESET((cart_download | code_download) & ioctl_wr & !ioctl_addr),
 	.GG_AVAIL(gg_avail),
@@ -987,6 +989,10 @@ end
 
 reg [128:0] gg_code;
 wire gg_avail;
+
+// RetroAchievements hardcore mode: written by Main (achievements), no OSD
+// entry. Forces the cheat engine off and hides the Cheats menu.
+wire hardcore = status[39];
 
 // Code layout:
 // {clock bit, code flags,     32'b address, 32'b compare, 32'b replace}
